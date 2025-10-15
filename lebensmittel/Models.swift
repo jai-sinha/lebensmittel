@@ -11,6 +11,7 @@ import Combine
 struct GroceryItem: Identifiable, Codable {
     var id = UUID()
     var name: String
+    var category: String
     var isNeeded: Bool = true // true = need to buy, false = have it
     var isShoppingChecked: Bool = false // checked off in shopping list
 }
@@ -54,8 +55,8 @@ class AppData: ObservableObject {
         }
     }
     
-    func addGroceryItem(_ name: String) {
-        let newItem = GroceryItem(name: name)
+    func addGroceryItem(_ name: String, category: String = "Other") {
+        let newItem = GroceryItem(name: name, category: category)
         groceryItems.append(newItem)
         saveData()
     }

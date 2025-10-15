@@ -1,17 +1,15 @@
-//
-//  GroceriesView.swift
-//  lebensmittel
-//
-//  Created by Jai Sinha on 10/15/25.
-//
-
 import SwiftUI
 
 struct GroceriesView: View {
     @ObservedObject var appData: AppData
     @State private var newItemName = ""
+    @State private var selectedCategory = "Other"
     @State private var showingAddItem = false
     @State private var isSearching = false
+    @State private var expandedCategories: Set<String> = []
+    
+    // Predefined categories
+    private let categories = ["Vegetables", "Protein", "Fruit", "Bread", "Beverages", "Other", "Essentials"]
     
     // Computed property for search results
     private var searchResults: [GroceryItem] {
@@ -31,48 +29,42 @@ struct GroceriesView: View {
         }
     }
     
+    // Group items by category
+    private var itemsByCategory: [String: [GroceryItem]] {
+        Dictionary(grouping: appData.groceryItems) { $0.category }
+    }
+    
+    // Get sorted categories (with items first, then empty categories)
+    private var sortedCategories: [String] {
+        let categoriesWithItems = itemsByCategory.keys.sorted()
+        let emptycategories = categories.filter { !itemsByCategory.keys.contains($0) }
+        return categoriesWithItems + emptycategories
+    }
+    
     var body: some View {
         NavigationView {
             VStack {
                 List {
-                    ForEach(appData.groceryItems) { item in
-                        HStack {
-                            Button(action: {
-                                appData.toggleGroceryItemNeeded(item: item)
-                            }) {
-                                Image(systemName: item.isNeeded ? "checkmark.square" : "square")
-                                    .foregroundColor(item.isNeeded ? .green : .gray)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            Text(item.name)
-                                .foregroundColor(item.isNeeded ? .primary : .gray)
-                            
-                            Spacer()
+                    ForEach(sortedCategories, id: \.self) { category in
+                        if let items = itemsByCategory[category], !items.isEmpty {
+                            CategorySection(
+                                category: category,
+                                items: items,
+                                isExpanded: expandedCategories.contains(category),
+                                appData: appData,
+                                onToggleExpansion: {
+                                    if expandedCategories.contains(category) {
+                                        expandedCategories.remove(category)
+                                    } else {
+                                        expandedCategories.insert(category)
+                                    }
+                                }
+                            )
                         }
-                        .padding(.vertical, 2)
                     }
-                    .onDelete(perform: deleteItems)
                 }
                 
                 VStack(spacing: 0) {
-                    HStack {
-                        TextField("Search or add new item", text: $newItemName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .onChange(of: newItemName) { _ in
-                                isSearching = !newItemName.isEmpty
-                            }
-                            .onSubmit {
-                                addItem()
-                            }
-                        
-                        Button(exactMatch != nil ? "Select" : "Add") {
-                            addItem()
-                        }
-                        .disabled(newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                    .padding()
-                    
                     // Search results dropdown
                     if isSearching && !searchResults.isEmpty {
                         VStack(spacing: 0) {
@@ -84,8 +76,13 @@ struct GroceriesView: View {
                                         Image(systemName: item.isNeeded ? "checkmark.square.fill" : "square")
                                             .foregroundColor(item.isNeeded ? .green : .gray)
                                         
-                                        Text(item.name)
-                                            .foregroundColor(.primary)
+                                        VStack(alignment: .leading) {
+                                            Text(item.name)
+                                                .foregroundColor(.primary)
+                                            Text(item.category)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
                                         
                                         Spacer()
                                         
@@ -112,13 +109,51 @@ struct GroceriesView: View {
                                 .stroke(Color(.systemGray4), lineWidth: 1)
                         )
                         .padding(.horizontal)
+                        .padding(.bottom, 8)
+                    }
+                    
+                    VStack(spacing: 8) {
+                        // Category picker
+                        HStack {
+                            Text("Category:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Picker("Category", selection: $selectedCategory) {
+                                ForEach(categories, id: \.self) { category in
+                                    Text(category).tag(category)
+                                }
+                            }
+                            .pickerStyle(MenuPickerStyle())
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal)
+                        
+                        // Search/Add field
+                        HStack {
+                            TextField("Search or add new item", text: $newItemName)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .onChange(of: newItemName) { _ in
+                                    isSearching = !newItemName.isEmpty
+                                }
+                                .onSubmit {
+                                    addItem()
+                                }
+                            
+                            Button(exactMatch != nil ? "Select" : "Add") {
+                                addItem()
+                            }
+                            .disabled(newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        .padding(.horizontal)
                         .padding(.bottom)
                     }
                 }
             }
             .navigationTitle("Groceries")
-            .toolbar {
-                EditButton()
+            .onAppear {
+                // Expand all categories by default
+                expandedCategories = Set(sortedCategories)
             }
         }
     }
@@ -136,7 +171,9 @@ struct GroceriesView: View {
                 }
             } else {
                 // Only create new item if it doesn't exist
-                appData.addGroceryItem(trimmedName)
+                appData.addGroceryItem(trimmedName, category: selectedCategory)
+                // Expand the category if it's not already expanded
+                expandedCategories.insert(selectedCategory)
             }
             newItemName = ""
             isSearching = false
@@ -152,10 +189,65 @@ struct GroceriesView: View {
         newItemName = ""
         isSearching = false
     }
+}
+
+struct CategorySection: View {
+    let category: String
+    let items: [GroceryItem]
+    let isExpanded: Bool
+    let appData: AppData
+    let onToggleExpansion: () -> Void
     
-    private func deleteItems(offsets: IndexSet) {
-        for index in offsets {
-            appData.deleteGroceryItem(item: appData.groceryItems[index])
+    var body: some View {
+        Section {
+            if isExpanded {
+                ForEach(items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) { item in
+                    HStack {
+                        Button(action: {
+                            appData.toggleGroceryItemNeeded(item: item)
+                        }) {
+                            Image(systemName: item.isNeeded ? "checkmark.square" : "square")
+                                .foregroundColor(item.isNeeded ? .green : .gray)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Text(item.name)
+                            .foregroundColor(item.isNeeded ? .primary : .gray)
+                        
+                        Spacer()
+                    }
+                    .padding(.vertical, 2)
+                }
+                .onDelete { offsets in
+                    let sortedItems = items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                    for index in offsets {
+                        appData.deleteGroceryItem(item: sortedItems[index])
+                    }
+                }
+            }
+        } header: {
+            Button(action: onToggleExpansion) {
+                HStack {
+                    Text(category)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Text("\(items.count)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
+                    
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
         }
     }
 }
