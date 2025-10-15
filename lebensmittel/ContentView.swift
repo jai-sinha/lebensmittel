@@ -8,14 +8,28 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var appData = AppData()
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            GroceriesView(appData: appData)
+                .tabItem {
+                    Image(systemName: "list.bullet")
+                    Text("Groceries")
+                }
+            
+            MealsView(appData: appData)
+                .tabItem {
+                    Image(systemName: "calendar")
+                    Text("Meals")
+                }
+            
+            ShoppingView(appData: appData)
+                .tabItem {
+                    Image(systemName: "cart")
+                    Text("Shopping")
+                }
         }
-        .padding()
     }
 }
 
