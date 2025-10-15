@@ -13,10 +13,24 @@ with app.app_context():
 @app.route('/')
 def home():
     """Home route that returns a welcome message."""
+    api_routes = [
+        {'route': '/', 'methods': ['GET'], 'description': 'Home route (API info)'},
+        {'route': '/health', 'methods': ['GET'], 'description': 'Health check'},
+        {'route': '/api/grocery-items', 'methods': ['GET'], 'description': 'Get all grocery items'},
+        {'route': '/api/grocery-items', 'methods': ['POST'], 'description': 'Create a grocery item'},
+        {'route': '/api/grocery-items/<item_id>', 'methods': ['PUT'], 'description': 'Update a grocery item'},
+        {'route': '/api/grocery-items/<item_id>', 'methods': ['DELETE'], 'description': 'Delete a grocery item'},
+        {'route': '/api/meal-plans', 'methods': ['GET'], 'description': 'Get all meal plans'},
+        {'route': '/api/meal-plans', 'methods': ['POST'], 'description': 'Create a meal plan'},
+        {'route': '/api/meal-plans/<meal_id>', 'methods': ['PUT'], 'description': 'Update a meal plan'},
+        {'route': '/api/meal-plans/<meal_id>', 'methods': ['DELETE'], 'description': 'Delete a meal plan'},
+        {'route': '/api/products', 'methods': ['GET'], 'description': 'Legacy: Get grocery items'},
+    ]
     return jsonify({
         'message': 'Welcome to the Lebensmittel Backend API',
         'status': 'success',
-        'version': '1.0.0'
+        'version': '1.0.0',
+        'apiRoutes': api_routes
     })
 
 @app.route('/health')
