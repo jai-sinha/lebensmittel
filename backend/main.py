@@ -155,7 +155,7 @@ def get_meal_plans():
 
 @app.route('/api/meal-plans', methods=['POST'])
 def create_meal_plan():
-    """Create a new meal plan."""
+    """Create a new meal plan. Enforces only one meal per date."""
     data = request.get_json()
     
     if not data or 'date' not in data or 'mealDescription' not in data:
@@ -163,12 +163,15 @@ def create_meal_plan():
     
     db = SessionLocal()
     try:
-        # Parse date string to datetime
+        # Parse date string to date
         try:
-            date = datetime.fromisoformat(data['date'].replace('Z', '+00:00'))
-        except ValueError:
-            return jsonify({'error': 'Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)'}), 400
-        
+            date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+        # Remove any existing meal for this date
+        db.query(MealPlan).filter(MealPlan.date == date).delete()
+
         new_meal = MealPlan(
             date=date,
             meal_description=data['mealDescription']
@@ -176,7 +179,7 @@ def create_meal_plan():
         db.add(new_meal)
         db.commit()
         db.refresh(new_meal)
-        
+
         return jsonify(new_meal.to_dict()), 201
     except Exception as e:
         db.rollback()
@@ -202,16 +205,16 @@ def update_meal_plan(meal_id):
         # Update fields if provided
         if 'date' in data:
             try:
-                meal.date = datetime.fromisoformat(data['date'].replace('Z', '+00:00'))
-            except ValueError:
-                return jsonify({'error': 'Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)'}), 400
-        
+                meal.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
         if 'mealDescription' in data:
             meal.meal_description = data['mealDescription']
-        
+
         db.commit()
         db.refresh(meal)
-        
+
         return jsonify(meal.to_dict())
     except Exception as e:
         db.rollback()

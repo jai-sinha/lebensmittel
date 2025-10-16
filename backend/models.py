@@ -2,7 +2,7 @@
 Database models for the Lebensmittel backend application.
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, Date, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -59,7 +59,7 @@ class MealPlan(Base):
     __tablename__ = 'meal_plans'
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    date = Column(DateTime, nullable=False)
+    date = Column(Date, nullable=False)
     meal_description = Column(Text, nullable=False)
     
     def to_dict(self):
