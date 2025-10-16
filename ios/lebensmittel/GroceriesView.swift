@@ -257,7 +257,7 @@ struct GroceriesView: View {
     private func updateGroceryItemNeeded(item: GroceryItem, isNeeded: Bool) {
         isLoading = true
         errorMessage = nil
-        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id)") else {
+        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id.uuidString.lowercased())") else {
             errorMessage = "Invalid URL"
             isLoading = false
             return
@@ -282,7 +282,7 @@ struct GroceriesView: View {
     private func deleteGroceryItem(item: GroceryItem) {
         isLoading = true
         errorMessage = nil
-        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id)") else {
+        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id.uuidString.lowercased())") else {
             errorMessage = "Invalid URL"
             isLoading = false
             return

@@ -1,10 +1,11 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from database import init_db, SessionLocal
 from models import GroceryItem, MealPlan
 from datetime import datetime
 
-# Create Flask application instance
 app = Flask(__name__)
+CORS(app)
 
 # Initialize database on startup
 with app.app_context():
