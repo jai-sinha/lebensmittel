@@ -22,6 +22,11 @@ struct MealPlan: Identifiable, Codable {
     var mealDescription: String
 }
 
+struct GroceryItemsResponse: Codable {
+    let count: Int
+    let groceryItems: [GroceryItem]
+}
+
 class AppData: ObservableObject {
     @Published var groceryItems: [GroceryItem] = []
     @Published var mealPlans: [MealPlan] = []
