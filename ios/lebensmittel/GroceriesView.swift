@@ -101,7 +101,7 @@ struct GroceriesView: View {
                             HStack {
                                 TextField("Search or add new item", text: $model.newItemName)
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .onChange(of: model.newItemName) { _ in
+                                    .onChange(of: model.newItemName) {
                                         model.isSearching = !model.newItemName.isEmpty
                                     }
                                     .onSubmit {
