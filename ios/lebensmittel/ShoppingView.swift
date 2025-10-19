@@ -10,18 +10,6 @@ import SwiftUI
 struct ShoppingView: View {
     @StateObject private var model = ShoppingModel()
     
-    var neededItems: [GroceryItem] {
-        return model.shoppingItems
-    }
-    
-    var uncheckedItems: [GroceryItem] {
-        return neededItems.filter { !$0.isShoppingChecked }
-    }
-    
-    var checkedItems: [GroceryItem] {
-        return neededItems.filter { $0.isShoppingChecked }
-    }
-    
     var body: some View {
         NavigationStack {
             VStack {
@@ -31,9 +19,9 @@ struct ShoppingView: View {
                     Text("Error: \(errorMessage)").foregroundColor(.red)
                 } else {
                     List {
-                        if !uncheckedItems.isEmpty {
+                        if !model.uncheckedItems.isEmpty {
                             Section("To Buy") {
-                                ForEach(uncheckedItems) { item in
+                                ForEach(model.uncheckedItems) { item in
                                     HStack {
                                         Button(action: {
                                             model.updateShoppingChecked(item: item, isChecked: !item.isShoppingChecked)
@@ -52,9 +40,9 @@ struct ShoppingView: View {
                             }
                         }
                         
-                        if !checkedItems.isEmpty {
+                        if !model.checkedItems.isEmpty {
                             Section("Completed") {
-                                ForEach(checkedItems) { item in
+                                ForEach(model.checkedItems) { item in
                                     HStack {
                                         Button(action: {
                                             model.updateShoppingChecked(item: item, isChecked: !item.isShoppingChecked)
@@ -75,7 +63,7 @@ struct ShoppingView: View {
                             }
                         }
                         
-                        if neededItems.isEmpty {
+                        if model.shoppingItems.isEmpty {
                             Section {
                                 HStack {
                                     Spacer()

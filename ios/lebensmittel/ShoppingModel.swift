@@ -12,13 +12,14 @@ class ShoppingModel: ObservableObject {
     @Published var shoppingItems: [GroceryItem] = []
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
-    
     var uncheckedItems: [GroceryItem] {
-        return shoppingItems.filter { !$0.isShoppingChecked }
+        shoppingItems.filter { !$0.isShoppingChecked }
+            .sorted { $0.category < $1.category }
     }
     
     var checkedItems: [GroceryItem] {
-        return shoppingItems.filter { $0.isShoppingChecked }
+        shoppingItems.filter { $0.isShoppingChecked }
+            .sorted { $0.category < $1.category }
     }
 
     func fetchShoppingItems() {
