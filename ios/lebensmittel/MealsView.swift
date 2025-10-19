@@ -8,11 +8,11 @@
 import SwiftUI
 
 struct MealsView: View {
-    @ObservedObject var mealsModel: MealsModel
+    @StateObject private var model = MealsModel()
     @State private var mealTexts: [String: String] = [:]
     
     private func date(for dayOffset: Int) -> Date {
-        Calendar.current.date(byAdding: .day, value: dayOffset, to: mealsModel.baseDate) ?? mealsModel.baseDate
+        Calendar.current.date(byAdding: .day, value: dayOffset, to: model.baseDate) ?? model.baseDate
     }
     
     private func isToday(utcDate: Date) -> Bool {
@@ -46,15 +46,15 @@ struct MealsView: View {
                         .padding(.horizontal)
                     }
                     .onAppear {
-                        mealsModel.fetchMealPlans()
+                        model.fetchMealPlans()
                         DispatchQueue.main.async {
                             proxy.scrollTo("today", anchor: .top)
                         }
                     }
                 }
             }
-            .onChange(of: mealsModel.mealPlans) {
-                for (dateStr, plan) in mealsModel.mealPlans {
+            .onChange(of: model.mealPlans) {
+                for (dateStr, plan) in model.mealPlans {
                     mealTexts[dateStr] = plan.meal
                 }
             }
@@ -68,10 +68,10 @@ struct MealsView: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 HStack(spacing: 4) {
-                    Text(mealsModel.dayFormatter.string(from: date))
+                    Text(model.dayFormatter.string(from: date))
                         .font(.title2)
                         .foregroundColor(isTodayDate ? .blue.opacity(0.8) : .secondary)
-                    Text(mealsModel.dateFormatter.string(from: date))
+                    Text(model.dateFormatter.string(from: date))
                         .font(.title2)
                         .foregroundColor(isTodayDate ? .blue : .primary)
                 }
@@ -87,7 +87,7 @@ struct MealsView: View {
                 }
             }
             TextField("", text: Binding(
-                get: { mealTexts[dateStr] ?? mealsModel.getMealPlan(for: dateStr) },
+                get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
                 set: { newValue in
                     mealTexts[dateStr] = newValue
                 }
@@ -102,11 +102,11 @@ struct MealsView: View {
                 */
                 let text = mealTexts[dateStr] ?? ""
                 if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    if let mealId = mealsModel.mealPlanId(for: dateStr) {
-                        mealsModel.deleteMealPlan(mealId: mealId)
+                    if let mealId = model.mealPlanId(for: dateStr) {
+                        model.deleteMealPlan(mealId: mealId)
                     }
                 } else {
-                    mealsModel.createMealPlan(for: dateStr, meal: text)
+                    model.createMealPlan(for: dateStr, meal: text)
                 }
             }
             Divider()
@@ -116,5 +116,5 @@ struct MealsView: View {
 }
 
 #Preview {
-    MealsView(mealsModel: MealsModel())
+    MealsView()
 }

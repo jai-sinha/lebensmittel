@@ -1,3 +1,11 @@
+//
+//  GroceriesModel.swift
+//  lebensmittel
+//
+//  Created by Jai Sinha on 10/16/25.
+//
+
+
 import Foundation
 import Combine
 

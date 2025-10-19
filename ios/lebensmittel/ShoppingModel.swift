@@ -1,3 +1,10 @@
+//
+//  ShoppingModel.swift
+//  lebensmittel
+//
+//  Created by Jai Sinha on 10/17/25.
+//
+
 import Foundation
 import Combine
 

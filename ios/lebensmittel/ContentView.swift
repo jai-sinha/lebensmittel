@@ -8,25 +8,16 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var appData = AppData()
-    @StateObject private var mealsModel: MealsModel
-    
-    init() {
-        let appData = AppData()
-        _appData = StateObject(wrappedValue: appData)
-        _mealsModel = StateObject(wrappedValue: MealsModel())
-    }
-    
     var body: some View {
         TabView() {
-            GroceriesView(appData: appData)
+            GroceriesView()
                 .tabItem {
                     Image(systemName: "list.bullet")
                     Text("Groceries")
                 }
                 .tag(0)
             
-            MealsView(mealsModel: mealsModel)
+            MealsView()
                 .tabItem {
                     Image(systemName: "calendar")
                     Text("Meals")

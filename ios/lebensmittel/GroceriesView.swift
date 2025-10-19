@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct GroceriesView: View {
-    @ObservedObject var appData: AppData
     @StateObject private var model = GroceriesModel()
     
     var body: some View {
