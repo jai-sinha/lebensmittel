@@ -1,3 +1,10 @@
+//
+//  GroceriesView.swift
+//  lebensmittel
+//
+//  Created by Jai Sinha on 10/15/25.
+//
+
 import SwiftUI
 
 struct GroceriesView: View {
