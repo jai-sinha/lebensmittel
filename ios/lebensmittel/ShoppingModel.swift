@@ -62,8 +62,8 @@ class ShoppingModel: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let updatedItem: [String: Any] = ["name": item.name, "category": item.category, "isNeeded": item.isNeeded, "isShoppingChecked": isChecked]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: updatedItem)
+        let updatedItem = UpdateGroceryItem(name: item.name, category: item.category, isNeeded: item.isNeeded, isShoppingChecked: isChecked)
+        request.httpBody = try? JSONEncoder().encode(updatedItem)
         URLSession.shared.dataTask(with: request) { _, _, error in
             DispatchQueue.main.async {
                 self.isLoading = false

@@ -55,7 +55,7 @@ struct MealsView: View {
             }
             .onChange(of: model.mealPlans) {
                 for (dateStr, plan) in model.mealPlans {
-                    mealTexts[dateStr] = plan.meal
+                    mealTexts[dateStr] = plan.mealDescription
                 }
             }
             .navigationTitle("Meal Planning")

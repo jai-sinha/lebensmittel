@@ -17,8 +17,13 @@ struct GroceryItem: Identifiable, Codable {
 }
 
 struct MealPlan: Identifiable, Codable, Equatable {
-    var id: String { date.description }
-    var date: Date
+    var id: String
+    var date: String
+    var mealDescription: String
+}
+
+struct NewMealPlan: Codable {
+    var date: String
     var mealDescription: String
 }
 
@@ -30,4 +35,18 @@ struct MealPlansResponse: Codable {
 struct GroceryItemsResponse: Codable {
     let count: Int
     let groceryItems: [GroceryItem]
+}
+
+struct NewGroceryItem: Codable {
+    var name: String
+    var category: String
+    var isNeeded: Bool = true
+    var isShoppingChecked: Bool = false
+}
+
+struct UpdateGroceryItem: Codable {
+    var name: String
+    var category: String
+    var isNeeded: Bool
+    var isShoppingChecked: Bool
 }

@@ -113,8 +113,8 @@ class GroceriesModel: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let newItem: [String: Any] = ["name": name, "category": category, "isNeeded": true, "isShoppingChecked": false]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: newItem)
+        let newItem = NewGroceryItem(name: name, category: category)
+        request.httpBody = try? JSONEncoder().encode(newItem)
         URLSession.shared.dataTask(with: request) { _, _, error in
             DispatchQueue.main.async {
                 self.isLoading = false
@@ -138,8 +138,8 @@ class GroceriesModel: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let updatedItem: [String: Any] = ["name": item.name, "category": item.category, "isNeeded": isNeeded, "isShoppingChecked": item.isShoppingChecked]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: updatedItem)
+        let updatedItem = UpdateGroceryItem(name: item.name, category: item.category, isNeeded: isNeeded, isShoppingChecked: item.isShoppingChecked)
+        request.httpBody = try? JSONEncoder().encode(updatedItem)
         URLSession.shared.dataTask(with: request) { _, _, error in
             DispatchQueue.main.async {
                 self.isLoading = false

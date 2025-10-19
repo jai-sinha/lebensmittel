@@ -7,15 +7,12 @@
 
 import SwiftUI
 import Combine
+import Foundation
 
-struct MealPlanEntry: Equatable {
-    let id: String
-    let meal: String
-}
-
+// Use MealPlan from Models.swift
 class MealsModel: ObservableObject {
     @Published var baseDate: Date
-    @Published var mealPlans: [String: MealPlanEntry] = [:]
+    @Published var mealPlans: [String: MealPlan] = [:] // Keyed by date string
     
     init(baseDate: Date = Calendar.current.startOfDay(for: Date())) {
         self.baseDate = baseDate
@@ -24,27 +21,28 @@ class MealsModel: ObservableObject {
     func fetchMealPlans() {
         guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans") else { return }
         URLSession.shared.dataTask(with: url) { data, _, _ in
-            guard let data = data,
-                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let json = root["mealPlans"] as? [[String: Any]] else {
-                print("Failed to fetch or parse meal plans data")
+            guard let data = data else {
+                print("Failed to fetch meal plans data")
                 return
             }
-            DispatchQueue.main.async {
-                self.mealPlans.removeAll()
-                for item in json {
-                    if let id = item["id"] as? String,
-                       let dateStr = item["date"] as? String,
-                       let meal = item["mealDescription"] as? String {
-                        self.mealPlans[dateStr] = MealPlanEntry(id: id, meal: meal)
+            Task {
+                do {
+                    let response = try JSONDecoder().decode(MealPlansResponse.self, from: data)
+                    await MainActor.run {
+                        self.mealPlans.removeAll()
+                        for mealPlan in response.mealPlans {
+                            self.mealPlans[mealPlan.date] = mealPlan
+                        }
                     }
+                } catch {
+                    print("Decoding error: \(error)")
                 }
             }
         }.resume()
     }
     
     func getMealPlan(for dateString: String) -> String {
-        return mealPlans[dateString]?.meal ?? ""
+        return mealPlans[dateString]?.mealDescription ?? ""
     }
     
     func mealPlanId(for dateString: String) -> String? {
@@ -55,14 +53,10 @@ class MealsModel: ObservableObject {
         guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        let body: [String: Any] = ["date": dateString, "mealDescription": meal]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        let newMealPlan = NewMealPlan(date: dateString, mealDescription: meal)
+        request.httpBody = try? JSONEncoder().encode(newMealPlan)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         URLSession.shared.dataTask(with: request) { data, _, _ in
-            guard let data = data,
-                  let item = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let id = item["id"] as? String,
-                  let dateStr = item["date"] as? String else { return }
             DispatchQueue.main.async {
                 self.fetchMealPlans()
             }
