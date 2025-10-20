@@ -21,7 +21,7 @@ struct ReceiptsView: View {
                     Text("Error: \(errorMessage)").foregroundColor(.red)
                 } else {
                     List {
-                        ForEach(model.groupReceiptsByMonth(), id: \ .month) { (month, receipts) in
+                        ForEach(model.groupReceiptsByMonthWithPersonTotals(), id: \ .month) { (month, receipts, jTotal, hTotal) in
                             DisclosureGroup(
                                 isExpanded: Binding(
                                     get: { expandedMonths.contains(month) },
@@ -74,13 +74,32 @@ struct ReceiptsView: View {
                                                         .font(.subheadline)
                                                         .foregroundColor(.blue)
                                                     Spacer()
-                                                    Text(String(format: "$%.2f", receipt.totalAmount))
+                                                    Text(String(format: "€%.2f", receipt.totalAmount))
                                                         .font(.subheadline)
                                                         .foregroundColor(.green)
                                                 }
                                             }
                                         )
                                     }
+                                    // Monthly person totals
+                                    HStack {
+                                        Text("Jai's Total: ")
+                                            .font(.subheadline)
+                                            .bold()
+                                        Text(String(format: "€%.2f", jTotal))
+                                            .font(.subheadline)
+                                            .foregroundColor(.green)
+                                            .bold()
+                                        Spacer()
+                                        Text("Hanna's Total: ")
+                                            .font(.subheadline)
+                                            .bold()
+                                        Text(String(format: "€%.2f", hTotal))
+                                            .font(.subheadline)
+                                            .foregroundColor(.green)
+                                            .bold()
+                                    }
+                                    .padding(.top, 8)
                                 },
                                 label: {
                                     Text(month)

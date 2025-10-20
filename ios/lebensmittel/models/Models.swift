@@ -24,6 +24,11 @@ struct NewReceipt: Codable {
     var notes: String
 }
 
+struct ReceiptsResponse: Codable {
+    let count: Int
+    let receipts: [Receipt]
+}
+
 struct GroceryItem: Identifiable, Codable {
     var id = UUID()
     var name: String

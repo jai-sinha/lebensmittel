@@ -9,11 +9,6 @@
 import Foundation
 import Combine
 
-struct ReceiptsResponse: Codable {
-    let count: Int
-    let receipts: [Receipt]
-}
-
 class ReceiptsModel: ObservableObject {
     @Published var receipts: [Receipt] = []
     @Published var isLoading = false
@@ -72,5 +67,28 @@ class ReceiptsModel: ObservableObject {
             monthFormatter.date(from: lhs)! < monthFormatter.date(from: rhs)!
         }
         return sortedMonths.map { ($0, groups[$0]!.sorted { $0.date < $1.date }) }
+    }
+    
+    func groupReceiptsByMonthWithPersonTotals() -> [(month: String, receipts: [Receipt], jTotal: Double, hTotal: Double)] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let monthFormatter = DateFormatter()
+        monthFormatter.dateFormat = "MMMM yyyy"
+        var groups: [String: [Receipt]] = [:]
+        for receipt in receipts {
+            if let date = formatter.date(from: receipt.date) {
+                let month = monthFormatter.string(from: date)
+                groups[month, default: []].append(receipt)
+            }
+        }
+        let sortedMonths = groups.keys.sorted { lhs, rhs in
+            monthFormatter.date(from: lhs)! < monthFormatter.date(from: rhs)!
+        }
+        return sortedMonths.map { month in
+            let monthReceipts = groups[month]!.sorted { $0.date < $1.date }
+            let jTotal = monthReceipts.filter { $0.purchasedBy == "Jai" }.reduce(into: 0) { $0 += $1.totalAmount }
+            let hTotal = monthReceipts.filter { $0.purchasedBy == "Hanna" }.reduce(into: 0) { $0 += $1.totalAmount }
+            return (month, monthReceipts, jTotal, hTotal)
+        }
     }
 }
