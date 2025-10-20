@@ -8,6 +8,22 @@
 import Foundation
 import Combine
 
+struct Receipt: Identifiable, Codable {
+    var id: String
+    var date: String
+    var totalAmount: Double
+    var purchasedBy: String
+    var items: [String]
+    var notes: String
+}
+
+struct NewReceipt: Codable {
+    var date: String
+    var totalAmount: Double
+    var purchasedBy: String
+    var notes: String
+}
+
 struct GroceryItem: Identifiable, Codable {
     var id = UUID()
     var name: String

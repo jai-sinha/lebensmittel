@@ -85,12 +85,12 @@ class ShoppingModel: ObservableObject {
         formatter.dateFormat = "yyyy-MM-dd"
         let dateString = formatter.string(from: Date())
         // Build JSON payload
-        let payload: [String: Any] = [
-            "date": dateString,
-            "totalAmount": price,
-            "purchasedBy": purchasedBy,
-            "notes": notes
-        ]
+        let payload = NewReceipt(
+            date: dateString,
+            totalAmount: price,
+            purchasedBy: purchasedBy,
+            notes: notes
+        )
         guard let url = URL(string: "http://192.168.2.113:8000/api/receipts"),
               let body = try? JSONSerialization.data(withJSONObject: payload) else {
             errorMessage = "Invalid URL or payload"

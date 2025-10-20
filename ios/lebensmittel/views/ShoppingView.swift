@@ -116,25 +116,51 @@ struct ShoppingView: View {
                 model.fetchShoppingItems()
             }
             .sheet(isPresented: $showCheckoutSheet) {
-                VStack(spacing: 20) {
-                    Text("Checkout Receipt")
-                        .font(.headline)
-                    TextField("Cost", text: $checkoutCost)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                    TextField("Who purchased?", text: $checkoutPurchaser)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                    TextField("Notes (optional)", text: $checkoutNotes)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                VStack(spacing: 25) {
+                    Text("Submit Receipt")
+                        .font(.title)
+                        .fontWeight(.semibold)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Total Cost (€)")
+                            .font(.headline)
+                        TextField("", text: $checkoutCost)
+                            .keyboardType(.decimalPad)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .font(.body)
+                    }
+                    // Picker for purchaser
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Purchased by")
+                            .font(.headline)
+                        Picker("Purchased by", selection: $checkoutPurchaser) {
+                            Text("Jai").tag("Jai")
+                            Text("Hanna").tag("Hanna")
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                    }
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Notes (optional)")
+                            .font(.headline)
+                        TextEditor(text: $checkoutNotes)
+                            .frame(minHeight: 40, maxHeight: 120)
+                            .font(.body)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                    }
                     if !checkoutError.isEmpty {
                         Text(checkoutError)
                             .foregroundColor(.red)
-                            .font(.caption)
+                            .font(.callout)
                     }
-                    HStack {
+                    HStack(spacing: 20) {
                         Button("Cancel") {
                             showCheckoutSheet = false
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.red.opacity(0.8))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
                         Spacer()
                         Button("Submit") {
                             // Validate cost and purchaser
@@ -143,15 +169,21 @@ struct ShoppingView: View {
                                 return
                             }
                             guard !checkoutPurchaser.trimmingCharacters(in: .whitespaces).isEmpty else {
-                                checkoutError = "Please enter who purchased."
+                                checkoutError = "Please select who purchased."
                                 return
                             }
                             model.createReceipt(price: price, purchasedBy: checkoutPurchaser, notes: checkoutNotes)
                             showCheckoutSheet = false
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
                     }
                 }
-                .padding()
+                .padding(30)
+                .presentationDetents([.medium])
             }
         }
     }

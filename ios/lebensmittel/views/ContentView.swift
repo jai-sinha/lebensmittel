@@ -30,6 +30,12 @@ struct ContentView: View {
                     Text("Shopping")
                 }
                 .tag(2)
+            ReceiptsView()
+                .tabItem {
+                    Image(systemName: "receipt")
+                    Text("Receipts")
+                }
+                .tag(3)
         }
     }
 }
