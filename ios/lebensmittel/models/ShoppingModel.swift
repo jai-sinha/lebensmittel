@@ -76,4 +76,44 @@ class ShoppingModel: ObservableObject {
             }
         }.resume()
     }
+    
+    func createReceipt(price: Double, purchasedBy: String, notes: String) {
+        isLoading = true
+        errorMessage = nil
+        // Format current date as YYYY-MM-DD
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dateString = formatter.string(from: Date())
+        // Build JSON payload
+        let payload: [String: Any] = [
+            "date": dateString,
+            "totalAmount": price,
+            "purchasedBy": purchasedBy,
+            "notes": notes
+        ]
+        guard let url = URL(string: "http://192.168.2.113:8000/api/receipts"),
+              let body = try? JSONSerialization.data(withJSONObject: payload) else {
+            errorMessage = "Invalid URL or payload"
+            isLoading = false
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                self.isLoading = false
+                if let error = error {
+                    self.errorMessage = error.localizedDescription
+                    return
+                }
+                guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                    self.errorMessage = "Failed to create receipt"
+                    return
+                }
+                self.fetchShoppingItems() // Refresh data after successful receipt creation
+            }
+        }.resume()
+    }
 }

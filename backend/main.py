@@ -246,6 +246,7 @@ def delete_meal_plan(meal_id):
 	finally:
 		db.close()
 
+
 @app.route('/api/receipts', methods=['GET'])
 def get_receipts():
 	"""Get all receipts."""
@@ -271,13 +272,29 @@ def create_receipt():
 
 	db = SessionLocal()
 	try:
+		# parse date
 		try:
 			date = datetime.strptime(data['date'], '%Y-%m-%d').date()
 		except (ValueError, TypeError):
 			return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
 
-		items = data.get('items', [])
-		items_json = json.dumps(items) if isinstance(items, list) else json.dumps([])
+		# Gather all grocery items that are needed and checked
+		items_to_checkout = db.query(GroceryItem).filter(
+			GroceryItem.is_needed == True,
+			GroceryItem.is_shopping_checked == True
+		).all()
+
+		# If there are no items to checkout, reject the request
+		if not items_to_checkout:
+			return jsonify({'error': 'No grocery items are both needed and checked; receipt would be empty.'}), 400
+
+		# Extract names for receipt and unset flags on the items
+		item_names = [item.name for item in items_to_checkout]
+		for gi in items_to_checkout:
+			gi.is_needed = False
+			gi.is_shopping_checked = False
+
+		items_json = json.dumps(item_names)
 
 		new_receipt = Receipts(
 			date=date,
@@ -286,7 +303,9 @@ def create_receipt():
 			items=items_json,
 			notes=data.get('notes')
 		)
+
 		db.add(new_receipt)
+		# commit both the updated grocery items and the new receipt together
 		db.commit()
 		db.refresh(new_receipt)
 		return jsonify(new_receipt.to_dict()), 201

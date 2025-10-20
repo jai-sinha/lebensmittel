@@ -9,6 +9,12 @@ import SwiftUI
 
 struct ShoppingView: View {
     @StateObject private var model = ShoppingModel()
+    // Checkout dialog state
+    @State private var showCheckoutSheet = false
+    @State private var checkoutCost = ""
+    @State private var checkoutPurchaser = ""
+    @State private var checkoutNotes = ""
+    @State private var checkoutError = ""
     
     var body: some View {
         NavigationStack {
@@ -84,11 +90,68 @@ struct ShoppingView: View {
                         }
                     }
                 }
+                Spacer()
+                // Checkout button
+                if !model.uncheckedItems.isEmpty {
+                    Button(action: {
+                        showCheckoutSheet = true
+                        checkoutCost = ""
+                        checkoutPurchaser = ""
+                        checkoutNotes = ""
+                        checkoutError = ""
+                    }) {
+                        Text("Checkout")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                    .padding([.horizontal, .bottom])
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Shopping List")
             .onAppear {
                 model.fetchShoppingItems()
+            }
+            .sheet(isPresented: $showCheckoutSheet) {
+                VStack(spacing: 20) {
+                    Text("Checkout Receipt")
+                        .font(.headline)
+                    TextField("Cost", text: $checkoutCost)
+                        .keyboardType(.decimalPad)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    TextField("Who purchased?", text: $checkoutPurchaser)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    TextField("Notes (optional)", text: $checkoutNotes)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    if !checkoutError.isEmpty {
+                        Text(checkoutError)
+                            .foregroundColor(.red)
+                            .font(.caption)
+                    }
+                    HStack {
+                        Button("Cancel") {
+                            showCheckoutSheet = false
+                        }
+                        Spacer()
+                        Button("Submit") {
+                            // Validate cost and purchaser
+                            guard let price = Double(checkoutCost), price > 0 else {
+                                checkoutError = "Please enter a valid cost."
+                                return
+                            }
+                            guard !checkoutPurchaser.trimmingCharacters(in: .whitespaces).isEmpty else {
+                                checkoutError = "Please enter who purchased."
+                                return
+                            }
+                            model.createReceipt(price: price, purchasedBy: checkoutPurchaser, notes: checkoutNotes)
+                            showCheckoutSheet = false
+                        }
+                    }
+                }
+                .padding()
             }
         }
     }
