@@ -4,9 +4,20 @@ from database import init_db, SessionLocal
 from models import GroceryItem, MealPlan, Receipts
 from datetime import datetime
 import json
+import dotenv
+import os
+
+# SocketIO imports
+from flask_socketio import SocketIO, emit, send
+
+dotenv.load_dotenv()
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 CORS(app)
+
+# Initialize SocketIO (uses eventlet if installed)
+socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet')
 
 # Initialize database on startup
 with app.app_context():
@@ -80,7 +91,14 @@ def create_grocery_item():
 		db.commit()
 		db.refresh(new_item)
 		
+		# Emit a websocket event notifying clients about the new item
+		try:
+			socketio.emit('grocery_item_created', new_item.to_dict(), broadcast=True)
+		except Exception:
+			pass
+
 		return jsonify(new_item.to_dict()), 201
+	
 	except Exception as e:
 		db.rollback()
 		return jsonify({'error': str(e)}), 500
@@ -115,7 +133,14 @@ def update_grocery_item(item_id):
 		db.commit()
 		db.refresh(item)
 		
+		# Notify clients about the update
+		try:
+			socketio.emit('grocery_item_updated', item.to_dict(), broadcast=True)
+		except Exception:
+			pass
+
 		return jsonify(item.to_dict())
+	
 	except Exception as e:
 		db.rollback()
 		return jsonify({'error': str(e)}), 500
@@ -135,7 +160,14 @@ def delete_grocery_item(item_id):
 		db.delete(item)
 		db.commit()
 		
+		# Notify clients about deletion
+		try:
+			socketio.emit('grocery_item_deleted', {'id': item_id}, broadcast=True)
+		except Exception:
+			pass
+
 		return jsonify({'message': 'Grocery item deleted successfully'})
+	
 	except Exception as e:
 		db.rollback()
 		return jsonify({'error': str(e)}), 500
@@ -184,7 +216,14 @@ def create_meal_plan():
 		db.commit()
 		db.refresh(new_meal)
 
+		# Emit websocket event for new meal
+		try:
+			socketio.emit('meal_plan_created', new_meal.to_dict(), broadcast=True)
+		except Exception:
+			pass
+
 		return jsonify(new_meal.to_dict()), 201
+	
 	except Exception as e:
 		db.rollback()
 		return jsonify({'error': str(e)}), 500
@@ -219,7 +258,13 @@ def update_meal_plan(meal_id):
 		db.commit()
 		db.refresh(meal)
 
+		try:
+			socketio.emit('meal_plan_updated', meal.to_dict(), broadcast=True)
+		except Exception:
+			pass
+
 		return jsonify(meal.to_dict())
+	
 	except Exception as e:
 		db.rollback()
 		return jsonify({'error': str(e)}), 500
@@ -239,7 +284,13 @@ def delete_meal_plan(meal_id):
 		db.delete(meal)
 		db.commit()
 		
+		try:
+			socketio.emit('meal_plan_deleted', {'id': meal_id}, broadcast=True)
+		except Exception:
+			pass
+
 		return jsonify({'message': 'Meal plan deleted successfully'})
+	
 	except Exception as e:
 		db.rollback()
 		return jsonify({'error': str(e)}), 500
@@ -308,7 +359,15 @@ def create_receipt():
 		# commit both the updated grocery items and the new receipt together
 		db.commit()
 		db.refresh(new_receipt)
+		
+		# Emit websocket event for new receipt
+		try:
+			socketio.emit('receipt_created', new_receipt.to_dict(), broadcast=True)
+		except Exception:
+			pass
+
 		return jsonify(new_receipt.to_dict()), 201
+	
 	except Exception as e:
 		db.rollback()
 		return jsonify({'error': str(e)}), 500
@@ -345,7 +404,14 @@ def update_receipt(receipt_id):
 
 		db.commit()
 		db.refresh(receipt)
+
+		try:
+			socketio.emit('receipt_updated', receipt.to_dict(), broadcast=True)
+		except Exception:
+			pass
+
 		return jsonify(receipt.to_dict())
+	
 	except Exception as e:
 		db.rollback()
 		return jsonify({'error': str(e)}), 500
@@ -364,13 +430,37 @@ def delete_receipt(receipt_id):
 
 		db.delete(receipt)
 		db.commit()
+
+		try:
+			socketio.emit('receipt_deleted', {'id': receipt_id}, broadcast=True)
+		except Exception:
+			pass
+
 		return jsonify({'message': 'Receipt deleted successfully'})
+	
 	except Exception as e:
 		db.rollback()
 		return jsonify({'error': str(e)}), 500
 	finally:
 		db.close()
 
+@socketio.on('connect')
+def handle_connect():
+	print('Client connected')
+	emit('connected', {'message': 'Connected to Lebensmittel backend'})
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+	print('Client disconnected')
+
+
+@socketio.on('echo')
+def handle_echo(data):
+	# Simple echo event for client testing
+	send(data)
+
+
 if __name__ == '__main__':
-	# Run the Flask development server
-	app.run(debug=True, host='0.0.0.0', port=8000)
+	# Run the SocketIO server using eventlet for WebSocket support
+	socketio.run(app, debug=True, host='0.0.0.0', port=8000)

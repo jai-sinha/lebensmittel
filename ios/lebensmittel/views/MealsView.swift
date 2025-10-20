@@ -28,7 +28,7 @@ struct MealsView: View {
                     ScrollView {
                         LazyVStack(spacing: -4) {
                             // Past days (scrollable up)
-                            ForEach(-30..<0, id: \.self) { dayOffset in
+                            ForEach(-7..<0, id: \.self) { dayOffset in
                                 mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
                             }
                             // Current day and next 6 days (the main 7-day view)
@@ -39,7 +39,7 @@ struct MealsView: View {
                                     .id(isThisToday ? "today" : "day_\(dayOffset)")
                             }
                             // Future days (scrollable down)
-                            ForEach(7..<37, id: \.self) { dayOffset in
+                            ForEach(7..<10, id: \.self) { dayOffset in
                                 mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
                             }
                         }
