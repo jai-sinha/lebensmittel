@@ -85,6 +85,7 @@ struct ShoppingView: View {
                     }
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Shopping List")
             .onAppear {
                 model.fetchShoppingItems()

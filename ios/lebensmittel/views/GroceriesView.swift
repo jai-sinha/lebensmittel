@@ -124,6 +124,7 @@ struct GroceriesView: View {
                     }
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Groceries")
             .onAppear {
                 model.fetchGroceries()

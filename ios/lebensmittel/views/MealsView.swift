@@ -58,6 +58,7 @@ struct MealsView: View {
                     mealTexts[dateStr] = plan.mealDescription
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Meal Planning")
         }
     }
