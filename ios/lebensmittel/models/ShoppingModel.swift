@@ -55,7 +55,7 @@ class ShoppingModel: ObservableObject {
     func updateShoppingChecked(item: GroceryItem, isChecked: Bool) {
         isLoading = true
         errorMessage = nil
-        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id.uuidString.lowercased())") else {
+        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id)") else {
             errorMessage = "Invalid URL"
             isLoading = false
             return

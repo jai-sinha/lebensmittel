@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct MealsView: View {
-    @StateObject private var model = MealsModel()
+    @EnvironmentObject var model: MealsModel
     @State private var mealTexts: [String: String] = [:]
     
     private func date(for dayOffset: Int) -> Date {
@@ -54,8 +54,11 @@ struct MealsView: View {
                 }
             }
             .onChange(of: model.mealPlans) {
-                for (dateStr, plan) in model.mealPlans {
-                    mealTexts[dateStr] = plan.mealDescription
+                // Remove keys from mealTexts that are no longer in mealPlans
+                mealTexts = mealTexts.filter { model.mealPlans.keys.contains($0.key) }
+                // Update or add descriptions for existing keys
+                for (date, plan) in model.mealPlans {
+                    mealTexts[date] = plan.mealDescription
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

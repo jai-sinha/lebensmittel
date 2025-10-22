@@ -18,6 +18,41 @@ class MealsModel: ObservableObject {
         self.baseDate = baseDate
     }
     
+    func getMealPlan(for dateString: String) -> String {
+        return mealPlans[dateString]?.mealDescription ?? ""
+    }
+    
+    func mealPlanId(for dateString: String) -> String? {
+        return mealPlans[dateString]?.id
+    }
+    
+    // MARK: UI Update Methods
+    
+    func addMealPlan(_ plan: MealPlan) {
+        DispatchQueue.main.async {
+            self.mealPlans[plan.date] = plan
+        }
+    }
+    
+    func updateMealPlan(_ plan: MealPlan) {
+        DispatchQueue.main.async {
+            if var existingPlan = self.mealPlans[plan.date] {
+                existingPlan.mealDescription = plan.mealDescription
+                self.mealPlans[plan.date] = existingPlan
+            }
+        }
+    }
+    
+    func removeMealPlan(withId id: String) {
+        DispatchQueue.main.async {
+            if let key = self.mealPlans.first(where: { $0.value.id == id })?.key {
+                self.mealPlans.removeValue(forKey: key)
+            }
+        }
+    }
+    
+    // MARK: CRUD Methods
+    
     func fetchMealPlans() {
         guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans") else { return }
         URLSession.shared.dataTask(with: url) { data, _, _ in
@@ -39,14 +74,6 @@ class MealsModel: ObservableObject {
                 }
             }
         }.resume()
-    }
-    
-    func getMealPlan(for dateString: String) -> String {
-        return mealPlans[dateString]?.mealDescription ?? ""
-    }
-    
-    func mealPlanId(for dateString: String) -> String? {
-        return mealPlans[dateString]?.id
     }
     
     func createMealPlan(for dateString: String, meal: String) {

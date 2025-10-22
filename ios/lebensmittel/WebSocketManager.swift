@@ -17,20 +17,33 @@ final class SocketService {
 
     private var manager: SocketManager?
     private var socket: SocketIOClient?
-    public var groceriesModel: GroceriesModel?
+   
+    // Models are required — they will be set when `start(...)` is called.
+    // Use implicitly unwrapped types so they behave as non-optional after start is called.
+    public private(set) var groceriesModel: GroceriesModel!
+    public private(set) var shoppingModel: ShoppingModel!
+    public private(set) var mealsModel: MealsModel!
+    public private(set) var receiptsModel: ReceiptsModel!
 
-    // Call this from the App after creating the GroceriesModel so the service can connect and receive events that update the model immediately.
-    func start(with model: GroceriesModel) {
-        // Prevent double-starting
-        if socket != nil { return }
-        self.groceriesModel = model
-        if Self.verbose { print("SocketService.start: using GroceriesModel id:\(ObjectIdentifier(model))") }
-        manager = SocketManager(socketURL: URL(string: "http://192.168.2.113:8000")!,
-                                config: [.log(false), .compress])
-        socket = manager!.defaultSocket
-        addHandlers()
-        socket!.connect()
-    }
+    func start(
+        with groceriesModel: GroceriesModel,
+        mealsModel: MealsModel,
+        receiptsModel: ReceiptsModel,
+        shoppingModel: ShoppingModel
+    ) {
+        // store required models
+        self.groceriesModel = groceriesModel
+        self.mealsModel = mealsModel
+        self.receiptsModel = receiptsModel
+        self.shoppingModel = shoppingModel
+         // Prevent double-starting
+         if socket != nil { return }
+         manager = SocketManager(socketURL: URL(string: "http://192.168.2.113:8000")!,
+                                 config: [.log(false), .compress])
+         socket = manager!.defaultSocket
+         addHandlers()
+         socket!.connect()
+     }
 
     private func addHandlers() {
         guard let socket = socket else { return }
@@ -38,12 +51,14 @@ final class SocketService {
         socket.on(clientEvent: .connect) { _, _ in
             if Self.verbose { print("Socket connected") }
         }
+        
+//        MARK: Grocery Item Events
 
         socket.on("grocery_item_created") { data, _ in
             guard let payload = data.first else { return }
             self.decode(payload, as: GroceryItem.self) { item in
                 if Self.verbose { print("grocery created:", item) }
-                self.groceriesModel?.addItem(item)
+                self.groceriesModel.addItem(item)
             }
         }
 
@@ -51,7 +66,7 @@ final class SocketService {
             guard let payload = data.first else { return }
             self.decode(payload, as: GroceryItem.self) { item in
                 if Self.verbose { print("grocery updated:", item) }
-                self.groceriesModel?.updateItem(item)
+                self.groceriesModel.updateItem(item)
             }
         }
 
@@ -61,29 +76,46 @@ final class SocketService {
         }
 
         socket.on("grocery_item_deleted") { data, _ in
-            if Self.verbose { print("grocery deleted raw payload:", data) }
             guard let payload = data.first else { return }
             self.decode(payload, as: DeletedPayload.self) { dp in
-                if let id = UUID(uuidString: dp.id) {
-                    self.groceriesModel?.removeItem(withId: id)
-                } else if Self.verbose {
-                    print("grocery_item_deleted: invalid uuid string:\(dp.id)")
-                }
+                self.groceriesModel.removeItem(withId: dp.id)
             }
         }
+        
+//        MARK: Meal Plan Events
 
         socket.on("meal_plan_created") { data, _ in
             guard let payload = data.first else { return }
             self.decode(payload, as: MealPlan.self) { meal in
                 if Self.verbose { print("meal created:", meal) }
+                self.mealsModel.addMealPlan(meal)
             }
         }
+        
+        socket.on("meal_plan_deleted") { data, _ in guard let payload = data.first else { return }
+            self.decode(payload, as: DeletedPayload.self) { dp in
+                self.mealsModel.removeMealPlan(withId: dp.id)
+            }
+        }
+        
+        socket.on("meal_plan_updated") { data, _ in guard let payload = data.first else { return }
+            self.decode(payload, as: MealPlan.self) { meal in
+                // if Self.verbose { print("meal updated:", meal) }
+                self.mealsModel.updateMealPlan(meal)
+
+            }
+        }
+                    
+        
+//        MARK: Receipt Events
 
         socket.on("receipt_created") { data, _ in
             guard let payload = data.first else { return }
             // receipts items come as JSON string in server; server.to_dict should expose items array or string.
             self.decode(payload, as: Receipt.self) { receipt in
                 if Self.verbose { print("receipt created:", receipt) }
+                // Optionally update receipts model here when ready:
+                // self.receiptsModel.addReceipt(receipt)
             }
         }
 

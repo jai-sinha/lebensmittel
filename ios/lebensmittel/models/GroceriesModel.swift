@@ -65,6 +65,16 @@ class GroceriesModel: ObservableObject {
         }
     }
     
+    func selectExistingItem(_ item: GroceryItem) {
+        if !item.isNeeded {
+            updateGroceryItemNeeded(item: item, isNeeded: true)
+        }
+        newItemName = ""
+        isSearching = false
+    }
+    
+    // MARK: UI Update Methods
+    
     func addItem(_ item: GroceryItem) {
         DispatchQueue.main.async {
             self.groceryItems.append(item)
@@ -79,19 +89,13 @@ class GroceriesModel: ObservableObject {
         }
     }
     
-    func removeItem(withId id: UUID) {
+    func removeItem(withId id: String) {
         DispatchQueue.main.async {
             self.groceryItems.removeAll { $0.id == id }
         }
     }
-
-    func selectExistingItem(_ item: GroceryItem) {
-        if !item.isNeeded {
-            updateGroceryItemNeeded(item: item, isNeeded: true)
-        }
-        newItemName = ""
-        isSearching = false
-    }
+    
+    // MARK: CRUD Methods
 
     func fetchGroceries() {
         isLoading = true
@@ -147,7 +151,7 @@ class GroceriesModel: ObservableObject {
 
     func updateGroceryItemNeeded(item: GroceryItem, isNeeded: Bool) {
         errorMessage = nil
-        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id.uuidString.lowercased())") else {
+        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id)") else {
             errorMessage = "Invalid URL"
             isLoading = false
             return
@@ -182,7 +186,7 @@ class GroceriesModel: ObservableObject {
 
     func deleteGroceryItem(item: GroceryItem) {
         errorMessage = nil
-        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id.uuidString.lowercased())") else {
+        guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id)") else {
             errorMessage = "Invalid URL"
             isLoading = false
             return

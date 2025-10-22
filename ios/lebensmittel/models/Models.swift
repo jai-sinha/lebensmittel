@@ -34,7 +34,7 @@ struct ReceiptsResponse: Codable {
 // MARK: Grocery Items
 
 struct GroceryItem: Identifiable, Codable {
-    var id = UUID()
+    var id: String
     var name: String
     var category: String
     var isNeeded: Bool = true // true = need to buy, false = have it
