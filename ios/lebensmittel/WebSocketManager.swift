@@ -52,7 +52,7 @@ final class SocketService {
             if Self.verbose { print("Socket connected") }
         }
         
-//        MARK: Grocery Item Events
+        // MARK: Grocery Item Events
 
         socket.on("grocery_item_created") { data, _ in
             guard let payload = data.first else { return }
@@ -82,7 +82,7 @@ final class SocketService {
             }
         }
         
-//        MARK: Meal Plan Events
+        // MARK: Meal Plan Events
 
         socket.on("meal_plan_created") { data, _ in
             guard let payload = data.first else { return }
@@ -107,15 +107,30 @@ final class SocketService {
         }
                     
         
-//        MARK: Receipt Events
+        // MARK: Receipt Events
 
         socket.on("receipt_created") { data, _ in
             guard let payload = data.first else { return }
             // receipts items come as JSON string in server; server.to_dict should expose items array or string.
             self.decode(payload, as: Receipt.self) { receipt in
                 if Self.verbose { print("receipt created:", receipt) }
-                // Optionally update receipts model here when ready:
-                // self.receiptsModel.addReceipt(receipt)
+                self.receiptsModel.addReceipt(receipt)
+                self.groceriesModel.fetchGroceries()
+            }
+        }
+        
+        socket.on("receipt_updated") { data, _ in
+            guard let payload = data.first else { return }
+            self.decode(payload, as: Receipt.self) { receipt in
+                if Self.verbose { print("receipt updated:", receipt) }
+                self.receiptsModel.updateReceipt(receipt)
+            }
+        }
+        
+        socket.on("receipt_deleted") { data, _ in
+            guard let payload = data.first else { return }
+            self.decode(payload, as: DeletedPayload.self) { dp in
+                self.receiptsModel.deleteReceipt(withId: dp.id)
             }
         }
 

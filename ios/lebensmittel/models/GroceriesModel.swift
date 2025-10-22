@@ -5,7 +5,6 @@
 //  Created by Jai Sinha on 10/16/25.
 //
 
-
 import Foundation
 import Combine
 
@@ -19,6 +18,8 @@ class GroceriesModel: ObservableObject {
     @Published var isSearching: Bool = false
 
     let categories = ["Vegetables", "Protein", "Fruit", "Bread", "Beverages", "Other", "Essentials"]
+    
+    // MARK: Computed Properties and Helpers
 
     var searchResults: [GroceryItem] {
         guard !newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -95,7 +96,7 @@ class GroceriesModel: ObservableObject {
         }
     }
     
-    // MARK: CRUD Methods
+    // MARK: CRUD Operations
 
     func fetchGroceries() {
         isLoading = true

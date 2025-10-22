@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ShoppingView: View {
-    @StateObject private var model = ShoppingModel()
+    @EnvironmentObject var model: ShoppingModel
     // Checkout dialog state
     @State private var showCheckoutSheet = false
     @State private var checkoutCost = ""

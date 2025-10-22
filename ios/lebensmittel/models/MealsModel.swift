@@ -9,7 +9,6 @@ import SwiftUI
 import Combine
 import Foundation
 
-// Use MealPlan from Models.swift
 class MealsModel: ObservableObject {
     @Published var baseDate: Date
     @Published var mealPlans: [String: MealPlan] = [:] // Keyed by date string
@@ -51,7 +50,7 @@ class MealsModel: ObservableObject {
         }
     }
     
-    // MARK: CRUD Methods
+    // MARK: CRUD Operations
     
     func fetchMealPlans() {
         guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans") else { return }

@@ -9,6 +9,8 @@ import Foundation
 import Combine
 
 class ShoppingModel: GroceriesModel {
+    
+    // MARK: Computed Properties
     var shoppingItems: [GroceryItem] {
         groceryItems.filter { $0.isNeeded }
     }
@@ -26,6 +28,8 @@ class ShoppingModel: GroceriesModel {
     // Use parent's fetchGroceries for fetching
     // Use parent's updateGroceryItemNeeded and updateItem for updating
     // Use parent's groceryItems for data
+    
+    // MARK: CRUD Operations
     
     func createReceipt(price: Double, purchasedBy: String, notes: String) {
         isLoading = true
