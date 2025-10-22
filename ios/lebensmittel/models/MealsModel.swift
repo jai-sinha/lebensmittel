@@ -55,25 +55,20 @@ class MealsModel: ObservableObject {
     
     func fetchMealPlans() {
         guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans") else { return }
-        URLSession.shared.dataTask(with: url) { data, _, _ in
-            guard let data = data else {
-                print("Failed to fetch meal plans data")
-                return
-            }
-            Task {
-                do {
-                    let response = try JSONDecoder().decode(MealPlansResponse.self, from: data)
-                    await MainActor.run {
-                        self.mealPlans.removeAll()
-                        for mealPlan in response.mealPlans {
-                            self.mealPlans[mealPlan.date] = mealPlan
-                        }
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                let response = try JSONDecoder().decode(MealPlansResponse.self, from: data)
+                await MainActor.run {
+                    self.mealPlans.removeAll()
+                    for mealPlan in response.mealPlans {
+                        self.mealPlans[mealPlan.date] = mealPlan
                     }
-                } catch {
-                    print("Decoding error: \(error)")
                 }
+            } catch {
+                print("Decoding error: \(error)")
             }
-        }.resume()
+        }
     }
     
     func createMealPlan(for dateString: String, meal: String) {
@@ -83,22 +78,38 @@ class MealsModel: ObservableObject {
         let newMealPlan = NewMealPlan(date: dateString, mealDescription: meal)
         request.httpBody = try? JSONEncoder().encode(newMealPlan)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        URLSession.shared.dataTask(with: request) { data, _, _ in
-            DispatchQueue.main.async {
-                self.fetchMealPlans()
+        Task {
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                    print("Server returned status \(http.statusCode)")
+                }
+                await MainActor.run {
+                    self.fetchMealPlans()
+                }
+            } catch {
+                print("Create meal plan error: \(error)")
             }
-        }.resume()
+        }
     }
     
     func deleteMealPlan(mealId: String) {
         guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans/\(mealId)") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
-        URLSession.shared.dataTask(with: request) { _, _, _ in
-            DispatchQueue.main.async {
-                self.fetchMealPlans()
+        Task {
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                    print("Server returned status \(http.statusCode)")
+                }
+                await MainActor.run {
+                    self.fetchMealPlans()
+                }
+            } catch {
+                print("Delete meal plan error: \(error)")
             }
-        }.resume()
+        }
     }
     
     static func utcDateString(for date: Date) -> String {

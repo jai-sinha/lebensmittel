@@ -105,25 +105,21 @@ class GroceriesModel: ObservableObject {
             isLoading = false
             return
         }
-        URLSession.shared.dataTask(with: url) { data, _, error in
-            DispatchQueue.main.async {
-                self.isLoading = false
-                if let error = error {
-                    self.errorMessage = error.localizedDescription
-                    return
-                }
-                guard let data = data else {
-                    self.errorMessage = "No data"
-                    return
-                }
-                do {
-                    let response = try JSONDecoder().decode(GroceryItemsResponse.self, from: data)
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                let response = try JSONDecoder().decode(GroceryItemsResponse.self, from: data)
+                DispatchQueue.main.async {
                     self.groceryItems = response.groceryItems
-                } catch {
+                    self.isLoading = false
+                }
+            } catch {
+                DispatchQueue.main.async {
                     self.errorMessage = error.localizedDescription
+                    self.isLoading = false
                 }
             }
-        }.resume()
+        }
     }
 
     func createGroceryItem(name: String, category: String) {
@@ -134,19 +130,31 @@ class GroceriesModel: ObservableObject {
             isLoading = false
             return
         }
+        let newItem = NewGroceryItem(name: name, category: category)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let newItem = NewGroceryItem(name: name, category: category)
         request.httpBody = try? JSONEncoder().encode(newItem)
-        URLSession.shared.dataTask(with: request) { _, response, error in
-            DispatchQueue.main.async {
-                self.isLoading = false
-                if let error = error {
+        Task {
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                    await MainActor.run {
+                        self.errorMessage = "Server returned status \(http.statusCode)"
+                    }
+                } else {
+                    await MainActor.run {
+                        self.isLoading = false
+                        self.fetchGroceries()
+                    }
+                }
+            } catch {
+                await MainActor.run {
                     self.errorMessage = error.localizedDescription
+                    self.isLoading = false
                 }
             }
-        }.resume()
+        }
     }
 
     func updateGroceryItemNeeded(item: GroceryItem, isNeeded: Bool) {
@@ -156,32 +164,30 @@ class GroceriesModel: ObservableObject {
             isLoading = false
             return
         }
-        
-        // Optimistically update UI
+        // Optimistically update locally
         var updatedItem = item
         updatedItem.isNeeded = isNeeded
         updateItem(updatedItem)
-        
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONEncoder().encode(["isNeeded": isNeeded])
-        URLSession.shared.dataTask(with: request) { _, response, error in
-            DispatchQueue.main.async {
-                
-                if let error = error {
-                    self.errorMessage = error.localizedDescription
-                    // Re-sync since optimistic update failed
-                    self.fetchGroceries()
-                }
-                
+        Task {
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                    self.errorMessage = "Server returned status \(http.statusCode)"
-                    // Re-sync to restore the item if update wasn't successful
+                    await MainActor.run {
+                        self.errorMessage = "Server returned status \(http.statusCode)"
+                        self.fetchGroceries()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
                     self.fetchGroceries()
                 }
             }
-        }.resume()
+        }
     }
 
     func deleteGroceryItem(item: GroceryItem) {
@@ -191,29 +197,26 @@ class GroceriesModel: ObservableObject {
             isLoading = false
             return
         }
-        
         // Optimistically remove locally so UI updates immediately
         let removedId = item.id
         removeItem(withId: removedId)
-        
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
-        URLSession.shared.dataTask(with: request) { _, response, error in
-            DispatchQueue.main.async {
-                
-                if let error = error {
-                    self.errorMessage = error.localizedDescription
-                    // Re-sync since optimistic removal failed
-                    self.fetchGroceries()
-                    return
-                }
-                
+        Task {
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                    self.errorMessage = "Server returned status \(http.statusCode)"
-                    // Re-sync to restore the item if deletion wasn't successful
+                    await MainActor.run {
+                        self.errorMessage = "Server returned status \(http.statusCode)"
+                        self.fetchGroceries()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
                     self.fetchGroceries()
                 }
             }
-        }.resume()
+        }
     }
 }
