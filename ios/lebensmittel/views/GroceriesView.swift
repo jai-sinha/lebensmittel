@@ -32,7 +32,7 @@ struct GroceriesView: View {
                                         }
                                     },
                                     onToggleNeeded: { item, isNeeded in
-                                        model.updateGroceryItemNeeded(item: item, isNeeded: isNeeded)
+                                        model.updateGroceryItem(item: item, field: .isNeeded(isNeeded))
                                     },
                                     onDelete: { item in
                                         model.deleteGroceryItem(item: item)

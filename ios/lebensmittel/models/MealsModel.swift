@@ -94,6 +94,8 @@ class MealsModel: ObservableObject {
     }
     
     func deleteMealPlan(mealId: String) {
+        // Optimistically remove locally
+        self.removeMealPlan(withId: mealId)
         guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans/\(mealId)") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
@@ -102,12 +104,15 @@ class MealsModel: ObservableObject {
                 let (_, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                     print("Server returned status \(http.statusCode)")
-                }
-                await MainActor.run {
-                    self.fetchMealPlans()
+                    await MainActor.run {
+                        self.fetchMealPlans()
+                    }
                 }
             } catch {
                 print("Delete meal plan error: \(error)")
+                await MainActor.run {
+                    self.fetchMealPlans()
+                }
             }
         }
     }

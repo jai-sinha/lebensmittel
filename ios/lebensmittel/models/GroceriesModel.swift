@@ -42,9 +42,9 @@ class GroceriesModel: ObservableObject {
     }
 
     var sortedCategories: [String] {
-        let categoriesWithItems = itemsByCategory.keys.sorted()
-        let emptycategories = categories.filter { !itemsByCategory.keys.contains($0) }
-        return categoriesWithItems + emptycategories
+        let categoriesWithItems = Array(itemsByCategory.keys).sorted()
+        let emptyCategories = Array(categories.filter { !itemsByCategory.keys.contains($0) })
+        return categoriesWithItems + emptyCategories
     }
 
     func addItem() {
@@ -54,7 +54,7 @@ class GroceriesModel: ObservableObject {
                 $0.name.lowercased() == trimmedName.lowercased()
             }) {
                 if !existingItem.isNeeded {
-                    updateGroceryItemNeeded(item: existingItem, isNeeded: true)
+                    updateGroceryItem(item: existingItem, field: GroceryItemField.isNeeded(true))
                 }
             } else {
                 createGroceryItem(name: trimmedName, category: selectedCategory)
@@ -67,7 +67,7 @@ class GroceriesModel: ObservableObject {
     
     func selectExistingItem(_ item: GroceryItem) {
         if !item.isNeeded {
-            updateGroceryItemNeeded(item: item, isNeeded: true)
+            updateGroceryItem(item: item, field: GroceryItemField.isNeeded(true))
         }
         newItemName = ""
         isSearching = false
@@ -156,8 +156,14 @@ class GroceriesModel: ObservableObject {
             }
         }
     }
+    
+    enum GroceryItemField {
+        case isNeeded(Bool)
+        case isShoppingChecked(Bool)
+    }
 
-    func updateGroceryItemNeeded(item: GroceryItem, isNeeded: Bool) {
+    // PUT method to update either isNeeded or isShoppingChecked
+    func updateGroceryItem(item: GroceryItem, field: GroceryItemField) {
         errorMessage = nil
         guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id)") else {
             errorMessage = "Invalid URL"
@@ -166,12 +172,29 @@ class GroceriesModel: ObservableObject {
         }
         // Optimistically update locally
         var updatedItem = item
-        updatedItem.isNeeded = isNeeded
-        updateItem(updatedItem)
+        switch field {
+        case .isNeeded(let value):
+            updatedItem.isNeeded = value
+            updateItem(updatedItem)
+        case .isShoppingChecked(let value):
+            updatedItem.isShoppingChecked = value
+            updateItem(updatedItem)
+        }
+        // Send full item in PUT request
+        let updatePayload = UpdateGroceryItem(
+            name: updatedItem.name,
+            category: updatedItem.category,
+            isNeeded: updatedItem.isNeeded,
+            isShoppingChecked: updatedItem.isShoppingChecked
+        )
+        guard let jsonBody = try? JSONEncoder().encode(updatePayload) else {
+            errorMessage = "Failed to encode update payload"
+            return
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONEncoder().encode(["isNeeded": isNeeded])
+        request.httpBody = jsonBody
         Task {
             do {
                 let (_, response) = try await URLSession.shared.data(for: request)

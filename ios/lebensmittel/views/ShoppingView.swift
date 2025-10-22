@@ -30,7 +30,7 @@ struct ShoppingView: View {
                                 ForEach(model.uncheckedItems) { item in
                                     HStack {
                                         Button(action: {
-                                            model.updateShoppingChecked(item: item, isChecked: !item.isShoppingChecked)
+                                            model.updateGroceryItem(item: item, field: GroceriesModel.GroceryItemField.isShoppingChecked(true))
                                         }) {
                                             Image(systemName: "circle")
                                                 .foregroundColor(.gray)
@@ -51,7 +51,7 @@ struct ShoppingView: View {
                                 ForEach(model.checkedItems) { item in
                                     HStack {
                                         Button(action: {
-                                            model.updateShoppingChecked(item: item, isChecked: !item.isShoppingChecked)
+                                            model.updateGroceryItem(item: item, field: GroceriesModel.GroceryItemField.isShoppingChecked(false))
                                         }) {
                                             Image(systemName: "checkmark.circle.fill")
                                                 .foregroundColor(.green)
@@ -92,7 +92,7 @@ struct ShoppingView: View {
                 }
                 Spacer()
                 // Checkout button
-                if !model.uncheckedItems.isEmpty {
+                if !model.checkedItems.isEmpty {
                     Button(action: {
                         showCheckoutSheet = true
                         checkoutCost = ""
@@ -113,8 +113,10 @@ struct ShoppingView: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Shopping List")
             .onAppear {
-                model.fetchShoppingItems()
+                model.fetchGroceries()
             }
+            
+            // MARK: Checkout Sheet
             .sheet(isPresented: $showCheckoutSheet) {
                 VStack(spacing: 25) {
                     Text("Submit Receipt")
