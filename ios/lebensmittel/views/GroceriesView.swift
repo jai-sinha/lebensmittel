@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct GroceriesView: View {
-    @StateObject private var model = GroceriesModel()
+    @EnvironmentObject var model: GroceriesModel
     
     var body: some View {
         NavigationView {
@@ -23,7 +23,6 @@ struct GroceriesView: View {
                             if let items = model.itemsByCategory[category], !items.isEmpty {
                                 CategorySection(
                                     category: category,
-                                    items: items,
                                     isExpanded: model.expandedCategories.contains(category),
                                     onToggleExpansion: {
                                         if model.expandedCategories.contains(category) {
@@ -135,8 +134,8 @@ struct GroceriesView: View {
 }
 
 struct CategorySection: View {
+    @EnvironmentObject var model: GroceriesModel
     let category: String
-    let items: [GroceryItem]
     let isExpanded: Bool
     let onToggleExpansion: () -> Void
     let onToggleNeeded: (GroceryItem, Bool) -> Void
@@ -145,6 +144,7 @@ struct CategorySection: View {
     var body: some View {
         Section {
             if isExpanded {
+                let items = model.itemsByCategory[category] ?? []
                 ForEach(items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) { item in
                     HStack {
                         Button(action: {
@@ -174,7 +174,7 @@ struct CategorySection: View {
                         .font(.headline)
                         .foregroundColor(.primary)
                     Spacer()
-                    Text("\(items.count)")
+                    Text("\( (model.itemsByCategory[category] ?? []).count )")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 8)

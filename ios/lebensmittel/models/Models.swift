@@ -8,6 +8,8 @@
 import Foundation
 import Combine
 
+// MARK: Receipts
+
 struct Receipt: Identifiable, Codable {
     var id: String
     var date: String
@@ -29,28 +31,14 @@ struct ReceiptsResponse: Codable {
     let receipts: [Receipt]
 }
 
+// MARK: Grocery Items
+
 struct GroceryItem: Identifiable, Codable {
     var id = UUID()
     var name: String
     var category: String
     var isNeeded: Bool = true // true = need to buy, false = have it
     var isShoppingChecked: Bool = false // checked off in shopping list
-}
-
-struct MealPlan: Identifiable, Codable, Equatable {
-    var id: String
-    var date: String
-    var mealDescription: String
-}
-
-struct NewMealPlan: Codable {
-    var date: String
-    var mealDescription: String
-}
-
-struct MealPlansResponse: Codable {
-    let count: Int
-    let mealPlans: [MealPlan]
 }
 
 struct GroceryItemsResponse: Codable {
@@ -70,4 +58,22 @@ struct UpdateGroceryItem: Codable {
     var category: String
     var isNeeded: Bool
     var isShoppingChecked: Bool
+}
+
+// MARK: Meal Plans
+
+struct MealPlan: Identifiable, Codable, Equatable {
+    var id: String
+    var date: String
+    var mealDescription: String
+}
+
+struct NewMealPlan: Codable {
+    var date: String
+    var mealDescription: String
+}
+
+struct MealPlansResponse: Codable {
+    let count: Int
+    let mealPlans: [MealPlan]
 }

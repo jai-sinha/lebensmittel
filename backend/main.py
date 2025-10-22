@@ -19,6 +19,15 @@ CORS(app)
 # Initialize SocketIO (uses eventlet if installed)
 socketio = SocketIO(app, cors_allowed_origins='*', async_mode='eventlet')
 
+def emit_event(event: str, payload):
+	try:
+		print(f"[socketio] Emitting {event} -> {payload}")
+		socketio.emit(event, payload, namespace='/')
+		print(f"[socketio] Emitted {event}")
+	except Exception as e:
+		# log the exception so we can debug why no one receives it
+		print(f"[socketio] Emit failed for {event}: {e}")
+		
 # Initialize database on startup
 with app.app_context():
 	init_db()
@@ -92,10 +101,7 @@ def create_grocery_item():
 		db.refresh(new_item)
 		
 		# Emit a websocket event notifying clients about the new item
-		try:
-			socketio.emit('grocery_item_created', new_item.to_dict(), broadcast=True)
-		except Exception:
-			pass
+		emit_event('grocery_item_created', new_item.to_dict())
 
 		return jsonify(new_item.to_dict()), 201
 	
@@ -134,10 +140,7 @@ def update_grocery_item(item_id):
 		db.refresh(item)
 		
 		# Notify clients about the update
-		try:
-			socketio.emit('grocery_item_updated', item.to_dict(), broadcast=True)
-		except Exception:
-			pass
+		emit_event('grocery_item_updated', item.to_dict())
 
 		return jsonify(item.to_dict())
 	
@@ -161,10 +164,7 @@ def delete_grocery_item(item_id):
 		db.commit()
 		
 		# Notify clients about deletion
-		try:
-			socketio.emit('grocery_item_deleted', {'id': item_id}, broadcast=True)
-		except Exception:
-			pass
+		emit_event('grocery_item_deleted', {'id': item_id})
 
 		return jsonify({'message': 'Grocery item deleted successfully'})
 	
@@ -217,10 +217,7 @@ def create_meal_plan():
 		db.refresh(new_meal)
 
 		# Emit websocket event for new meal
-		try:
-			socketio.emit('meal_plan_created', new_meal.to_dict(), broadcast=True)
-		except Exception:
-			pass
+		emit_event('meal_plan_created', new_meal.to_dict())
 
 		return jsonify(new_meal.to_dict()), 201
 	
@@ -258,10 +255,7 @@ def update_meal_plan(meal_id):
 		db.commit()
 		db.refresh(meal)
 
-		try:
-			socketio.emit('meal_plan_updated', meal.to_dict(), broadcast=True)
-		except Exception:
-			pass
+		emit_event('meal_plan_updated', meal.to_dict())
 
 		return jsonify(meal.to_dict())
 	
@@ -284,10 +278,7 @@ def delete_meal_plan(meal_id):
 		db.delete(meal)
 		db.commit()
 		
-		try:
-			socketio.emit('meal_plan_deleted', {'id': meal_id}, broadcast=True)
-		except Exception:
-			pass
+		emit_event('meal_plan_deleted', {'id': meal_id})
 
 		return jsonify({'message': 'Meal plan deleted successfully'})
 	
@@ -359,12 +350,9 @@ def create_receipt():
 		# commit both the updated grocery items and the new receipt together
 		db.commit()
 		db.refresh(new_receipt)
-		
+
 		# Emit websocket event for new receipt
-		try:
-			socketio.emit('receipt_created', new_receipt.to_dict(), broadcast=True)
-		except Exception:
-			pass
+		emit_event('receipt_created', new_receipt.to_dict())
 
 		return jsonify(new_receipt.to_dict()), 201
 	
@@ -405,10 +393,7 @@ def update_receipt(receipt_id):
 		db.commit()
 		db.refresh(receipt)
 
-		try:
-			socketio.emit('receipt_updated', receipt.to_dict(), broadcast=True)
-		except Exception:
-			pass
+		emit_event('receipt_updated', receipt.to_dict())
 
 		return jsonify(receipt.to_dict())
 	
@@ -431,10 +416,7 @@ def delete_receipt(receipt_id):
 		db.delete(receipt)
 		db.commit()
 
-		try:
-			socketio.emit('receipt_deleted', {'id': receipt_id}, broadcast=True)
-		except Exception:
-			pass
+		emit_event('receipt_deleted', {'id': receipt_id})
 
 		return jsonify({'message': 'Receipt deleted successfully'})
 	

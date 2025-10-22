@@ -9,9 +9,15 @@ import SwiftUI
 
 @main
 struct lebensmittelApp: App {
+    @StateObject private var groceriesModel = GroceriesModel()
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(groceriesModel)
+                .onAppear {
+                    SocketService.shared.start(with: groceriesModel)
+                }
         }
     }
 }

@@ -64,6 +64,26 @@ class GroceriesModel: ObservableObject {
             isSearching = false
         }
     }
+    
+    func addItem(_ item: GroceryItem) {
+        DispatchQueue.main.async {
+            self.groceryItems.append(item)
+        }
+    }
+    
+    func updateItem(_ updatedItem: GroceryItem) {
+        DispatchQueue.main.async {
+            if let index = self.groceryItems.firstIndex(where: { $0.id == updatedItem.id }) {
+                self.groceryItems[index] = updatedItem
+            }
+        }
+    }
+    
+    func removeItem(withId id: UUID) {
+        DispatchQueue.main.async {
+            self.groceryItems.removeAll { $0.id == id }
+        }
+    }
 
     func selectExistingItem(_ item: GroceryItem) {
         if !item.isNeeded {
@@ -115,37 +135,45 @@ class GroceriesModel: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let newItem = NewGroceryItem(name: name, category: category)
         request.httpBody = try? JSONEncoder().encode(newItem)
-        URLSession.shared.dataTask(with: request) { _, _, error in
+        URLSession.shared.dataTask(with: request) { _, response, error in
             DispatchQueue.main.async {
                 self.isLoading = false
                 if let error = error {
                     self.errorMessage = error.localizedDescription
-                } else {
-                    self.fetchGroceries()
                 }
             }
         }.resume()
     }
 
     func updateGroceryItemNeeded(item: GroceryItem, isNeeded: Bool) {
-        isLoading = true
         errorMessage = nil
         guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id.uuidString.lowercased())") else {
             errorMessage = "Invalid URL"
             isLoading = false
             return
         }
+        
+        // Optimistically update UI
+        var updatedItem = item
+        updatedItem.isNeeded = isNeeded
+        updateItem(updatedItem)
+        
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let updatedItem = UpdateGroceryItem(name: item.name, category: item.category, isNeeded: isNeeded, isShoppingChecked: item.isShoppingChecked)
-        request.httpBody = try? JSONEncoder().encode(updatedItem)
-        URLSession.shared.dataTask(with: request) { _, _, error in
+        request.httpBody = try? JSONEncoder().encode(["isNeeded": isNeeded])
+        URLSession.shared.dataTask(with: request) { _, response, error in
             DispatchQueue.main.async {
-                self.isLoading = false
+                
                 if let error = error {
                     self.errorMessage = error.localizedDescription
-                } else {
+                    // Re-sync since optimistic update failed
+                    self.fetchGroceries()
+                }
+                
+                if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                    self.errorMessage = "Server returned status \(http.statusCode)"
+                    // Re-sync to restore the item if update wasn't successful
                     self.fetchGroceries()
                 }
             }
@@ -153,21 +181,32 @@ class GroceriesModel: ObservableObject {
     }
 
     func deleteGroceryItem(item: GroceryItem) {
-        isLoading = true
         errorMessage = nil
         guard let url = URL(string: "http://192.168.2.113:8000/api/grocery-items/\(item.id.uuidString.lowercased())") else {
             errorMessage = "Invalid URL"
             isLoading = false
             return
         }
+        
+        // Optimistically remove locally so UI updates immediately
+        let removedId = item.id
+        removeItem(withId: removedId)
+        
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
-        URLSession.shared.dataTask(with: request) { _, _, error in
+        URLSession.shared.dataTask(with: request) { _, response, error in
             DispatchQueue.main.async {
-                self.isLoading = false
+                
                 if let error = error {
                     self.errorMessage = error.localizedDescription
-                } else {
+                    // Re-sync since optimistic removal failed
+                    self.fetchGroceries()
+                    return
+                }
+                
+                if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                    self.errorMessage = "Server returned status \(http.statusCode)"
+                    // Re-sync to restore the item if deletion wasn't successful
                     self.fetchGroceries()
                 }
             }
