@@ -38,7 +38,7 @@ final class SocketService {
         self.shoppingModel = shoppingModel
          // Prevent double-starting
          if socket != nil { return }
-         manager = SocketManager(socketURL: URL(string: "http://192.168.2.113:8000")!,
+         manager = SocketManager(socketURL: URL(string: "http://35.237.202.74")!,
                                  config: [.log(false), .compress])
          socket = manager!.defaultSocket
          addHandlers()
