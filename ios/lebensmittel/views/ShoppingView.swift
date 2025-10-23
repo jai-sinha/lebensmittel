@@ -92,23 +92,22 @@ struct ShoppingView: View {
                 }
                 Spacer()
                 // Checkout button
-                if !model.checkedItems.isEmpty {
-                    Button(action: {
-                        showCheckoutSheet = true
-                        checkoutCost = ""
-                        checkoutPurchaser = ""
-                        checkoutNotes = ""
-                        checkoutError = ""
-                    }) {
-                        Text("Checkout")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                    }
-                    .padding([.horizontal, .bottom])
+                Button(action: {
+                    showCheckoutSheet = true
+                    checkoutCost = ""
+                    checkoutPurchaser = ""
+                    checkoutNotes = ""
+                    checkoutError = ""
+                }) {
+                    Text("Checkout")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
                 }
+                .padding([.horizontal, .bottom])
+                
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Shopping List")

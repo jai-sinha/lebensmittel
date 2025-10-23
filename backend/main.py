@@ -326,17 +326,17 @@ def create_receipt():
 			GroceryItem.is_shopping_checked == True
 		).all()
 
-		# If there are no items to checkout, reject the request
+		# If there are no items to checkout, don't fail (for now)
 		if not items_to_checkout:
-			return jsonify({'error': 'No grocery items are both needed and checked; receipt would be empty.'}), 400
+			items_json = json.dumps([])
+		else:
+			# Extract names for receipt and unset flags on the items
+			item_names = [item.name for item in items_to_checkout]
+			for gi in items_to_checkout:
+				gi.is_needed = False
+				gi.is_shopping_checked = False
 
-		# Extract names for receipt and unset flags on the items
-		item_names = [item.name for item in items_to_checkout]
-		for gi in items_to_checkout:
-			gi.is_needed = False
-			gi.is_shopping_checked = False
-
-		items_json = json.dumps(item_names)
+			items_json = json.dumps(item_names)
 
 		new_receipt = Receipts(
 			date=date,
@@ -445,4 +445,4 @@ def handle_echo(data):
 
 if __name__ == '__main__':
 	# Run the SocketIO server using eventlet for WebSocket support
-	socketio.run(app, debug=True, host='0.0.0.0', port=8000)
+	socketio.run(app, debug=False, host='0.0.0.0', port=8000)
