@@ -16,19 +16,28 @@ struct Receipt: Identifiable, Codable {
     var totalAmount: Double
     var purchasedBy: String
     var items: [String]
-    var notes: String
+    var notes: String?
 }
 
 struct NewReceipt: Codable {
     var date: String
     var totalAmount: Double
     var purchasedBy: String
-    var notes: String
+    var notes: String?
 }
 
 struct ReceiptsResponse: Codable {
     let count: Int
     let receipts: [Receipt]
+}
+
+
+struct MonthlyReceiptsGroup: Identifiable {
+    let id = UUID()
+    let month: String
+    let receipts: [Receipt]
+    let jaiTotal: Double
+    let hannaTotal: Double
 }
 
 // MARK: Grocery Items

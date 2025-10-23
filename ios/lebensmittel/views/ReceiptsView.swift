@@ -28,20 +28,20 @@ struct ReceiptsView: View {
                     Text("Error: \(errorMessage)").foregroundColor(.red)
                 } else {
                     List {
-                        ForEach(model.groupReceiptsByMonthWithPersonTotals(), id: \ .month) { (month, receipts, jTotal, hTotal) in
+                        ForEach(model.groupReceiptsByMonthWithPersonTotals()) { group in
                             DisclosureGroup(
                                 isExpanded: Binding(
-                                    get: { expandedMonths.contains(month) },
+                                    get: { expandedMonths.contains(group.month) },
                                     set: { expanded in
                                         if expanded {
-                                            expandedMonths.insert(month)
+                                            expandedMonths.insert(group.month)
                                         } else {
-                                            expandedMonths.remove(month)
+                                            expandedMonths.remove(group.month)
                                         }
                                     }
                                 ),
                                 content: {
-                                    ForEach(receipts) { receipt in
+                                    ForEach(group.receipts) { receipt in
                                         DisclosureGroup(
                                             isExpanded: Binding(
                                                 get: { expandedReceiptIDs.contains(receipt.id) },
@@ -64,8 +64,8 @@ struct ReceiptsView: View {
                                                                 .font(.body)
                                                         }
                                                     }
-                                                    if !receipt.notes.trimmingCharacters(in: .whitespaces).isEmpty {
-                                                        Text("Notes: \(receipt.notes)")
+                                                    if let notes = receipt.notes, !notes.trimmingCharacters(in: .whitespaces).isEmpty {
+                                                        Text("Notes: \(notes)")
                                                             .font(.body)
                                                             .foregroundColor(.secondary)
                                                     }
@@ -94,7 +94,7 @@ struct ReceiptsView: View {
                                                 selectedReceipt = receipt
                                                 editCost = String(format: "%.2f", receipt.totalAmount)
                                                 editPurchaser = receipt.purchasedBy
-                                                editNotes = receipt.notes
+                                                editNotes = receipt.notes ?? ""
                                                 editError = ""
                                                 showEditSheet = true
                                             } label: {
@@ -112,7 +112,7 @@ struct ReceiptsView: View {
                                         Text("Jai's Total: ")
                                             .font(.subheadline)
                                             .bold()
-                                        Text(String(format: "€%.2f", jTotal))
+                                        Text(String(format: "€%.2f", group.jaiTotal))
                                             .font(.subheadline)
                                             .foregroundColor(.green)
                                             .bold()
@@ -120,7 +120,7 @@ struct ReceiptsView: View {
                                         Text("Hanna's Total: ")
                                             .font(.subheadline)
                                             .bold()
-                                        Text(String(format: "€%.2f", hTotal))
+                                        Text(String(format: "€%.2f", group.hannaTotal))
                                             .font(.subheadline)
                                             .foregroundColor(.green)
                                             .bold()
@@ -128,7 +128,7 @@ struct ReceiptsView: View {
                                     .padding(.top, 8)
                                 },
                                 label: {
-                                    Text(month)
+                                    Text(group.month)
                                         .font(.title3)
                                         .bold()
                                         .padding(.vertical, 4)

@@ -168,7 +168,7 @@ class ReceiptsModel: ObservableObject {
         return sortedMonths.map { ($0, groups[$0]!.sorted { $0.date < $1.date }) }
     }
     
-    func groupReceiptsByMonthWithPersonTotals() -> [(month: String, receipts: [Receipt], jTotal: Double, hTotal: Double)] {
+    func groupReceiptsByMonthWithPersonTotals() -> [MonthlyReceiptsGroup] {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let monthFormatter = DateFormatter()
@@ -185,9 +185,9 @@ class ReceiptsModel: ObservableObject {
         }
         return sortedMonths.map { month in
             let monthReceipts = groups[month]!.sorted { $0.date < $1.date }
-            let jTotal = monthReceipts.filter { $0.purchasedBy == "Jai" }.reduce(into: 0) { $0 += $1.totalAmount }
-            let hTotal = monthReceipts.filter { $0.purchasedBy == "Hanna" }.reduce(into: 0) { $0 += $1.totalAmount }
-            return (month, monthReceipts, jTotal, hTotal)
+            let jaiTotal = monthReceipts.filter { $0.purchasedBy == "Jai" }.reduce(into: 0) { $0 += $1.totalAmount }
+            let hannaTotal = monthReceipts.filter { $0.purchasedBy == "Hanna" }.reduce(into: 0) { $0 += $1.totalAmount }
+            return MonthlyReceiptsGroup(month: month, receipts: monthReceipts, jaiTotal: jaiTotal, hannaTotal: hannaTotal)
         }
     }
 }

@@ -115,8 +115,7 @@ final class SocketService {
             self.decode(payload, as: Receipt.self) { receipt in
                 if Self.verbose { print("receipt created:", receipt) }
                 self.receiptsModel.addReceipt(receipt)
-                self.groceriesModel.fetchGroceries()
-            }
+                self.shoppingModel.fetchGroceries()            }
         }
         
         socket.on("receipt_updated") { data, _ in
@@ -133,6 +132,8 @@ final class SocketService {
                 self.receiptsModel.deleteReceipt(withId: dp.id)
             }
         }
+        
+        // MARK: Connection Events
 
         socket.on(clientEvent: .disconnect) { _, _ in
             if Self.verbose { print("Socket disconnected") }
