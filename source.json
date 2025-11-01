@@ -1,0 +1,22 @@
+{
+  "name": "Jai's AltStore Source",
+  "developer": "jai-sinha",
+  "website": "https://jai-sinha.github.io/lebensmittel/",
+  "description": "AltStore source for the Lebensmittel app — install the latest .ipa via AltStore.",
+  "icon": "https://jai-sinha.github.io/lebensmittel/icon.jpg",
+  "version": "1.0",
+  "apps": [
+    {
+      "name": "Lebensmittel",
+      "bundle_identifier": "com.jaisinha.lebensmittel",
+      "version": "1.0.0",
+      "short_version": "1.0",
+      "url": "https://jai-sinha.github.io/lebensmittel/Lebensmittel.ipa",
+      "icon": "https://jai-sinha.github.io/lebensmittel/icon.jpg",
+      "size": 0,
+      "signed": false,
+      "release_date": "2025-11-01T00:00:00Z",
+      "description": "A Swift/SwiftUI grocery app. Signed on-install by AltStore using your Apple ID (free provisioning). Remove unsupported entitlements before packaging if you run into install errors."
+    }
+  ]
+}
