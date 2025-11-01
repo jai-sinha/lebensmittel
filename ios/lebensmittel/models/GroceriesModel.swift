@@ -48,6 +48,14 @@ class GroceriesModel: ObservableObject {
         return categoriesWithItems + emptyCategories
     }
 
+    var essentialsItems: [GroceryItem] {
+        itemsByCategory["Essentials"] ?? []
+    }
+
+    var otherCategories: [String] {
+        sortedCategories.filter { $0 != "Essentials" }
+    }
+    
     func addItem() {
         let trimmedName = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedName.isEmpty {

@@ -18,30 +18,81 @@ struct GroceriesView: View {
                 } else if let errorMessage = model.errorMessage {
                     Text("Error: \(errorMessage)").foregroundColor(.red)
                 } else {
-                    List {
-                        ForEach(model.sortedCategories, id: \ .self) { category in
-                            if let items = model.itemsByCategory[category], !items.isEmpty {
-                                CategorySection(
-                                    category: category,
-                                    isExpanded: model.expandedCategories.contains(category),
-                                    onToggleExpansion: {
-                                        if model.expandedCategories.contains(category) {
-                                            model.expandedCategories.remove(category)
-                                        } else {
-                                            model.expandedCategories.insert(category)
+                    HStack(spacing: 0) {
+                        // Essentials pane (left)
+                        ScrollView(.vertical, showsIndicators: true) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Essentials")
+                                    .font(.headline)
+                                    .padding(.bottom, 4)
+                                if !model.essentialsItems.isEmpty {
+                                    ForEach(model.essentialsItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) { item in
+                                        HStack {
+                                            Button(action: {
+                                                model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
+                                            }) {
+                                                Image(systemName: item.isNeeded ? "checkmark.square" : "square")
+                                                    .foregroundColor(item.isNeeded ? .green : .gray)
+                                            }
+                                            .buttonStyle(PlainButtonStyle())
+                                            Text(item.name)
+                                                .foregroundColor(item.isNeeded ? .primary : .gray)
+                                            Spacer()
                                         }
-                                    },
-                                    onToggleNeeded: { item, isNeeded in
-                                        model.updateGroceryItem(item: item, field: .isNeeded(isNeeded))
-                                    },
-                                    onDelete: { item in
-                                        model.deleteGroceryItem(item: item)
+                                        .padding(.vertical, 2)
                                     }
-                                )
+                                } else {
+                                    Text("No Essentials")
+                                        .foregroundColor(.secondary)
+                                }
                             }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                            .padding()
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        Divider()
+                            .frame(width: 1)
+                            .background(Color(.systemGray4))
+                            .padding(.vertical)
+
+                        // Other categories pane (right)
+                        ScrollView(.vertical, showsIndicators: true) {
+                            VStack(alignment: .leading, spacing: 16) {
+                                ForEach(model.otherCategories, id: \ .self) { category in
+                                    if let items = model.itemsByCategory[category], !items.isEmpty {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(category)
+                                                .font(.headline)
+                                                .padding(.bottom, 4)
+                                            ForEach(items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) { item in
+                                                HStack {
+                                                    Button(action: {
+                                                        model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
+                                                    }) {
+                                                        Image(systemName: item.isNeeded ? "checkmark.square" : "square")
+                                                            .foregroundColor(item.isNeeded ? .green : .gray)
+                                                    }
+                                                    .buttonStyle(PlainButtonStyle())
+                                                    Text(item.name)
+                                                        .foregroundColor(item.isNeeded ? .primary : .gray)
+                                                    Spacer()
+                                                }
+                                                .padding(.vertical, 2)
+                                            }
+                                        }
+                                        .padding()
+                                        .background(Color(.systemGray6))
+                                        .cornerRadius(12)
+                                    }
+                                }
+                            }
+                            .padding()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    
                     VStack(spacing: 0) {
                         // Search results dropdown
                         if model.isSearching && !model.searchResults.isEmpty {
