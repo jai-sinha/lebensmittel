@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "7B114CC52E9FCC940040DE73"
-               BuildableName = "lebensmittel.app"
-               BlueprintName = "lebensmittel"
+               BuildableName = "Lebensmittel.app"
+               BlueprintName = "Lebensmittel"
                ReferencedContainer = "container:lebensmittel.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -45,8 +45,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7B114CC52E9FCC940040DE73"
-            BuildableName = "lebensmittel.app"
-            BlueprintName = "lebensmittel"
+            BuildableName = "Lebensmittel.app"
+            BlueprintName = "Lebensmittel"
             ReferencedContainer = "container:lebensmittel.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -62,8 +62,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7B114CC52E9FCC940040DE73"
-            BuildableName = "lebensmittel.app"
-            BlueprintName = "lebensmittel"
+            BuildableName = "Lebensmittel.app"
+            BlueprintName = "Lebensmittel"
             ReferencedContainer = "container:lebensmittel.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
