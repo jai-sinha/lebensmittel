@@ -1,25 +1,25 @@
 {
-	"name": "Jai's AltStore Source",
-	"website": "https://github.com/jai-sinha/",
-	"description": "AltStore source for my app.",
-	"iconURL": "https://jai-sinha.github.io/lebensmittel/icon.jpg",
-	"apps": [
-		{
-		"name": "Lebensmittel",
-		"bundleIdentifier": "Jai-Sinha.Lebensmittel",
-		"developerName": "Jai Sinha",
-		"localizedDescription": "A grocery app for me and my roommate.",
-		"iconURL": "https://jai-sinha.github.io/lebensmittel/icon.jpg",
-		"versions": [
-			{
-				"version": "1.0",
-				"date": "2025-11-01T00:00:00Z",
-				"size": 634000,
-				"downloadURL": "https://jai-sinha.github.io/lebensmittel/Lebensmittel.ipa",
-				"localizedDescription": "Initial release.",
-				"minOSVersion": "15.0"
-			}
-		]
-		}
-  	]
+"name": "Jai's AltStore Source",
+"website": "https://github.com/jai-sinha/",
+"description": "AltStore source for my app.",
+"iconURL": "https://jai-sinha.github.io/lebensmittel/icon.jpg",
+"apps": [
+  {
+    "name": "Lebensmittel",
+    "bundleIdentifier": "Jai-Sinha.Lebensmittel",
+    "developerName": "Jai Sinha",
+    "localizedDescription": "A grocery app for me and my roommate.",
+    "iconURL": "https://jai-sinha.github.io/lebensmittel/icon.jpg",
+    "versions": [
+      {
+        "version": "1.0",
+        "date": "2025-11-01T00:00:00Z",
+        "size": 634000,
+        "downloadURL": "https://jai-sinha.github.io/lebensmittel/Lebensmittel.ipa",
+        "localizedDescription": "Initial release.",
+        "minOSVersion": "26.0"
+      }
+    ]
+  }
+]
 }
