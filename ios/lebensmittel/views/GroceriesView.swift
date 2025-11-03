@@ -9,6 +9,7 @@ import SwiftUI
 
 struct GroceriesView: View {
     @EnvironmentObject var model: GroceriesModel
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         NavigationView {
@@ -28,6 +29,10 @@ struct GroceriesView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.bottom, 6)
+                    .background(colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    .padding(.horizontal, 12)
                     // Show search results above the search bar
                     SearchResultsDropdown()
                     AddItemSection()
@@ -38,6 +43,7 @@ struct GroceriesView: View {
                         .padding(.bottom, 0)
                 }
             }
+            .background(colorScheme == .dark ? Color(.systemBackground) : Color(.secondarySystemBackground))
             .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Groceries")
             .onAppear {
@@ -50,6 +56,7 @@ struct GroceriesView: View {
 
 struct EssentialsPane: View {
     @EnvironmentObject var model: GroceriesModel
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         List {
@@ -57,15 +64,15 @@ struct EssentialsPane: View {
                 Text("Essentials")
                     .font(.headline)
                     .foregroundColor(.primary)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 5, trailing: 12))
-                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 12))
             ) {
                 if !model.essentialsItems.isEmpty {
                     ForEach(model.essentialsItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) { item in
                         GroceryItemRow(item: item)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 12))
                             .listRowSeparator(.hidden)
                             .listRowSpacing(0)
+                            .listRowBackground(colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
                                     model.deleteGroceryItem(item: item)
@@ -78,8 +85,9 @@ struct EssentialsPane: View {
                 } else {
                     Text("No Essentials")
                         .foregroundColor(.secondary)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 12))
                         .listRowSeparator(.hidden)
+                        .listRowBackground(colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
                 }
             }
         }
@@ -89,11 +97,14 @@ struct EssentialsPane: View {
         .environment(\.defaultMinListRowHeight, 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, -10)
+        .scrollContentBackground(.hidden)
+        .background(colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
     }
 }
 
 struct CategoriesListPane: View {
     @EnvironmentObject var model: GroceriesModel
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         List {
@@ -107,11 +118,14 @@ struct CategoriesListPane: View {
         .environment(\.defaultMinListRowHeight, 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, -16)
+        .scrollContentBackground(.hidden)
+        .background(colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
     }
 }
 
 struct CategoryListSection: View {
     @EnvironmentObject var model: GroceriesModel
+    @Environment(\.colorScheme) var colorScheme
     let category: String
     
     var body: some View {
@@ -134,8 +148,7 @@ struct CategoryListSection: View {
                 }
             }
             .buttonStyle(PlainButtonStyle())
-            .listRowInsets(EdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12))
-            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
         ) {
             if model.expandedCategories.contains(category), let items = model.itemsByCategory[category], !items.isEmpty {
                 ForEach(items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) { item in
@@ -143,6 +156,7 @@ struct CategoryListSection: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
                         .listRowSeparator(.hidden)
                         .listRowSpacing(0)
+                        .listRowBackground(colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 model.deleteGroceryItem(item: item)
