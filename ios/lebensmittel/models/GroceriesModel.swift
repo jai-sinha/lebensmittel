@@ -17,7 +17,7 @@ class GroceriesModel: ObservableObject {
     @Published var expandedCategories: Set<String> = []
     @Published var isSearching: Bool = false
 
-    let categories = ["Vegetables", "Protein", "Fruit", "Bread", "Beverages", "Other", "Essentials"]
+    let categories = ["Essentials", "Protein", "Veggies", "Carbs", "Other", "Household"]
     
     // MARK: Computed Properties and Helpers
 

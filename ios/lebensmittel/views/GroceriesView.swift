@@ -64,23 +64,42 @@ struct GroceriesView: View {
                                 ForEach(model.otherCategories, id: \ .self) { category in
                                     if let items = model.itemsByCategory[category], !items.isEmpty {
                                         VStack(alignment: .leading, spacing: 4) {
-                                            Text(category)
-                                                .font(.headline)
-                                                .padding(.bottom, 4)
-                                            ForEach(items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) { item in
-                                                HStack {
-                                                    Button(action: {
-                                                        model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
-                                                    }) {
-                                                        Image(systemName: item.isNeeded ? "checkmark.square" : "square")
-                                                            .foregroundColor(item.isNeeded ? .green : .gray)
-                                                    }
-                                                    .buttonStyle(PlainButtonStyle())
-                                                    Text(item.name)
-                                                        .foregroundColor(item.isNeeded ? .primary : .gray)
-                                                    Spacer()
+                                            // Collapsible header
+                                            Button(action: {
+                                                if model.expandedCategories.contains(category) {
+                                                    model.expandedCategories.remove(category)
+                                                } else {
+                                                    model.expandedCategories.insert(category)
                                                 }
-                                                .padding(.vertical, 2)
+                                            }) {
+                                                HStack {
+                                                    Text(category)
+                                                        .font(.headline)
+                                                        .foregroundColor(.primary)
+                                                    Spacer()
+                                                    Image(systemName: model.expandedCategories.contains(category) ? "chevron.down" : "chevron.right")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                            }
+                                            .buttonStyle(PlainButtonStyle())
+                                            // Show items if expanded
+                                            if model.expandedCategories.contains(category) {
+                                                ForEach(items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) { item in
+                                                    HStack {
+                                                        Button(action: {
+                                                            model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
+                                                        }) {
+                                                            Image(systemName: item.isNeeded ? "checkmark.square" : "square")
+                                                                .foregroundColor(item.isNeeded ? .green : .gray)
+                                                        }
+                                                        .buttonStyle(PlainButtonStyle())
+                                                        Text(item.name)
+                                                            .foregroundColor(item.isNeeded ? .primary : .gray)
+                                                        Spacer()
+                                                    }
+                                                    .padding(.vertical, 2)
+                                                }
                                             }
                                         }
                                         .padding()
