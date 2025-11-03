@@ -23,42 +23,46 @@ struct MealsView: View {
     
     var body: some View {
         NavigationView {
-            VStack {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: -4) {
-                            // Past days (scrollable up)
-                            ForEach(-7..<0, id: \.self) { dayOffset in
-                                mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
+            ZStack {
+                Color(.systemGray6)
+                    .ignoresSafeArea()
+                VStack {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: -4) {
+                                // Past days (scrollable up)
+                                ForEach(-7..<0, id: \.self) { dayOffset in
+                                    mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
+                                }
+                                // Current day and next 6 days (the main 7-day view)
+                                ForEach(0..<7, id: \.self) { dayOffset in
+                                    let rowDate = date(for: dayOffset)
+                                    let isThisToday = isToday(utcDate: rowDate)
+                                    mealRowView(for: rowDate, dayOffset: dayOffset)
+                                        .id(isThisToday ? "today" : "day_\(dayOffset)")
+                                }
+                                // Future days (scrollable down)
+                                ForEach(7..<10, id: \.self) { dayOffset in
+                                    mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
+                                }
                             }
-                            // Current day and next 6 days (the main 7-day view)
-                            ForEach(0..<7, id: \.self) { dayOffset in
-                                let rowDate = date(for: dayOffset)
-                                let isThisToday = isToday(utcDate: rowDate)
-                                mealRowView(for: rowDate, dayOffset: dayOffset)
-                                    .id(isThisToday ? "today" : "day_\(dayOffset)")
-                            }
-                            // Future days (scrollable down)
-                            ForEach(7..<10, id: \.self) { dayOffset in
-                                mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
-                            }
+                            .padding(.horizontal)
                         }
-                        .padding(.horizontal)
-                    }
-                    .onAppear {
-                        model.fetchMealPlans()
-                        DispatchQueue.main.async {
-                            proxy.scrollTo("today", anchor: .top)
+                        .onAppear {
+                            model.fetchMealPlans()
+                            DispatchQueue.main.async {
+                                proxy.scrollTo("today", anchor: .top)
+                            }
                         }
                     }
                 }
-            }
-            .onChange(of: model.mealPlans) {
-                // Remove keys from mealTexts that are no longer in mealPlans
-                mealTexts = mealTexts.filter { model.mealPlans.keys.contains($0.key) }
-                // Update or add descriptions for existing keys
-                for (date, plan) in model.mealPlans {
-                    mealTexts[date] = plan.mealDescription
+                .onChange(of: model.mealPlans) {
+                    // Remove keys from mealTexts that are no longer in mealPlans
+                    mealTexts = mealTexts.filter { model.mealPlans.keys.contains($0.key) }
+                    // Update or add descriptions for existing keys
+                    for (date, plan) in model.mealPlans {
+                        mealTexts[date] = plan.mealDescription
+                    }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -69,51 +73,57 @@ struct MealsView: View {
     private func mealRowView(for date: Date, dayOffset: Int) -> some View {
         let dateStr = MealsModel.utcDateString(for: date)
         let isTodayDate = isToday(utcDate: date)
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                HStack(spacing: 4) {
-                    Text(model.dayFormatter.string(from: date))
-                        .font(.title2)
-                        .foregroundColor(isTodayDate ? .blue.opacity(0.8) : .secondary)
-                    Text(model.dateFormatter.string(from: date))
-                        .font(.title2)
-                        .foregroundColor(isTodayDate ? .blue : .primary)
-                }
-                Spacer()
-                if isTodayDate {
-                    Text("Today")
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
-                }
-            }
-            TextField("", text: Binding(
-                get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
-                set: { newValue in
-                    mealTexts[dateStr] = newValue
-                }
-            ))
-            .textFieldStyle(RoundedBorderTextFieldStyle())
-            .submitLabel(.done)
-            .onSubmit {
-                /* if text is empty, and there's an existing meal plan, delete it
-                 if text is empty, and no existing meal plan, do nothing
-                 if text is non-empty, create meal plan. no update function needed,
-                 as backend enforces only one meal item per date.
-                */
-                let text = mealTexts[dateStr] ?? ""
-                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    if let mealId = model.mealPlanId(for: dateStr) {
-                        model.deleteMealPlan(mealId: mealId)
+        return ZStack {
+            Color.white
+                .cornerRadius(12)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    HStack(spacing: 4) {
+                        Text(model.dayFormatter.string(from: date))
+                            .font(.title2)
+                            .foregroundColor(isTodayDate ? .blue.opacity(0.8) : .secondary)
+                        Text(model.dateFormatter.string(from: date))
+                            .font(.title2)
+                            .foregroundColor(isTodayDate ? .blue : .primary)
                     }
-                } else {
-                    model.createMealPlan(for: dateStr, meal: text)
+                    Spacer()
+                    if isTodayDate {
+                        Text("Today")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                    }
                 }
+                TextField("", text: Binding(
+                    get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
+                    set: { newValue in
+                        mealTexts[dateStr] = newValue
+                    }
+                ))
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .submitLabel(.done)
+                .onSubmit {
+                    /* if text is empty, and there's an existing meal plan, delete it
+                     if text is empty, and no existing meal plan, do nothing
+                     if text is non-empty, create meal plan. no update function needed,
+                     as backend enforces only one meal item per date.
+                    */
+                    let text = mealTexts[dateStr] ?? ""
+                    if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if let mealId = model.mealPlanId(for: dateStr) {
+                            model.deleteMealPlan(mealId: mealId)
+                        }
+                    } else {
+                        model.createMealPlan(for: dateStr, meal: text)
+                    }
+                }
+                Divider()
             }
-            Divider()
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
         }
         .padding(.vertical, 4)
     }
