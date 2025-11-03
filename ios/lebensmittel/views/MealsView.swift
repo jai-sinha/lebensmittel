@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MealsView: View {
     @EnvironmentObject var model: MealsModel
+    @Environment(\.colorScheme) var colorScheme
     @State private var mealTexts: [String: String] = [:]
     
     private func date(for dayOffset: Int) -> Date {
@@ -24,7 +25,7 @@ struct MealsView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color(.systemGray6)
+                (colorScheme == .dark ? Color(.systemBackground) : Color(.secondarySystemBackground))
                     .ignoresSafeArea()
                 VStack {
                     ScrollViewReader { proxy in
@@ -73,59 +74,50 @@ struct MealsView: View {
     private func mealRowView(for date: Date, dayOffset: Int) -> some View {
         let dateStr = MealsModel.utcDateString(for: date)
         let isTodayDate = isToday(utcDate: date)
-        return ZStack {
-            Color.white
-                .cornerRadius(12)
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    HStack(spacing: 4) {
-                        Text(model.dayFormatter.string(from: date))
-                            .font(.title2)
-                            .foregroundColor(isTodayDate ? .blue.opacity(0.8) : .secondary)
-                        Text(model.dateFormatter.string(from: date))
-                            .font(.title2)
-                            .foregroundColor(isTodayDate ? .blue : .primary)
-                    }
-                    Spacer()
-                    if isTodayDate {
-                        Text("Today")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(8)
-                    }
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                HStack(spacing: 4) {
+                    Text(model.dayFormatter.string(from: date))
+                        .font(.title2)
+                        .foregroundColor(isTodayDate ? .blue.opacity(0.8) : .secondary)
+                    Text(model.dateFormatter.string(from: date))
+                        .font(.title2)
+                        .foregroundColor(isTodayDate ? .blue : .primary)
                 }
-                TextField("", text: Binding(
-                    get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
-                    set: { newValue in
-                        mealTexts[dateStr] = newValue
-                    }
-                ))
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .submitLabel(.done)
-                .onSubmit {
-                    /* if text is empty, and there's an existing meal plan, delete it
-                     if text is empty, and no existing meal plan, do nothing
-                     if text is non-empty, create meal plan. no update function needed,
-                     as backend enforces only one meal item per date.
-                    */
-                    let text = mealTexts[dateStr] ?? ""
-                    if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        if let mealId = model.mealPlanId(for: dateStr) {
-                            model.deleteMealPlan(mealId: mealId)
-                        }
-                    } else {
-                        model.createMealPlan(for: dateStr, meal: text)
-                    }
+                Spacer()
+                if isTodayDate {
+                    Text("Today")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
                 }
-                Divider()
             }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
+            TextField("", text: Binding(
+                get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
+                set: { newValue in
+                    mealTexts[dateStr] = newValue
+                }
+            ))
+            .textFieldStyle(RoundedBorderTextFieldStyle())
+            .foregroundColor(.primary)
+            .submitLabel(.done)
+            .onSubmit {
+                let text = mealTexts[dateStr] ?? ""
+                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if let mealId = model.mealPlanId(for: dateStr) {
+                        model.deleteMealPlan(mealId: mealId)
+                    }
+                } else {
+                    model.createMealPlan(for: dateStr, meal: text)
+                }
+            }
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
     }
 }
 
