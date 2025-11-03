@@ -17,7 +17,7 @@ class GroceriesModel: ObservableObject {
     @Published var expandedCategories: Set<String> = []
     @Published var isSearching: Bool = false
 
-    let categories = ["Essentials", "Protein", "Veggies", "Carbs", "Other", "Household"]
+    let categories = ["Essentials", "Protein", "Veggies", "Carbs", "Household", "Other"]
     
     // MARK: Computed Properties and Helpers
 
@@ -53,7 +53,7 @@ class GroceriesModel: ObservableObject {
     }
 
     var otherCategories: [String] {
-        sortedCategories.filter { $0 != "Essentials" }
+        categories.filter { $0 != "Essentials" }
     }
     
     func addItem() {

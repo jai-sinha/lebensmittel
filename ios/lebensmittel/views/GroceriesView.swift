@@ -18,20 +18,37 @@ struct GroceriesView: View {
                 } else if let errorMessage = model.errorMessage {
                     Text("Error: \(errorMessage)").foregroundColor(.red)
                 } else {
-                    HStack(spacing: 0) {
-                        EssentialsPane()
-
-                        Divider()
-                            .frame(width: 1)
-                            .background(Color(.systemGray4))
-                            .padding(.vertical)
-                        
-                        CategoriesListPane()
+                    ZStack {
+                        HStack(spacing: 0) {
+                            EssentialsPane()
+                            Divider()
+                                .frame(width: 1)
+                                .background(Color(.systemGray4))
+                                .padding(.vertical)
+                            CategoriesListPane()
+                        }
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
+                    .padding([.horizontal, .top], 12)
+                    .padding(.bottom, 12)
+                    // Show search results above the search bar
                     SearchResultsDropdown()
-                    AddItemSection()
+                    ZStack {
+                        Color.white
+                            .cornerRadius(12)
+                            .shadow(color: Color(.black).opacity(0.04), radius: 4, x: 0, y: 2)
+                        AddItemSection()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                    .padding(.bottom, 24)
                 }
             }
+            .padding(.top, -14)
+            .background(Color(.systemGray6).ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Groceries")
             .onAppear {
@@ -236,45 +253,45 @@ struct SearchResultsDropdown: View {
     
     var body: some View {
         if model.isSearching && !model.searchResults.isEmpty {
-            VStack(spacing: 0) {
-                ForEach(model.searchResults.prefix(5)) { item in
-                    Button(action: {
-                        model.selectExistingItem(item)
-                    }) {
-                        HStack {
-                            Image(systemName: item.isNeeded ? "checkmark.square.fill" : "square")
-                                .foregroundColor(item.isNeeded ? .green : .gray)
-                            VStack(alignment: .leading) {
-                                Text(item.name)
-                                    .foregroundColor(.primary)
-                                Text(item.category)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+            ZStack {
+                Color.white
+                    .cornerRadius(12)
+                    .shadow(color: Color(.black).opacity(0.04), radius: 4, x: 0, y: 2)
+                VStack(spacing: 0) {
+                    ForEach(model.searchResults.prefix(5)) { item in
+                        Button(action: {
+                            model.selectExistingItem(item)
+                        }) {
+                            HStack {
+                                Image(systemName: item.isNeeded ? "checkmark.square.fill" : "square")
+                                    .foregroundColor(item.isNeeded ? .green : .gray)
+                                VStack(alignment: .leading) {
+                                    Text(item.name)
+                                        .foregroundColor(.primary)
+                                    Text(item.category)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                if !item.isNeeded {
+                                    Text("Add to list")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                }
                             }
-                            Spacer()
-                            if !item.isNeeded {
-                                Text("Add to list")
-                                    .font(.caption)
-                                    .foregroundColor(.blue)
-                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
                         }
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .background(Color(.systemGray6))
-                    if item.id != model.searchResults.prefix(5).last?.id {
-                        Divider()
+                        .buttonStyle(PlainButtonStyle())
+                        if item.id != model.searchResults.prefix(5).last?.id {
+                            Divider()
+                        }
                     }
                 }
+                .padding(.vertical, 8)
             }
-            .background(Color(.systemBackground))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color(.systemGray4), lineWidth: 1)
-            )
             .padding(.horizontal)
-            .padding(.bottom, 8)
+            .padding(.bottom, 0)
         }
     }
 }
