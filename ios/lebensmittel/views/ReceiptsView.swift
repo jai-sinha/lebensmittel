@@ -103,7 +103,7 @@ struct MonthGroup: View {
                 }
                 // Monthly person totals
                 HStack {
-                    Text("Jai's Total: ")
+                    Text("Jai's Total:")
                         .font(.subheadline)
                         .bold()
                     Text(String(format: "€%.2f", group.jaiTotal))
@@ -111,7 +111,7 @@ struct MonthGroup: View {
                         .foregroundColor(.green)
                         .bold()
                     Spacer()
-                    Text("Hanna's Total: ")
+                    Text("Hanna's Total:")
                         .font(.subheadline)
                         .bold()
                     Text(String(format: "€%.2f", group.hannaTotal))
@@ -119,7 +119,7 @@ struct MonthGroup: View {
                         .foregroundColor(.green)
                         .bold()
                 }
-                .padding(.top, 8)
+                .padding(.leading, -20)
             },
             label: {
                 Text(group.month)
@@ -176,7 +176,7 @@ struct ReceiptRow: View {
             },
             label: {
                 HStack {
-                    Text(receipt.date)
+                    Text(receipt.date.dropFirst(5))
                         .font(.headline)
                     Spacer()
                     Text(receipt.purchasedBy)
