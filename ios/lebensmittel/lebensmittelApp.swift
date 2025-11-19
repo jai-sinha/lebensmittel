@@ -28,6 +28,18 @@ struct lebensmittelApp: App {
                         receiptsModel: receiptsModel,
                         shoppingModel: shoppingModel
                     )
+                    // Initial data fetch
+                    groceriesModel.fetchGroceries()
+                    mealsModel.fetchMealPlans()
+                    receiptsModel.fetchReceipts()
+                    shoppingModel.fetchGroceries()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                    // Refresh data when app comes to foreground
+                    groceriesModel.fetchGroceries()
+                    mealsModel.fetchMealPlans()
+                    receiptsModel.fetchReceipts()
+                    shoppingModel.fetchGroceries()
                 }
         }
     }

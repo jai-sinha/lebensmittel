@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ShoppingView: View {
     @EnvironmentObject var model: ShoppingModel
+    @Environment(\.colorScheme) var colorScheme
     // Checkout dialog state
     @State private var showCheckoutSheet = false
     @State private var checkoutCost = ""
@@ -111,9 +112,6 @@ struct ShoppingView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationTitle("Shopping List")
-            .onAppear {
-                model.fetchGroceries()
-            }
             
             // MARK: Checkout Sheet
             .sheet(isPresented: $showCheckoutSheet) {

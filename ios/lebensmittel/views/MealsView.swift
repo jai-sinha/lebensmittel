@@ -50,7 +50,6 @@ struct MealsView: View {
                             .padding(.horizontal)
                         }
                         .onAppear {
-                            model.fetchMealPlans()
                             DispatchQueue.main.async {
                                 proxy.scrollTo("today", anchor: .top)
                             }
