@@ -1,1 +1,8 @@
+# build script
 *.sh
+
+# backend
+.venv/
+__pycache__/
+*.db
+.env

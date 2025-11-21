@@ -150,11 +150,12 @@ class GroceriesModel: ObservableObject {
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                     await MainActor.run {
                         self.errorMessage = "Server returned status \(http.statusCode)"
+                        self.isLoading = false
                     }
                 } else {
                     await MainActor.run {
                         self.isLoading = false
-                        self.fetchGroceries()
+                        // WebSocket will handle updating the UI via grocery_item_created event
                     }
                 }
             } catch {
@@ -176,19 +177,18 @@ class GroceriesModel: ObservableObject {
         errorMessage = nil
         guard let url = URL(string: "http://35.237.202.74/api/grocery-items/\(item.id)") else {
             errorMessage = "Invalid URL"
-            isLoading = false
             return
         }
-        // Optimistically update locally
+        
+        // Build updated item for the request
         var updatedItem = item
         switch field {
         case .isNeeded(let value):
             updatedItem.isNeeded = value
-            updateItem(updatedItem)
         case .isShoppingChecked(let value):
             updatedItem.isShoppingChecked = value
-            updateItem(updatedItem)
         }
+        
         // Send full item in PUT request
         let updatePayload = UpdateGroceryItem(
             name: updatedItem.name,
@@ -210,13 +210,12 @@ class GroceriesModel: ObservableObject {
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                     await MainActor.run {
                         self.errorMessage = "Server returned status \(http.statusCode)"
-                        self.fetchGroceries()
                     }
                 }
+                // WebSocket will handle updating the UI via grocery_item_updated event
             } catch {
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
-                    self.fetchGroceries()
                 }
             }
         }
@@ -226,12 +225,9 @@ class GroceriesModel: ObservableObject {
         errorMessage = nil
         guard let url = URL(string: "http://35.237.202.74/api/grocery-items/\(item.id)") else {
             errorMessage = "Invalid URL"
-            isLoading = false
             return
         }
-        // Optimistically remove locally so UI updates immediately
-        let removedId = item.id
-        removeItem(withId: removedId)
+        
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         Task {
@@ -240,13 +236,12 @@ class GroceriesModel: ObservableObject {
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                     await MainActor.run {
                         self.errorMessage = "Server returned status \(http.statusCode)"
-                        self.fetchGroceries()
                     }
                 }
+                // WebSocket will handle updating the UI via grocery_item_deleted event
             } catch {
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
-                    self.fetchGroceries()
                 }
             }
         }

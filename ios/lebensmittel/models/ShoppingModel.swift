@@ -8,9 +8,33 @@
 import Foundation
 import Combine
 
-class ShoppingModel: GroceriesModel {
+class ShoppingModel: ObservableObject {
+    // Reference to shared GroceriesModel
+    private var groceriesModel: GroceriesModel
+    
+    @Published var errorMessage: String? = nil
+    
+    private var cancellables = Set<AnyCancellable>()
+    
+    init(groceriesModel: GroceriesModel) {
+        self.groceriesModel = groceriesModel
+        
+        // Subscribe to groceriesModel changes to trigger UI updates
+        groceriesModel.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }.store(in: &cancellables)
+    }
+    
+    // Delegate isLoading to groceriesModel
+    var isLoading: Bool {
+        groceriesModel.isLoading
+    }
     
     // MARK: Computed Properties
+    var groceryItems: [GroceryItem] {
+        groceriesModel.groceryItems
+    }
+    
     var shoppingItems: [GroceryItem] {
         groceryItems.filter { $0.isNeeded }
     }
@@ -25,14 +49,19 @@ class ShoppingModel: GroceriesModel {
             .sorted { $0.category < $1.category }
     }
     
-    // Use parent's fetchGroceries for fetching
-    // Use parent's updateGroceryItemNeeded and updateItem for updating
-    // Use parent's groceryItems for data
+    // Delegate methods to GroceriesModel
+    func fetchGroceries() {
+        groceriesModel.fetchGroceries()
+    }
+    
+    func updateGroceryItem(item: GroceryItem, field: GroceriesModel.GroceryItemField) {
+        groceriesModel.updateGroceryItem(item: item, field: field)
+    }
     
     // MARK: CRUD Operations
     
     func createReceipt(price: Double, purchasedBy: String, notes: String) {
-        isLoading = true
+        groceriesModel.isLoading = true
         errorMessage = nil
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -46,7 +75,7 @@ class ShoppingModel: GroceriesModel {
         guard let url = URL(string: "http://35.237.202.74/api/receipts"),
               let body = try? JSONEncoder().encode(payload) else {
             errorMessage = "Invalid URL or payload"
-            isLoading = false
+            groceriesModel.isLoading = false
             return
         }
         var request = URLRequest(url: url)
@@ -59,18 +88,19 @@ class ShoppingModel: GroceriesModel {
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                     await MainActor.run {
                         self.errorMessage = "Failed to create receipt"
-                        self.isLoading = false
+                        self.groceriesModel.isLoading = false
                     }
                 } else {
                     await MainActor.run {
+                        // WebSocket will handle the update, but fetch to be safe
                         self.fetchGroceries()
-                        self.isLoading = false
+                        self.groceriesModel.isLoading = false
                     }
                 }
             } catch {
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
-                    self.isLoading = false
+                    self.groceriesModel.isLoading = false
                 }
             }
         }

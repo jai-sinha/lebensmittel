@@ -9,10 +9,19 @@ import SwiftUI
 
 @main
 struct lebensmittelApp: App {
-    @StateObject private var groceriesModel = GroceriesModel()
-    @StateObject private var mealsModel = MealsModel()
-    @StateObject private var receiptsModel = ReceiptsModel()
-    @StateObject private var shoppingModel = ShoppingModel()
+    @StateObject private var groceriesModel: GroceriesModel
+    @StateObject private var mealsModel: MealsModel
+    @StateObject private var receiptsModel: ReceiptsModel
+    @StateObject private var shoppingModel: ShoppingModel
+    
+    // Initialize shoppingModel with groceriesModel reference
+    init() {
+        let groceries = GroceriesModel()
+        _groceriesModel = StateObject(wrappedValue: groceries)
+        _mealsModel = StateObject(wrappedValue: MealsModel())
+        _receiptsModel = StateObject(wrappedValue: ReceiptsModel())
+        _shoppingModel = StateObject(wrappedValue: ShoppingModel(groceriesModel: groceries))
+    }
     
     var body: some Scene {
         WindowGroup {
@@ -32,14 +41,12 @@ struct lebensmittelApp: App {
                     groceriesModel.fetchGroceries()
                     mealsModel.fetchMealPlans()
                     receiptsModel.fetchReceipts()
-                    shoppingModel.fetchGroceries()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                     // Refresh data when app comes to foreground
                     groceriesModel.fetchGroceries()
                     mealsModel.fetchMealPlans()
                     receiptsModel.fetchReceipts()
-                    shoppingModel.fetchGroceries()
                 }
         }
     }
