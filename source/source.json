@@ -12,11 +12,11 @@
     "iconURL": "https://jai-sinha.github.io/lebensmittel/icon.jpg",
     "versions": [
       {
-        "version": "1.2.1",
-        "date": "2025-11-19T00:00:00Z",
+        "version": "1.2.2",
+        "date": "2025-11-24T00:00:00Z",
         "size": 634000,
         "downloadURL": "https://jai-sinha.github.io/lebensmittel/Lebensmittel.ipa",
-        "localizedDescription": "Receipts UI updates",
+        "localizedDescription": "Bug fixes",
         "minOSVersion": "26.0"
       }
     ]
