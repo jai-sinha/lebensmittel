@@ -30,13 +30,14 @@ struct ShoppingView: View {
 							Section("To Buy") {
 								ForEach(model.uncheckedItems) { item in
 									HStack {
-										Button(action: {
+										Button {
 											model.updateGroceryItem(
 												item: item,
 												field: GroceriesModel.GroceryItemField
 													.isShoppingChecked(true))
-										}) {
-											Image(systemName: "circle")
+										} label: {
+											Label("Mark as purchased", systemImage: "circle")
+												.labelStyle(.iconOnly)
 												.foregroundStyle(.gray)
 										}
 										.buttonStyle(PlainButtonStyle())
@@ -54,14 +55,18 @@ struct ShoppingView: View {
 							Section("Completed") {
 								ForEach(model.checkedItems) { item in
 									HStack {
-										Button(action: {
+										Button {
 											model.updateGroceryItem(
 												item: item,
 												field: GroceriesModel.GroceryItemField
 													.isShoppingChecked(false))
-										}) {
-											Image(systemName: "checkmark.circle.fill")
-												.foregroundStyle(.green)
+										} label: {
+											Label(
+												"Mark as not purchased",
+												systemImage: "checkmark.circle.fill"
+											)
+											.labelStyle(.iconOnly)
+											.foregroundStyle(.green)
 										}
 										.buttonStyle(PlainButtonStyle())
 
@@ -82,7 +87,8 @@ struct ShoppingView: View {
 									Spacer()
 									VStack(spacing: 8) {
 										Image(systemName: "cart")
-											.font(.system(size: 40))
+											.imageScale(.large)
+											.font(.largeTitle)
 											.foregroundStyle(.gray)
 										Text("No items to buy!")
 											.foregroundStyle(.gray)
@@ -99,13 +105,13 @@ struct ShoppingView: View {
 				}
 				Spacer()
 				// Checkout button
-				Button(action: {
+				Button {
 					showCheckoutSheet = true
 					checkoutCost = ""
 					checkoutPurchaser = ""
 					checkoutNotes = ""
 					checkoutError = ""
-				}) {
+				} label: {
 					Text("Checkout")
 						.frame(maxWidth: .infinity)
 						.padding()
@@ -124,7 +130,7 @@ struct ShoppingView: View {
 				VStack(spacing: 25) {
 					Text("Submit Receipt")
 						.font(.title)
-						.fontWeight(.semibold)
+						.bold()
 					VStack(alignment: .leading, spacing: 12) {
 						Text("Total Cost (€)")
 							.font(.headline)

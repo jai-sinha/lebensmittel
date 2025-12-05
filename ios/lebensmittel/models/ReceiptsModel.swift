@@ -21,23 +21,17 @@ class ReceiptsModel {
 
 	// MARK: UI Update Methods
 	func addReceipt(_ receipt: Receipt) {
-		DispatchQueue.main.async {
-			self.receipts.append(receipt)
-		}
+		receipts.append(receipt)
 	}
 
 	func updateReceipt(_ receipt: Receipt) {
-		DispatchQueue.main.async {
-			if let index = self.receipts.firstIndex(where: { $0.id == receipt.id }) {
-				self.receipts[index] = receipt
-			}
+		if let index = receipts.firstIndex(where: { $0.id == receipt.id }) {
+			receipts[index] = receipt
 		}
 	}
 
 	func deleteReceipt(withId id: String) {
-		DispatchQueue.main.async {
-			self.receipts.removeAll { $0.id == id }
-		}
+		receipts.removeAll { $0.id == id }
 	}
 
 	// MARK: CRUD Operations

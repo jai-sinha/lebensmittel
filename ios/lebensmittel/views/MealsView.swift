@@ -24,7 +24,7 @@ struct MealsView: View {
 	}
 
 	var body: some View {
-		NavigationView {
+		NavigationStack {
 			ZStack {
 				(colorScheme == .dark
 					? Color(.systemBackground) : Color(.secondarySystemBackground))
@@ -52,9 +52,7 @@ struct MealsView: View {
 							.padding(.horizontal)
 						}
 						.onAppear {
-							DispatchQueue.main.async {
-								proxy.scrollTo("today", anchor: .top)
-							}
+							proxy.scrollTo("today", anchor: .top)
 						}
 					}
 				}

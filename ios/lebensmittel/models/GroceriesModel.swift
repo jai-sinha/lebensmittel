@@ -85,23 +85,17 @@ class GroceriesModel {
 	// MARK: UI Update Methods
 
 	func addItem(_ item: GroceryItem) {
-		DispatchQueue.main.async {
-			self.groceryItems.append(item)
-		}
+		groceryItems.append(item)
 	}
 
 	func updateItem(_ updatedItem: GroceryItem) {
-		DispatchQueue.main.async {
-			if let index = self.groceryItems.firstIndex(where: { $0.id == updatedItem.id }) {
-				self.groceryItems[index] = updatedItem
-			}
+		if let index = groceryItems.firstIndex(where: { $0.id == updatedItem.id }) {
+			groceryItems[index] = updatedItem
 		}
 	}
 
 	func removeItem(withId id: String) {
-		DispatchQueue.main.async {
-			self.groceryItems.removeAll { $0.id == id }
-		}
+		groceryItems.removeAll { $0.id == id }
 	}
 
 	// MARK: CRUD Operations
@@ -118,15 +112,11 @@ class GroceriesModel {
 			do {
 				let (data, _) = try await URLSession.shared.data(from: url)
 				let response = try JSONDecoder().decode(GroceryItemsResponse.self, from: data)
-				DispatchQueue.main.async {
-					self.groceryItems = response.groceryItems
-					self.isLoading = false
-				}
+				groceryItems = response.groceryItems
+				isLoading = false
 			} catch {
-				DispatchQueue.main.async {
-					self.errorMessage = error.localizedDescription
-					self.isLoading = false
-				}
+				errorMessage = error.localizedDescription
+				isLoading = false
 			}
 		}
 	}

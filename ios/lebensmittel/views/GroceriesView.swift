@@ -12,7 +12,7 @@ struct GroceriesView: View {
 	@Environment(\.colorScheme) var colorScheme
 
 	var body: some View {
-		NavigationView {
+		NavigationStack {
 			VStack {
 				if model.isLoading {
 					ProgressView("Loading groceries...")
@@ -90,7 +90,7 @@ struct EssentialsPane: View {
 									model.deleteGroceryItem(item: item)
 								} label: {
 									Image(systemName: "trash")
-										.font(.system(size: 8))
+										.imageScale(.small)
 								}
 							}
 					}
@@ -147,13 +147,13 @@ struct CategoryListSection: View {
 	var body: some View {
 		Section(
 			header:
-				Button(action: {
+				Button {
 					if model.expandedCategories.contains(category) {
 						model.expandedCategories.remove(category)
 					} else {
 						model.expandedCategories.insert(category)
 					}
-				}) {
+				} label: {
 					HStack {
 						Text(category)
 							.font(.headline)
@@ -191,7 +191,7 @@ struct CategoryListSection: View {
 								model.deleteGroceryItem(item: item)
 							} label: {
 								Image(systemName: "trash")
-									.font(.system(size: 8))
+									.imageScale(.small)
 							}
 						}
 				}
@@ -206,11 +206,15 @@ struct GroceryItemRow: View {
 
 	var body: some View {
 		HStack {
-			Button(action: {
+			Button {
 				model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
-			}) {
-				Image(systemName: item.isNeeded ? "checkmark.square" : "square")
-					.foregroundStyle(item.isNeeded ? Color.green : Color.gray)
+			} label: {
+				Label(
+					item.isNeeded ? "Mark as not needed" : "Mark as needed",
+					systemImage: item.isNeeded ? "checkmark.square" : "square"
+				)
+				.labelStyle(.iconOnly)
+				.foregroundStyle(item.isNeeded ? Color.green : Color.gray)
 			}
 			.buttonStyle(PlainButtonStyle())
 			Text(item.name)
@@ -228,9 +232,9 @@ struct SearchResultsDropdown: View {
 		if model.isSearching && !model.searchResults.isEmpty {
 			VStack(spacing: 0) {
 				ForEach(model.searchResults.prefix(5)) { item in
-					Button(action: {
+					Button {
 						model.selectExistingItem(item)
-					}) {
+					} label: {
 						HStack {
 							Image(systemName: item.isNeeded ? "checkmark.square.fill" : "square")
 								.foregroundStyle(item.isNeeded ? .green : .gray)

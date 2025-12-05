@@ -106,18 +106,23 @@ struct MonthGroup: View {
 					Text("Jai's Total:")
 						.font(.subheadline)
 						.bold()
-					Text(String(format: "€%.2f", group.jaiTotal))
-						.font(.subheadline)
-						.foregroundStyle(.green)
-						.bold()
+					Text(
+						group.jaiTotal, format: .currency(code: "EUR").precision(.fractionLength(2))
+					)
+					.font(.subheadline)
+					.foregroundStyle(.green)
+					.bold()
 					Spacer()
 					Text("Hanna's Total:")
 						.font(.subheadline)
 						.bold()
-					Text(String(format: "€%.2f", group.hannaTotal))
-						.font(.subheadline)
-						.foregroundStyle(.green)
-						.bold()
+					Text(
+						group.hannaTotal,
+						format: .currency(code: "EUR").precision(.fractionLength(2))
+					)
+					.font(.subheadline)
+					.foregroundStyle(.green)
+					.bold()
 				}
 				.padding(.leading, -20)
 			},
@@ -185,9 +190,12 @@ struct ReceiptRow: View {
 						.font(.subheadline)
 						.foregroundStyle(.blue)
 					Spacer()
-					Text(String(format: "€%.2f", receipt.totalAmount))
-						.font(.subheadline)
-						.foregroundStyle(.green)
+					Text(
+						receipt.totalAmount,
+						format: .currency(code: "EUR").precision(.fractionLength(2))
+					)
+					.font(.subheadline)
+					.foregroundStyle(.green)
 				}
 			}
 		)
@@ -227,7 +235,7 @@ struct EditReceiptSheet: View {
 		VStack(spacing: 25) {
 			Text("Edit Receipt")
 				.font(.title)
-				.fontWeight(.semibold)
+				.bold()
 			VStack(alignment: .leading, spacing: 12) {
 				Text("Total Cost (€)")
 					.font(.headline)

@@ -28,25 +28,19 @@ class MealsModel {
 	// MARK: UI Update Methods
 
 	func addMealPlan(_ plan: MealPlan) {
-		DispatchQueue.main.async {
-			self.mealPlans[plan.date] = plan
-		}
+		mealPlans[plan.date] = plan
 	}
 
 	func updateMealPlan(_ plan: MealPlan) {
-		DispatchQueue.main.async {
-			if var existingPlan = self.mealPlans[plan.date] {
-				existingPlan.mealDescription = plan.mealDescription
-				self.mealPlans[plan.date] = existingPlan
-			}
+		if var existingPlan = mealPlans[plan.date] {
+			existingPlan.mealDescription = plan.mealDescription
+			mealPlans[plan.date] = existingPlan
 		}
 	}
 
 	func removeMealPlan(withId id: String) {
-		DispatchQueue.main.async {
-			if let key = self.mealPlans.first(where: { $0.value.id == id })?.key {
-				self.mealPlans.removeValue(forKey: key)
-			}
+		if let key = mealPlans.first(where: { $0.value.id == id })?.key {
+			mealPlans.removeValue(forKey: key)
 		}
 	}
 
