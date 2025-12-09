@@ -39,7 +39,7 @@ class ReceiptsModel {
 	func fetchReceipts() {
 		isLoading = true
 		errorMessage = nil
-		guard let url = URL(string: "http://35.237.202.74/api/receipts") else {
+		guard let url = URL(string: "http://192.168.2.113:8000/api/receipts") else {
 			errorMessage = "Invalid URL"
 			isLoading = false
 			return
@@ -63,7 +63,7 @@ class ReceiptsModel {
 	}
 
 	func updateReceipt(receipt: Receipt, price: Double, purchasedBy: String, notes: String) {
-		guard let url = URL(string: "http://35.237.202.74/api/receipts/\(receipt.id)") else {
+		guard let url = URL(string: "http://192.168.2.113:8000/api/receipts/\(receipt.id)") else {
 			self.errorMessage = "Invalid URL"
 			return
 		}
@@ -112,7 +112,7 @@ class ReceiptsModel {
 	}
 
 	func deleteReceipt(receiptId: String) {
-		guard let url = URL(string: "http://35.237.202.74/api/receipts/\(receiptId)") else {
+		guard let url = URL(string: "http://192.168.2.113:8000/api/receipts/\(receiptId)") else {
 			self.errorMessage = "Invalid URL"
 			return
 		}
