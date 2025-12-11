@@ -6,4 +6,4 @@ I don't have Apple Developer Program money, so to this is distributed via AltSto
 
 Also because I don't have Apple Developer Program money, the backend is hosted on a GCP e2-micro instance that should be free to run as long as I stay below certain usage limits. Another reason why I don't really have anyone else in mind with this project; I don't really want to have to scale this up or out.
 
-The backend uses a web socket to keep both our apps updated as we each make changes to the shopping list or meal calendar, so the iOS app requires SocketIO, which in turn depends on Starscream; those should be the only frontend deps. The backend uses Flask and eventlet for the API/websocket functionality, and SQLAlchemy for the SQLite db. 
+The backend uses a web socket to keep both our apps updated as we each make changes to the shopping list or meal calendar, so the iOS app requires Starscream; this should be the only frontend deps. The backend uses gin and gorilla/websocket for the web server and web socket implementation, respectively, as well as pgx for interfacing with the PostgreSQL db.
