@@ -5,7 +5,7 @@ This is a Go implementation of the Lebensmittel backend API, migrated from Pytho
 ## Features
 
 - **REST API** for managing grocery items, meal plans, and receipts
-- **WebSocket support** for real-time updates
+- **WebSocket support** for real-time updates using gorilla/websocket
 - **PostgreSQL database** with connection pooling
 - **CORS enabled** for cross-origin requests
 - **JSON API** compatible with the iOS Swift frontend
@@ -16,7 +16,7 @@ This is a Go implementation of the Lebensmittel backend API, migrated from Pytho
 - **Gin** - HTTP web framework
 - **PostgreSQL** - Database
 - **pgx/v5** - PostgreSQL driver with connection pooling
-- **Gorilla WebSocket** - WebSocket implementation
+- **gorilla/websocket** - Native WebSocket implementation (replaces Socket.IO)
 - **UUID** - For generating unique IDs
 
 
@@ -111,22 +111,39 @@ CREATE TABLE receipts (
 
 ## WebSocket Events
 
-The WebSocket endpoint (`/ws`) supports real-time updates:
+The WebSocket endpoint (`/ws`) supports real-time updates using native WebSockets.
 
-### Client Events
-- `echo` - Echo message back to client
+### Message Format
 
-### Server Events
+All WebSocket messages use this JSON structure:
+```json
+{
+  "event": "event_name",
+  "data": { /* payload */ }
+}
+```
+
+### Client → Server Events
+- `echo` - Echo message back to client (for testing)
+
+### Server → Client Events
 - `connected` - Welcome message on connection
 - `grocery_item_created` - New grocery item created
 - `grocery_item_updated` - Grocery item updated
-- `grocery_item_deleted` - Grocery item deleted
+- `grocery_item_deleted` - Grocery item deleted (data: `{"id": "..."}`)
 - `meal_plan_created` - New meal plan created
 - `meal_plan_updated` - Meal plan updated
-- `meal_plan_deleted` - Meal plan deleted
+- `meal_plan_deleted` - Meal plan deleted (data: `{"id": "..."}`)
 - `receipt_created` - New receipt created
 - `receipt_updated` - Receipt updated
-- `receipt_deleted` - Receipt deleted
+- `receipt_deleted` - Receipt deleted (data: `{"id": "..."}`)
+
+### Connection Keep-Alive
+
+The WebSocket implementation includes automatic ping/pong:
+- **Ping Interval**: Every 54 seconds
+- **Pong Timeout**: 60 seconds
+- Connections that don't respond to pings are automatically closed
 
 ## Project Structure
 
@@ -154,7 +171,22 @@ This Go implementation maintains API compatibility with the original Python Flas
 ### Key Differences
 
 1. **Database**: Migrated from SQLite to PostgreSQL
-2. **WebSocket**: Uses Gorilla WebSocket instead of Flask-SocketIO
+2. **WebSocket**: Uses gorilla/websocket (native WebSocket protocol) instead of Flask-SocketIO
+   - Standard WebSocket protocol (RFC 6455)
+   - No Socket.IO protocol overhead
+   - Compatible with Starscream (iOS client)
 3. **JSON handling**: Native Go JSON marshaling with custom serialization
-4. **Connection pooling**: Built-in PostgreSQL connection pooling
+4. **Connection pooling**: Built-in PostgreSQL connection pooling with pgxpool
 5. **Performance**: Significantly improved performance and concurrency
+6. **Message Format**: Standardized `{"event": "...", "data": {...}}` structure
+
+## WebSocket Client Compatibility
+
+The WebSocket implementation is compatible with:
+- **Starscream** (iOS/Swift) - Recommended
+- **Native WebSocket API** (JavaScript browsers)
+- Any standard WebSocket client library
+
+**Note**: This implementation uses native WebSockets, NOT Socket.IO. Socket.IO clients will not work without modification.
+
+For iOS client setup, see `WEBSOCKET_MIGRATION.md` in the project root.

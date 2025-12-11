@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -15,7 +16,23 @@ var upgrader = websocket.Upgrader{
 		// Allow connections from any origin (adjust for production)
 		return true
 	},
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 }
+
+const (
+	// Time allowed to write a message to the peer
+	writeWait = 10 * time.Second
+
+	// Time allowed to read the next pong message from the peer
+	pongWait = 60 * time.Second
+
+	// Send pings to peer with this period (must be less than pongWait)
+	pingPeriod = (pongWait * 9) / 10
+
+	// Maximum message size allowed from peer
+	maxMessageSize = 512 * 1024
+)
 
 // WebSocketManager manages WebSocket connections
 type WebSocketManager struct {
@@ -52,6 +69,7 @@ func (manager *WebSocketManager) Run() {
 				"data":  map[string]string{"message": "Connected to Lebensmittel backend"},
 			}
 			msgBytes, _ := json.Marshal(welcomeMsg)
+			conn.SetWriteDeadline(time.Now().Add(writeWait))
 			conn.WriteMessage(websocket.TextMessage, msgBytes)
 
 		case conn := <-manager.unregister:
@@ -66,6 +84,7 @@ func (manager *WebSocketManager) Run() {
 		case message := <-manager.broadcast:
 			manager.mutex.RLock()
 			for conn := range manager.connections {
+				conn.SetWriteDeadline(time.Now().Add(writeWait))
 				err := conn.WriteMessage(websocket.TextMessage, message)
 				if err != nil {
 					log.Printf("Error writing message: %v", err)
@@ -109,11 +128,37 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 		return
 	}
 
+	// Configure connection
+	conn.SetReadLimit(maxMessageSize)
+	conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+
 	manager.register <- conn
+
+	// Start ping ticker for keep-alive
+	ticker := time.NewTicker(pingPeriod)
+
+	// Handle outgoing pings
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				conn.SetWriteDeadline(time.Now().Add(writeWait))
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
+			}
+		}
+	}()
 
 	// Handle incoming messages
 	go func() {
 		defer func() {
+			ticker.Stop()
 			manager.unregister <- conn
 		}()
 
@@ -134,9 +179,15 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 						switch event {
 						case "echo":
 							// Echo message back to client
-							if data, ok := msg["data"]; ok {
-								conn.WriteMessage(websocket.TextMessage, message)
-								log.Printf("Echoed message: %v", data)
+							if _, ok := msg["data"]; ok {
+								echoMsg := map[string]interface{}{
+									"event": "echo",
+									"data":  msg["data"],
+								}
+								echoBytes, _ := json.Marshal(echoMsg)
+								conn.SetWriteDeadline(time.Now().Add(writeWait))
+								conn.WriteMessage(websocket.TextMessage, echoBytes)
+								log.Printf("Echoed message: %v", msg["data"])
 							}
 						default:
 							log.Printf("Received unknown event: %s", event)
