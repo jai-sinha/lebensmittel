@@ -47,7 +47,7 @@ class MealsModel {
 	// MARK: CRUD Operations
 
 	func fetchMealPlans() {
-		guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans") else { return }
+		guard let url = URL(string: "http://35.237.202.74:8000/api/meal-plans") else { return }
 		Task {
 			do {
 				let (data, _) = try await URLSession.shared.data(from: url)
@@ -65,7 +65,7 @@ class MealsModel {
 	}
 
 	func createMealPlan(for dateString: String, meal: String) {
-		guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans") else { return }
+		guard let url = URL(string: "http://35.237.202.74:8000/api/meal-plans") else { return }
 		var request = URLRequest(url: url)
 		request.httpMethod = "POST"
 		let newMealPlan = NewMealPlan(date: dateString, mealDescription: meal)
@@ -89,7 +89,7 @@ class MealsModel {
 	func deleteMealPlan(mealId: String) {
 		// Optimistically remove locally
 		self.removeMealPlan(withId: mealId)
-		guard let url = URL(string: "http://192.168.2.113:8000/api/meal-plans/\(mealId)") else {
+		guard let url = URL(string: "http://35.237.202.74:8000/api/meal-plans/\(mealId)") else {
 			return
 		}
 		var request = URLRequest(url: url)

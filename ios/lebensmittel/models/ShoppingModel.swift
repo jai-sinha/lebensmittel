@@ -65,7 +65,7 @@ class ShoppingModel {
 			purchasedBy: purchasedBy,
 			notes: notes
 		)
-		guard let url = URL(string: "http://192.168.2.113:8000/api/receipts"),
+		guard let url = URL(string: "http://35.237.202.74:8000/api/receipts"),
 			let body = try? JSONEncoder().encode(payload)
 		else {
 			errorMessage = "Invalid URL or payload"
