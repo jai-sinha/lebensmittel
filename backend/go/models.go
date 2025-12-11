@@ -75,6 +75,9 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 	if r.Items != "" {
 		json.Unmarshal([]byte(r.Items), &items)
 	}
+	if items == nil {
+		items = []string{}
+	}
 
 	return json.Marshal(&struct {
 		Date  string   `json:"date"`

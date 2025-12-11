@@ -170,6 +170,10 @@ struct ReceiptRow: View {
 							Text("• \(item)")
 								.font(.body)
 						}
+					} else {
+						Text("No items listed.")
+							.font(.body)
+							.foregroundStyle(.secondary)
 					}
 					if let notes = receipt.notes,
 						!notes.trimmingCharacters(in: .whitespaces).isEmpty
