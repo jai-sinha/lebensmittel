@@ -2,7 +2,5 @@
 *.sh
 
 # backend
-.venv/
-__pycache__/
-*.db
+bin/
 .env

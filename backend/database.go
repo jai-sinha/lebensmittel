@@ -84,10 +84,10 @@ func CreateGroceryItem(ctx context.Context, item *GroceryItem) error {
 }
 
 // UpdateGroceryItem updates an existing grocery item in the database
-func UpdateGroceryItem(ctx context.Context, itemID string, updates map[string]interface{}) (*GroceryItem, error) {
+func UpdateGroceryItem(ctx context.Context, itemID string, updates map[string]any) (*GroceryItem, error) {
 	// Build dynamic update query
 	setParts := []string{}
-	args := []interface{}{itemID}
+	args := []any{itemID}
 	argCount := 2
 
 	for field, value := range updates {
@@ -198,9 +198,9 @@ func CreateMealPlan(ctx context.Context, meal *MealPlan) error {
 }
 
 // UpdateMealPlan updates an existing meal plan
-func UpdateMealPlan(ctx context.Context, mealID string, updates map[string]interface{}) (*MealPlan, error) {
+func UpdateMealPlan(ctx context.Context, mealID string, updates map[string]any) (*MealPlan, error) {
 	setParts := []string{}
-	args := []interface{}{mealID}
+	args := []any{mealID}
 	argCount := 2
 
 	for field, value := range updates {
@@ -336,9 +336,9 @@ func CreateReceipt(ctx context.Context, receipt *Receipt) error {
 }
 
 // UpdateReceipt updates an existing receipt
-func UpdateReceipt(ctx context.Context, receiptID string, updates map[string]interface{}) (*Receipt, error) {
+func UpdateReceipt(ctx context.Context, receiptID string, updates map[string]any) (*Receipt, error) {
 	setParts := []string{}
-	args := []interface{}{receiptID}
+	args := []any{receiptID}
 	argCount := 2
 
 	for field, value := range updates {

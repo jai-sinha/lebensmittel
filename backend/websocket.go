@@ -64,7 +64,7 @@ func (manager *WebSocketManager) Run() {
 			log.Println("Client connected")
 
 			// Send welcome message
-			welcomeMsg := map[string]interface{}{
+			welcomeMsg := map[string]any{
 				"event": "connected",
 				"data":  map[string]string{"message": "Connected to Lebensmittel backend"},
 			}
@@ -98,8 +98,8 @@ func (manager *WebSocketManager) Run() {
 }
 
 // EmitEvent sends an event to all connected WebSocket clients
-func (manager *WebSocketManager) EmitEvent(event string, payload interface{}) {
-	message := map[string]interface{}{
+func (manager *WebSocketManager) EmitEvent(event string, payload any) {
+	message := map[string]any{
 		"event": event,
 		"data":  payload,
 	}
@@ -144,13 +144,10 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 	// Handle outgoing pings
 	go func() {
 		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				conn.SetWriteDeadline(time.Now().Add(writeWait))
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-					return
-				}
+		for range ticker.C {
+			conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
 			}
 		}
 	}()
@@ -172,7 +169,7 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 			}
 
 			if messageType == websocket.TextMessage {
-				var msg map[string]interface{}
+				var msg map[string]any
 				if err := json.Unmarshal(message, &msg); err == nil {
 					// Handle specific message types
 					if event, ok := msg["event"].(string); ok {
@@ -180,7 +177,7 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 						case "echo":
 							// Echo message back to client
 							if _, ok := msg["data"]; ok {
-								echoMsg := map[string]interface{}{
+								echoMsg := map[string]any{
 									"event": "echo",
 									"data":  msg["data"],
 								}
@@ -211,7 +208,7 @@ func InitWebSocketManager() {
 }
 
 // EmitEvent is a helper function to emit events using the global manager
-func EmitEvent(event string, payload interface{}) {
+func EmitEvent(event string, payload any) {
 	if wsManager != nil {
 		wsManager.EmitEvent(event, payload)
 	}
