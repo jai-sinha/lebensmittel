@@ -112,6 +112,8 @@ struct MealsView: View {
 					if let mealId = model.mealPlanId(for: dateStr) {
 						model.deleteMealPlan(mealId: mealId)
 					}
+				} else if let _ = model.mealPlanId(for: dateStr) {
+					model.updateMealPlan(for: dateStr, meal: text)
 				} else {
 					model.createMealPlan(for: dateStr, meal: text)
 				}
