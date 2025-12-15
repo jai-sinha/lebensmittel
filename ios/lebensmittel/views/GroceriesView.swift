@@ -214,11 +214,11 @@ struct GroceryItemRow: View {
 					systemImage: item.isNeeded ? "checkmark.square" : "square"
 				)
 				.labelStyle(.iconOnly)
-				.foregroundStyle(item.isNeeded ? Color.green : Color.gray)
+				.foregroundStyle(item.isNeeded ? Color.green : Color.primary)
 			}
 			.buttonStyle(PlainButtonStyle())
 			Text(item.name)
-				.foregroundStyle(item.isNeeded ? Color.primary : Color.gray)
+				.foregroundStyle(item.isNeeded ? Color.green : Color.primary)
 			Spacer()
 		}
 		.padding(.vertical, 2)
