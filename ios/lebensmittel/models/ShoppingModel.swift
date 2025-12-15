@@ -51,7 +51,7 @@ class ShoppingModel {
 		groceriesModel.updateGroceryItem(item: item, field: field)
 	}
 
-	// MARK: CRUD Operations
+	// MARK: CRUD Operation (just createReceipt)
 
 	func createReceipt(price: Double, purchasedBy: String, notes: String) {
 		groceriesModel.isLoading = true
@@ -65,7 +65,7 @@ class ShoppingModel {
 			purchasedBy: purchasedBy,
 			notes: notes
 		)
-		guard let url = URL(string: "http://35.237.202.74:8000/api/receipts"),
+		guard let url = URL(string: "https://ls.jsinha.com/api/receipts"),
 			let body = try? JSONEncoder().encode(payload)
 		else {
 			errorMessage = "Invalid URL or payload"

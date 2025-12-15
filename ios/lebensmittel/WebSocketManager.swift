@@ -102,9 +102,8 @@ final class SocketService: WebSocketDelegate {
 	}
 
 	private func connect() {
-		var request = URLRequest(url: URL(string: "ws://35.237.202.74:8000/ws")!)
+		var request = URLRequest(url: URL(string: "wss://ls.jsinha.com/ws")!)
 		request.timeoutInterval = 5
-
 		socket = WebSocket(request: request)
 		socket?.delegate = self
 		socket?.connect()

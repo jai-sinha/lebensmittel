@@ -25,7 +25,7 @@ class MealsModel {
 		return mealPlans[dateString]?.id
 	}
 
-	// MARK: UI Update Methods
+	// MARK: UI Update Methods, used for WebSocket updates
 
 	func addMealPlan(_ plan: MealPlan) {
 		mealPlans[plan.date] = plan
@@ -47,7 +47,7 @@ class MealsModel {
 	// MARK: CRUD Operations
 
 	func fetchMealPlans() {
-		guard let url = URL(string: "http://35.237.202.74:8000/api/meal-plans") else { return }
+		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans") else { return }
 		Task {
 			do {
 				let (data, _) = try await URLSession.shared.data(from: url)
@@ -65,7 +65,7 @@ class MealsModel {
 	}
 
 	func createMealPlan(for dateString: String, meal: String) {
-		guard let url = URL(string: "http://35.237.202.74:8000/api/meal-plans") else { return }
+		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans") else { return }
 		var request = URLRequest(url: url)
 		request.httpMethod = "POST"
 		let newMealPlan = NewMealPlan(date: dateString, mealDescription: meal)
@@ -86,10 +86,41 @@ class MealsModel {
 		}
 	}
 
+	func updateMealPlan(for dateString: String, meal: String) {
+	    guard var existingPlan = mealPlans[dateString] else { return }
+	    existingPlan.mealDescription = meal
+	    mealPlans[dateString] = existingPlan
+
+	    guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(existingPlan.id)") else {
+	        return
+	    }
+	    var request = URLRequest(url: url)
+	    request.httpMethod = "PUT"
+	    request.httpBody = try? JSONEncoder().encode(existingPlan)
+	    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+	    Task {
+	        do {
+	            let (_, response) = try await URLSession.shared.data(for: request)
+	            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+	                print("Server returned status \(http.statusCode)")
+	                await MainActor.run {
+	                    self.fetchMealPlans()
+	                }
+	            }
+	        } catch {
+	            print("Update meal plan error: \(error)")
+	            await MainActor.run {
+	                self.fetchMealPlans()
+	            }
+	        }
+	    }
+	}
+
+
 	func deleteMealPlan(mealId: String) {
 		// Optimistically remove locally
 		self.removeMealPlan(withId: mealId)
-		guard let url = URL(string: "http://35.237.202.74:8000/api/meal-plans/\(mealId)") else {
+		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(mealId)") else {
 			return
 		}
 		var request = URLRequest(url: url)

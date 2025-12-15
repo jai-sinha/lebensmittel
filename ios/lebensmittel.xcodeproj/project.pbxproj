@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		7BFC251A2EA8F87C001E7FFD /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = 7BFC25192EA8F87C001E7FFD /* SocketIO */; };
+		7B3D7FE12EECBCA3001FC672 /* Starscream in Frameworks */ = {isa = PBXBuildFile; productRef = 7B3D7FE02EECBCA3001FC672 /* Starscream */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,7 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7BFC251A2EA8F87C001E7FFD /* SocketIO in Frameworks */,
+				7B3D7FE12EECBCA3001FC672 /* Starscream in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,7 +83,7 @@
 			);
 			name = Lebensmittel;
 			packageProductDependencies = (
-				7BFC25192EA8F87C001E7FFD /* SocketIO */,
+				7B3D7FE02EECBCA3001FC672 /* Starscream */,
 			);
 			productName = lebensmittel;
 			productReference = 7B114CC62E9FCC940040DE73 /* Lebensmittel.app */;
@@ -114,7 +114,7 @@
 			mainGroup = 7B114CBD2E9FCC940040DE73;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				7BFC25182EA8F87C001E7FFD /* XCRemoteSwiftPackageReference "socket" */,
+				7B3D7FDF2EECBCA3001FC672 /* XCRemoteSwiftPackageReference "Starscream" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7B114CC72E9FCC940040DE73 /* Products */;
@@ -368,21 +368,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		7BFC25182EA8F87C001E7FFD /* XCRemoteSwiftPackageReference "socket" */ = {
+		7B3D7FDF2EECBCA3001FC672 /* XCRemoteSwiftPackageReference "Starscream" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/socketio/socket.io-client-swift";
+			repositoryURL = "https://github.com/daltoniam/Starscream.git";
 			requirement = {
-				branch = master;
-				kind = branch;
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.8;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		7BFC25192EA8F87C001E7FFD /* SocketIO */ = {
+		7B3D7FE02EECBCA3001FC672 /* Starscream */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 7BFC25182EA8F87C001E7FFD /* XCRemoteSwiftPackageReference "socket" */;
-			productName = SocketIO;
+			package = 7B3D7FDF2EECBCA3001FC672 /* XCRemoteSwiftPackageReference "Starscream" */;
+			productName = Starscream;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
