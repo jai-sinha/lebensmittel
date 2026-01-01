@@ -52,7 +52,7 @@ func CloseDB() {
 
 // GetAllGroceryItems retrieves all grocery items from the database
 func GetAllGroceryItems(ctx context.Context) ([]GroceryItem, error) {
-	query := `SELECT id, name, category, is_needed, is_shopping_checked FROM grocery_items ORDER BY name`
+	query := `SELECT id, name, category, is_needed, is_shopping_checked, group_id, user_id FROM grocery_items ORDER BY name`
 	rows, err := db.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query grocery items: %w", err)
@@ -62,7 +62,7 @@ func GetAllGroceryItems(ctx context.Context) ([]GroceryItem, error) {
 	var items []GroceryItem
 	for rows.Next() {
 		var item GroceryItem
-		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked)
+		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID, &item.UserID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan grocery item: %w", err)
 		}
@@ -74,9 +74,9 @@ func GetAllGroceryItems(ctx context.Context) ([]GroceryItem, error) {
 
 // CreateGroceryItem creates a new grocery item in the database
 func CreateGroceryItem(ctx context.Context, item *GroceryItem) error {
-	query := `INSERT INTO grocery_items (id, name, category, is_needed, is_shopping_checked)
-			  VALUES ($1, $2, $3, $4, $5)`
-	_, err := db.Exec(ctx, query, item.ID, item.Name, item.Category, item.IsNeeded, item.IsShoppingChecked)
+	query := `INSERT INTO grocery_items (id, name, category, is_needed, is_shopping_checked, group_id, user_id)
+			  VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	_, err := db.Exec(ctx, query, item.ID, item.Name, item.Category, item.IsNeeded, item.IsShoppingChecked, item.GroupID, item.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to create grocery item: %w", err)
 	}
@@ -124,9 +124,9 @@ func UpdateGroceryItem(ctx context.Context, itemID string, updates map[string]an
 
 // GetGroceryItemByID retrieves a grocery item by ID
 func GetGroceryItemByID(ctx context.Context, itemID string) (*GroceryItem, error) {
-	query := `SELECT id, name, category, is_needed, is_shopping_checked FROM grocery_items WHERE id = $1`
+	query := `SELECT id, name, category, is_needed, is_shopping_checked, group_id, user_id FROM grocery_items WHERE id = $1`
 	var item GroceryItem
-	err := db.QueryRow(ctx, query, itemID).Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked)
+	err := db.QueryRow(ctx, query, itemID).Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID, &item.UserID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -153,7 +153,7 @@ func DeleteGroceryItem(ctx context.Context, itemID string) error {
 
 // GetAllMealPlans retrieves all meal plans from the database ordered by date
 func GetAllMealPlans(ctx context.Context) ([]MealPlan, error) {
-	query := `SELECT id, date, meal_description FROM meal_plans ORDER BY date`
+	query := `SELECT id, date, meal_description, group_id, user_id FROM meal_plans ORDER BY date`
 	rows, err := db.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meal plans: %w", err)
@@ -163,7 +163,7 @@ func GetAllMealPlans(ctx context.Context) ([]MealPlan, error) {
 	var meals []MealPlan
 	for rows.Next() {
 		var meal MealPlan
-		err := rows.Scan(&meal.ID, &meal.Date, &meal.MealDescription)
+		err := rows.Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID, &meal.UserID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan meal plan: %w", err)
 		}
@@ -188,8 +188,8 @@ func CreateMealPlan(ctx context.Context, meal *MealPlan) error {
 	}
 
 	// Insert new meal plan
-	query := `INSERT INTO meal_plans (id, date, meal_description) VALUES ($1, $2, $3)`
-	_, err = tx.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription)
+	query := `INSERT INTO meal_plans (id, date, meal_description, group_id, user_id) VALUES ($1, $2, $3, $4, $5)`
+	_, err = tx.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription, meal.GroupID, meal.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to create meal plan: %w", err)
 	}
@@ -233,9 +233,9 @@ func UpdateMealPlan(ctx context.Context, mealID string, updates map[string]any) 
 
 // GetMealPlanByID retrieves a meal plan by ID
 func GetMealPlanByID(ctx context.Context, mealID string) (*MealPlan, error) {
-	query := `SELECT id, date, meal_description FROM meal_plans WHERE id = $1`
+	query := `SELECT id, date, meal_description, group_id, user_id FROM meal_plans WHERE id = $1`
 	var meal MealPlan
-	err := db.QueryRow(ctx, query, mealID).Scan(&meal.ID, &meal.Date, &meal.MealDescription)
+	err := db.QueryRow(ctx, query, mealID).Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID, &meal.UserID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -262,7 +262,7 @@ func DeleteMealPlan(ctx context.Context, mealID string) error {
 
 // GetAllReceipts retrieves all receipts from the database ordered by date descending
 func GetAllReceipts(ctx context.Context) ([]Receipt, error) {
-	query := `SELECT id, date, total_amount, purchased_by, items, notes FROM receipts ORDER BY date DESC`
+	query := `SELECT id, date, total_amount, purchased_by, items, notes, group_id, user_id FROM receipts ORDER BY date DESC`
 	rows, err := db.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query receipts: %w", err)
@@ -273,7 +273,7 @@ func GetAllReceipts(ctx context.Context) ([]Receipt, error) {
 	for rows.Next() {
 		var receipt Receipt
 		var notes *string
-		err := rows.Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes)
+		err := rows.Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID, &receipt.UserID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan receipt: %w", err)
 		}
@@ -324,10 +324,10 @@ func CreateReceipt(ctx context.Context, receipt *Receipt) error {
 	}
 
 	// Insert the receipt
-	receiptQuery := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes)
-					 VALUES ($1, $2, $3, $4, $5, $6)`
+	receiptQuery := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id, user_id)
+					 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	_, err = tx.Exec(ctx, receiptQuery, receipt.ID, receipt.Date, receipt.TotalAmount,
-		receipt.PurchasedBy, receipt.Items, receipt.Notes)
+		receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID, receipt.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to create receipt: %w", err)
 	}
@@ -382,11 +382,11 @@ func UpdateReceipt(ctx context.Context, receiptID string, updates map[string]any
 
 // GetReceiptByID retrieves a receipt by ID
 func GetReceiptByID(ctx context.Context, receiptID string) (*Receipt, error) {
-	query := `SELECT id, date, total_amount, purchased_by, items, notes FROM receipts WHERE id = $1`
+	query := `SELECT id, date, total_amount, purchased_by, items, notes, group_id, user_id FROM receipts WHERE id = $1`
 	var receipt Receipt
 	var notes *string
 	err := db.QueryRow(ctx, query, receiptID).Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount,
-		&receipt.PurchasedBy, &receipt.Items, &notes)
+		&receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID, &receipt.UserID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -408,6 +408,200 @@ func DeleteReceipt(ctx context.Context, receiptID string) error {
 		return fmt.Errorf("receipt not found")
 	}
 	return nil
+}
+
+// Group CRUD operations
+
+// CreateGroup creates a new group
+func CreateGroup(ctx context.Context, group *Group) error {
+	query := `INSERT INTO groups (id, name) VALUES ($1, $2)`
+	_, err := db.Exec(ctx, query, group.ID, group.Name)
+	if err != nil {
+		return fmt.Errorf("failed to create group: %w", err)
+	}
+	return nil
+}
+
+// GetGroupByID retrieves a group by ID
+func GetGroupByID(ctx context.Context, groupID string) (*Group, error) {
+	query := `SELECT id, name FROM groups WHERE id = $1`
+	var group Group
+	err := db.QueryRow(ctx, query, groupID).Scan(&group.ID, &group.Name)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get group: %w", err)
+	}
+	return &group, nil
+}
+
+// UpdateGroup updates an existing group
+func UpdateGroup(ctx context.Context, groupID string, updates map[string]any) (*Group, error) {
+	setParts := []string{}
+	args := []any{groupID}
+	argCount := 2
+
+	for field, value := range updates {
+		var dbField string
+		switch field {
+		case "name":
+			dbField = "name"
+		default:
+			continue
+		}
+		setParts = append(setParts, fmt.Sprintf("%s = $%d", dbField, argCount))
+		args = append(args, value)
+		argCount++
+	}
+
+	if len(setParts) == 0 {
+		return nil, fmt.Errorf("no valid fields to update")
+	}
+
+	query := fmt.Sprintf("UPDATE groups SET %s WHERE id = $1", joinStrings(setParts, ", "))
+	_, err := db.Exec(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update group: %w", err)
+	}
+
+	return GetGroupByID(ctx, groupID)
+}
+
+// DeleteGroup deletes a group from the database
+func DeleteGroup(ctx context.Context, groupID string) error {
+	query := `DELETE FROM groups WHERE id = $1`
+	result, err := db.Exec(ctx, query, groupID)
+	if err != nil {
+		return fmt.Errorf("failed to delete group: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("group not found")
+	}
+	return nil
+}
+
+// User CRUD operations
+
+// CreateUser creates a new user
+func CreateUser(ctx context.Context, user *User) error {
+	query := `INSERT INTO users (id, username, password_hash, display_name)
+			  VALUES ($1, $2, $3, $4)`
+	_, err := db.Exec(ctx, query, user.ID, user.Username, user.PasswordHash, user.DisplayName)
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+	return nil
+}
+
+// GetUserByUsername retrieves a user by username
+func GetUserByUsername(ctx context.Context, username string) (*User, error) {
+	query := `SELECT id, username, password_hash, display_name FROM users WHERE username = $1`
+	var user User
+	err := db.QueryRow(ctx, query, username).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.DisplayName)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user by username: %w", err)
+	}
+	return &user, nil
+}
+
+// GetUserByID retrieves a user by ID
+func GetUserByID(ctx context.Context, userID string) (*User, error) {
+	query := `SELECT id, username, password_hash, display_name FROM users WHERE id = $1`
+	var user User
+	err := db.QueryRow(ctx, query, userID).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.DisplayName)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	return &user, nil
+}
+
+// UpdateUser updates an existing user
+func UpdateUser(ctx context.Context, userID string, updates map[string]any) (*User, error) {
+	setParts := []string{}
+	args := []any{userID}
+	argCount := 2
+
+	for field, value := range updates {
+		var dbField string
+		switch field {
+		case "username":
+			dbField = "username"
+		case "displayName":
+			dbField = "display_name"
+		default:
+			continue
+		}
+		setParts = append(setParts, fmt.Sprintf("%s = $%d", dbField, argCount))
+		args = append(args, value)
+		argCount++
+	}
+
+	if len(setParts) == 0 {
+		return nil, fmt.Errorf("no valid fields to update")
+	}
+
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $1", joinStrings(setParts, ", "))
+	_, err := db.Exec(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return GetUserByID(ctx, userID)
+}
+
+// DeleteUser deletes a user from the database
+func DeleteUser(ctx context.Context, userID string) error {
+	query := `DELETE FROM users WHERE id = $1`
+	result, err := db.Exec(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
+}
+
+// AddUserToGroup adds a user to a group
+func AddUserToGroup(ctx context.Context, userID, groupID string) error {
+	query := `INSERT INTO user_groups (user_id, group_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
+	_, err := db.Exec(ctx, query, userID, groupID)
+	if err != nil {
+		return fmt.Errorf("failed to add user to group: %w", err)
+	}
+	return nil
+}
+
+// GetUserGroups retrieves all groups for a user
+func GetUserGroups(ctx context.Context, userID string) ([]Group, error) {
+	query := `
+		SELECT g.id, g.name
+		FROM groups g
+		JOIN user_groups ug ON g.id = ug.group_id
+		WHERE ug.user_id = $1
+	`
+	rows, err := db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user groups: %w", err)
+	}
+	defer rows.Close()
+
+	var groups []Group
+	for rows.Next() {
+		var group Group
+		if err := rows.Scan(&group.ID, &group.Name); err != nil {
+			return nil, fmt.Errorf("failed to scan group: %w", err)
+		}
+		groups = append(groups, group)
+	}
+	return groups, rows.Err()
 }
 
 // Helper function to join strings

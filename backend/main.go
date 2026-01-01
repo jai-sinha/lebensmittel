@@ -23,6 +23,11 @@ func main() {
 	}
 	defer CloseDB()
 
+	// Run database migrations
+	if err := RunMigrations(context.Background()); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
 	// Initialize WebSocket manager
 	InitWebSocketManager()
 
@@ -54,6 +59,17 @@ func main() {
 		{"route": "/api/receipts", "methods": []string{"POST"}, "description": "Create a receipt"},
 		{"route": "/api/receipts/:receipt_id", "methods": []string{"PUT"}, "description": "Update a receipt"},
 		{"route": "/api/receipts/:receipt_id", "methods": []string{"DELETE"}, "description": "Delete a receipt"},
+		{"route": "/api/register", "methods": []string{"POST"}, "description": "Register a new user"},
+		{"route": "/api/login", "methods": []string{"POST"}, "description": "Login"},
+		{"route": "/api/users", "methods": []string{"POST"}, "description": "Create a user"},
+		{"route": "/api/users/:username", "methods": []string{"GET"}, "description": "Get a user"},
+		{"route": "/api/users/:user_id", "methods": []string{"PUT"}, "description": "Update a user"},
+		{"route": "/api/users/:user_id", "methods": []string{"DELETE"}, "description": "Delete a user"},
+		{"route": "/api/groups", "methods": []string{"POST"}, "description": "Create a group"},
+		{"route": "/api/groups/:group_id", "methods": []string{"GET"}, "description": "Get a group"},
+		{"route": "/api/groups/:group_id", "methods": []string{"PUT"}, "description": "Update a group"},
+		{"route": "/api/groups/:group_id", "methods": []string{"DELETE"}, "description": "Delete a group"},
+		{"route": "/api/groups/:group_id/users", "methods": []string{"POST"}, "description": "Add user to group"},
 	}
 
 	// Home route
@@ -80,23 +96,44 @@ func main() {
 	// API routes group
 	api := r.Group("/api")
 
+	// Public routes
+	api.POST("/register", register)
+	api.POST("/login", login)
+
+	// Protected routes
+	protected := api.Group("/")
+	protected.Use(AuthMiddleware())
+
 	// Grocery Items routes
-	api.GET("/grocery-items", getGroceryItems)
-	api.POST("/grocery-items", createGroceryItem)
-	api.PUT("/grocery-items/:item_id", updateGroceryItem)
-	api.DELETE("/grocery-items/:item_id", deleteGroceryItem)
+	protected.GET("/grocery-items", getGroceryItems)
+	protected.POST("/grocery-items", createGroceryItem)
+	protected.PUT("/grocery-items/:item_id", updateGroceryItem)
+	protected.DELETE("/grocery-items/:item_id", deleteGroceryItem)
 
 	// Meal Plans routes
-	api.GET("/meal-plans", getMealPlans)
-	api.POST("/meal-plans", createMealPlan)
-	api.PUT("/meal-plans/:meal_id", updateMealPlan)
-	api.DELETE("/meal-plans/:meal_id", deleteMealPlan)
+	protected.GET("/meal-plans", getMealPlans)
+	protected.POST("/meal-plans", createMealPlan)
+	protected.PUT("/meal-plans/:meal_id", updateMealPlan)
+	protected.DELETE("/meal-plans/:meal_id", deleteMealPlan)
 
 	// Receipts routes
-	api.GET("/receipts", getReceipts)
-	api.POST("/receipts", createReceipt)
-	api.PUT("/receipts/:receipt_id", updateReceipt)
-	api.DELETE("/receipts/:receipt_id", deleteReceipt)
+	protected.GET("/receipts", getReceipts)
+	protected.POST("/receipts", createReceipt)
+	protected.PUT("/receipts/:receipt_id", updateReceipt)
+	protected.DELETE("/receipts/:receipt_id", deleteReceipt)
+
+	// Users routes
+	protected.POST("/users", createUser)
+	protected.GET("/users/:username", getUser)
+	protected.PUT("/users/:user_id", updateUser)
+	protected.DELETE("/users/:user_id", deleteUser)
+
+	// Groups routes
+	protected.POST("/groups", createGroup)
+	protected.GET("/groups/:group_id", getGroup)
+	protected.PUT("/groups/:group_id", updateGroup)
+	protected.DELETE("/groups/:group_id", deleteGroup)
+	protected.POST("/groups/:group_id/users", addUserToGroup)
 
 	// Get port from environment or default to 8000
 	port := os.Getenv("PORT")
@@ -131,6 +168,259 @@ func main() {
 	log.Println("Server exiting")
 }
 
+// Auth handlers
+
+func register(c *gin.Context) {
+	var data struct {
+		Username    string `json:"username" binding:"required"`
+		Password    string `json:"password" binding:"required"`
+		DisplayName string `json:"displayName" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username, password, and displayName are required"})
+		return
+	}
+
+	hashedPassword, err := HashPassword(data.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	newUser := NewUser(data.Username, hashedPassword, data.DisplayName)
+
+	if err := CreateUser(c.Request.Context(), newUser); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Auto-login (generate token)
+	token, err := GenerateToken(newUser.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"user":  newUser,
+		"token": token,
+	})
+}
+
+func login(c *gin.Context) {
+	var data struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username and password are required"})
+		return
+	}
+
+	user, err := GetUserByUsername(c.Request.Context(), data.Username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	if !CheckPasswordHash(data.Password, user.PasswordHash) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	token, err := GenerateToken(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user":  user,
+		"token": token,
+	})
+}
+
+// User and Group handlers
+
+func createUser(c *gin.Context) {
+	var data struct {
+		Username    string `json:"username" binding:"required"`
+		Password    string `json:"password" binding:"required"`
+		DisplayName string `json:"displayName" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username, password, and displayName are required"})
+		return
+	}
+
+	hashedPassword, err := HashPassword(data.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+
+	newUser := NewUser(data.Username, hashedPassword, data.DisplayName)
+
+	if err := CreateUser(c.Request.Context(), newUser); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, newUser)
+}
+
+func getUser(c *gin.Context) {
+	username := c.Param("username")
+
+	user, err := GetUserByUsername(c.Request.Context(), username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+func updateUser(c *gin.Context) {
+	userID := c.Param("user_id")
+
+	var data map[string]any
+	if err := c.ShouldBindJSON(&data); err != nil || len(data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No data provided"})
+		return
+	}
+
+	user, err := UpdateUser(c.Request.Context(), userID, data)
+	if err != nil {
+		if user == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+func deleteUser(c *gin.Context) {
+	userID := c.Param("user_id")
+
+	if err := DeleteUser(c.Request.Context(), userID); err != nil {
+		if err.Error() == "user not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+}
+
+func createGroup(c *gin.Context) {
+	var data struct {
+		Name string `json:"name" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Name is required"})
+		return
+	}
+
+	newGroup := NewGroup(data.Name)
+
+	if err := CreateGroup(c.Request.Context(), newGroup); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, newGroup)
+}
+
+func getGroup(c *gin.Context) {
+	groupID := c.Param("group_id")
+
+	group, err := GetGroupByID(c.Request.Context(), groupID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if group == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, group)
+}
+
+func updateGroup(c *gin.Context) {
+	groupID := c.Param("group_id")
+
+	var data map[string]any
+	if err := c.ShouldBindJSON(&data); err != nil || len(data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No data provided"})
+		return
+	}
+
+	group, err := UpdateGroup(c.Request.Context(), groupID, data)
+	if err != nil {
+		if group == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, group)
+}
+
+func deleteGroup(c *gin.Context) {
+	groupID := c.Param("group_id")
+
+	if err := DeleteGroup(c.Request.Context(), groupID); err != nil {
+		if err.Error() == "group not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Group deleted successfully"})
+}
+
+func addUserToGroup(c *gin.Context) {
+	groupID := c.Param("group_id")
+	var data struct {
+		UserID string `json:"userId" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "userId is required"})
+		return
+	}
+
+	if err := AddUserToGroup(c.Request.Context(), data.UserID, groupID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User added to group successfully"})
+}
+
 // Grocery Items handlers
 
 func getGroceryItems(c *gin.Context) {
@@ -159,6 +449,19 @@ func createGroceryItem(c *gin.Context) {
 		return
 	}
 
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	groups, err := GetUserGroups(c.Request.Context(), userID)
+	if err != nil || len(groups) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User must belong to a group to create items"})
+		return
+	}
+	groupID := groups[0].ID
+
 	// Set defaults
 	isNeeded := true
 	if data.IsNeeded != nil {
@@ -170,7 +473,7 @@ func createGroceryItem(c *gin.Context) {
 		isShoppingChecked = *data.IsShoppingChecked
 	}
 
-	newItem := NewGroceryItem(data.Name, data.Category, isNeeded, isShoppingChecked)
+	newItem := NewGroceryItem(data.Name, data.Category, isNeeded, isShoppingChecked, groupID, userID)
 
 	if err := CreateGroceryItem(c.Request.Context(), newItem); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -252,6 +555,19 @@ func createMealPlan(c *gin.Context) {
 		return
 	}
 
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	groups, err := GetUserGroups(c.Request.Context(), userID)
+	if err != nil || len(groups) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User must belong to a group to create items"})
+		return
+	}
+	groupID := groups[0].ID
+
 	// Parse date
 	date, err := time.Parse("2006-01-02", data.Date)
 	if err != nil {
@@ -259,7 +575,7 @@ func createMealPlan(c *gin.Context) {
 		return
 	}
 
-	newMeal := NewMealPlan(date, data.MealDescription)
+	newMeal := NewMealPlan(date, data.MealDescription, groupID, userID)
 
 	if err := CreateMealPlan(c.Request.Context(), newMeal); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -353,6 +669,19 @@ func createReceipt(c *gin.Context) {
 		return
 	}
 
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	groups, err := GetUserGroups(c.Request.Context(), userID)
+	if err != nil || len(groups) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User must belong to a group to create items"})
+		return
+	}
+	groupID := groups[0].ID
+
 	// Parse date
 	date, err := time.Parse("2006-01-02", data.Date)
 	if err != nil {
@@ -366,6 +695,8 @@ func createReceipt(c *gin.Context) {
 		TotalAmount: data.TotalAmount,
 		PurchasedBy: data.PurchasedBy,
 		Notes:       data.Notes,
+		GroupID:     groupID,
+		UserID:      userID,
 	}
 
 	if err := CreateReceipt(c.Request.Context(), newReceipt); err != nil {

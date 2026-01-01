@@ -14,16 +14,20 @@ type GroceryItem struct {
 	Category          string `json:"category" db:"category"`
 	IsNeeded          bool   `json:"isNeeded" db:"is_needed"`
 	IsShoppingChecked bool   `json:"isShoppingChecked" db:"is_shopping_checked"`
+	GroupID           string `json:"groupId" db:"group_id"`
+	UserID            string `json:"userId" db:"user_id"`
 }
 
 // NewGroceryItem creates a new grocery item with a generated UUID
-func NewGroceryItem(name, category string, isNeeded, isShoppingChecked bool) *GroceryItem {
+func NewGroceryItem(name, category string, isNeeded, isShoppingChecked bool, groupID, userID string) *GroceryItem {
 	return &GroceryItem{
 		ID:                uuid.New().String(),
 		Name:              name,
 		Category:          category,
 		IsNeeded:          isNeeded,
 		IsShoppingChecked: isShoppingChecked,
+		GroupID:           groupID,
+		UserID:            userID,
 	}
 }
 
@@ -32,6 +36,8 @@ type MealPlan struct {
 	ID              string    `json:"id" db:"id"`
 	Date            time.Time `json:"date" db:"date"`
 	MealDescription string    `json:"mealDescription" db:"meal_description"`
+	GroupID         string    `json:"groupId" db:"group_id"`
+	UserID          string    `json:"userId" db:"user_id"`
 }
 
 // MarshalJSON customizes JSON serialization to format date as YYYY-MM-DD
@@ -47,11 +53,13 @@ func (m MealPlan) MarshalJSON() ([]byte, error) {
 }
 
 // NewMealPlan creates a new meal plan with a generated UUID
-func NewMealPlan(date time.Time, mealDescription string) *MealPlan {
+func NewMealPlan(date time.Time, mealDescription, groupID, userID string) *MealPlan {
 	return &MealPlan{
 		ID:              uuid.New().String(),
 		Date:            date,
 		MealDescription: mealDescription,
+		GroupID:         groupID,
+		UserID:          userID,
 	}
 }
 
@@ -64,6 +72,8 @@ type Receipt struct {
 	Items       string    `json:"-" db:"items"` // JSON string in database
 	ItemsList   []string  `json:"items" db:"-"` // For JSON serialization
 	Notes       *string   `json:"notes" db:"notes"`
+	GroupID     string    `json:"groupId" db:"group_id"`
+	UserID      string    `json:"userId" db:"user_id"`
 }
 
 // MarshalJSON customizes JSON serialization for Receipt
@@ -91,7 +101,7 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 }
 
 // NewReceipt creates a new receipt with a generated UUID
-func NewReceipt(date time.Time, totalAmount float64, purchasedBy string, items []string, notes *string) *Receipt {
+func NewReceipt(date time.Time, totalAmount float64, purchasedBy string, items []string, notes *string, groupID, userID string) *Receipt {
 	itemsJSON, _ := json.Marshal(items)
 	return &Receipt{
 		ID:          uuid.New().String(),
@@ -101,6 +111,8 @@ func NewReceipt(date time.Time, totalAmount float64, purchasedBy string, items [
 		Items:       string(itemsJSON),
 		ItemsList:   items,
 		Notes:       notes,
+		GroupID:     groupID,
+		UserID:      userID,
 	}
 }
 
@@ -123,4 +135,36 @@ func (r *Receipt) GetItems() ([]string, error) {
 	}
 	err := json.Unmarshal([]byte(r.Items), &items)
 	return items, err
+}
+
+// Group represents a household or group of users
+type Group struct {
+	ID   string `json:"id" db:"id"`
+	Name string `json:"name" db:"name"`
+}
+
+// NewGroup creates a new group with a generated UUID
+func NewGroup(name string) *Group {
+	return &Group{
+		ID:   uuid.New().String(),
+		Name: name,
+	}
+}
+
+// User represents a user of the application
+type User struct {
+	ID           string `json:"id" db:"id"`
+	Username     string `json:"username" db:"username"`
+	PasswordHash string `json:"-" db:"password_hash"`
+	DisplayName  string `json:"displayName" db:"display_name"`
+}
+
+// NewUser creates a new user with a generated UUID
+func NewUser(username, passwordHash, displayName string) *User {
+	return &User{
+		ID:           uuid.New().String(),
+		Username:     username,
+		PasswordHash: passwordHash,
+		DisplayName:  displayName,
+	}
 }
