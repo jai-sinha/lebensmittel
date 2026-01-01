@@ -67,7 +67,7 @@ func CreateMealPlan(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("meal_plan_created", newMeal)
+	websocket.EmitEvent("meal_plan_created", newMeal, groupID)
 
 	c.JSON(http.StatusCreated, newMeal)
 }
@@ -104,13 +104,19 @@ func UpdateMealPlan(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("meal_plan_updated", meal)
+	websocket.EmitEvent("meal_plan_updated", meal, meal.GroupID)
 
 	c.JSON(http.StatusOK, meal)
 }
 
 func DeleteMealPlan(c *gin.Context) {
 	mealID := c.Param("meal_id")
+
+	groupID, err := getActiveGroupID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	// TODO: Verify item belongs to user's group
 
@@ -124,7 +130,7 @@ func DeleteMealPlan(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("meal_plan_deleted", gin.H{"id": mealID})
+	websocket.EmitEvent("meal_plan_deleted", gin.H{"id": mealID}, groupID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Meal plan deleted successfully"})
 }

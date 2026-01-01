@@ -79,7 +79,7 @@ func CreateReceipt(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("receipt_created", newReceipt)
+	websocket.EmitEvent("receipt_created", newReceipt, groupID)
 
 	c.JSON(http.StatusCreated, newReceipt)
 }
@@ -125,13 +125,19 @@ func UpdateReceipt(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("receipt_updated", receipt)
+	websocket.EmitEvent("receipt_updated", receipt, receipt.GroupID)
 
 	c.JSON(http.StatusOK, receipt)
 }
 
 func DeleteReceipt(c *gin.Context) {
 	receiptID := c.Param("receipt_id")
+
+	groupID, err := getActiveGroupID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	// TODO: Verify item belongs to user's group
 
@@ -145,7 +151,7 @@ func DeleteReceipt(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("receipt_deleted", gin.H{"id": receiptID})
+	websocket.EmitEvent("receipt_deleted", gin.H{"id": receiptID}, groupID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Receipt deleted successfully"})
 }

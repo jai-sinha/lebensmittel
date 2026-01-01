@@ -72,7 +72,7 @@ func CreateGroceryItem(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("grocery_item_created", newItem)
+	websocket.EmitEvent("grocery_item_created", newItem, groupID)
 
 	c.JSON(http.StatusCreated, newItem)
 }
@@ -99,13 +99,19 @@ func UpdateGroceryItem(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("grocery_item_updated", item)
+	websocket.EmitEvent("grocery_item_updated", item, item.GroupID)
 
 	c.JSON(http.StatusOK, item)
 }
 
 func DeleteGroceryItem(c *gin.Context) {
 	itemID := c.Param("item_id")
+
+	groupID, err := getActiveGroupID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	// TODO: Verify item belongs to user's group
 
@@ -119,7 +125,7 @@ func DeleteGroceryItem(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("grocery_item_deleted", gin.H{"id": itemID})
+	websocket.EmitEvent("grocery_item_deleted", gin.H{"id": itemID}, groupID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Grocery item deleted successfully"})
 }
