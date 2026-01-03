@@ -63,6 +63,7 @@ func main() {
 		{"route": "/api/receipts/:receipt_id", "methods": []string{"DELETE"}, "description": "Delete a receipt"},
 		{"route": "/api/register", "methods": []string{"POST"}, "description": "Register a new user"},
 		{"route": "/api/login", "methods": []string{"POST"}, "description": "Login"},
+		{"route": "/api/refresh", "methods": []string{"POST"}, "description": "Refresh access token"},
 		{"route": "/api/users", "methods": []string{"POST"}, "description": "Create a user"},
 		{"route": "/api/users/:username", "methods": []string{"GET"}, "description": "Get a user"},
 		{"route": "/api/users/:user_id", "methods": []string{"PUT"}, "description": "Update a user"},
@@ -101,6 +102,7 @@ func main() {
 	// Public routes
 	api.POST("/register", handlers.Register)
 	api.POST("/login", handlers.Login)
+	api.POST("/refresh", handlers.Refresh)
 
 	// Protected routes
 	protected := api.Group("/")

@@ -33,6 +33,13 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// Ensure this is an access token, not a refresh token
+		if claims.Type != auth.AccessToken {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token type"})
+			c.Abort()
+			return
+		}
+
 		// Set userID in context for handlers to use
 		c.Set("userID", claims.UserID)
 		c.Next()
