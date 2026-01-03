@@ -175,7 +175,7 @@ struct ShoppingView: View {
 						Spacer()
 						Button("Submit") {
 							// Validate cost and purchaser
-							guard let price = Double(checkoutCost), price > 0 else {
+							guard let price = Double(checkoutCost), price >= 0 else {
 								checkoutError = "Please enter a valid cost."
 								return
 							}
