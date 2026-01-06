@@ -34,18 +34,41 @@ struct MealsView: View {
 						VStack(spacing: -4) {
 							// Past days (scrollable up)
 							ForEach(-7..<0, id: \.self) { dayOffset in
-								mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
+								let rowDate = date(for: dayOffset)
+								let dateStr = MealsModel.utcDateString(for: rowDate)
+								MealRowView(
+									date: rowDate,
+									text: Binding(
+										get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
+										set: { mealTexts[dateStr] = $0 }
+									)
+								)
 							}
 							// Current day and next 6 days (the main 7-day view)
 							ForEach(0..<7, id: \.self) { dayOffset in
 								let rowDate = date(for: dayOffset)
+								let dateStr = MealsModel.utcDateString(for: rowDate)
 								let isThisToday = isToday(utcDate: rowDate)
-								mealRowView(for: rowDate, dayOffset: dayOffset)
-									.id(isThisToday ? "today" : "day_\(dayOffset)")
+								MealRowView(
+									date: rowDate,
+									text: Binding(
+										get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
+										set: { mealTexts[dateStr] = $0 }
+									)
+								)
+								.id(isThisToday ? "today" : "day_\(dayOffset)")
 							}
 							// Future days (scrollable down)
 							ForEach(7..<10, id: \.self) { dayOffset in
-								mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
+								let rowDate = date(for: dayOffset)
+								let dateStr = MealsModel.utcDateString(for: rowDate)
+								MealRowView(
+									date: rowDate,
+									text: Binding(
+										get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
+										set: { mealTexts[dateStr] = $0 }
+									)
+								)
 							}
 						}
 						.padding(.horizontal)
@@ -67,11 +90,24 @@ struct MealsView: View {
 			.navigationTitle("Meal Planning")
 		}
 	}
+}
 
-	private func mealRowView(for date: Date, dayOffset: Int) -> some View {
-		let dateStr = MealsModel.utcDateString(for: date)
-		let isTodayDate = isToday(utcDate: date)
-		return VStack(alignment: .leading, spacing: 4) {
+struct MealRowView: View {
+	let date: Date
+	@Binding var text: String
+
+	@Environment(MealsModel.self) var model
+
+	private var dateStr: String {
+		MealsModel.utcDateString(for: date)
+	}
+
+	private var isTodayDate: Bool {
+		Calendar.current.isDate(date, inSameDayAs: Date())
+	}
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 4) {
 			HStack {
 				HStack(spacing: 4) {
 					Text(model.dayFormatter.string(from: date))
@@ -94,35 +130,33 @@ struct MealsView: View {
 			}
 			TextField(
 				"",
-				text: Binding(
-					get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
-					set: { newValue in
-						mealTexts[dateStr] = newValue
-					}
-				)
+				text: $text
 			)
 			.textFieldStyle(RoundedBorderTextFieldStyle())
 			.foregroundStyle(.primary)
 			.submitLabel(.done)
 			.onSubmit {
-				let text = mealTexts[dateStr] ?? ""
-				if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-					if let mealId = model.mealPlanId(for: dateStr) {
-						model.deleteMealPlan(mealId: mealId)
-					}
-				} else if let _ = model.mealPlanId(for: dateStr) {
-					model.updateMealPlan(for: dateStr, meal: text)
-				} else {
-					model.createMealPlan(for: dateStr, meal: text)
-				}
+				handleSubmit()
 			}
 		}
 		.padding(.vertical, 4)
 		.padding(.horizontal, 8)
 		.padding(.vertical, 2)
 	}
-}
 
+	private func handleSubmit() {
+		let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+		if trimmed.isEmpty {
+			if let mealId = model.mealPlanId(for: dateStr) {
+				model.deleteMealPlan(mealId: mealId)
+			}
+		} else if let _ = model.mealPlanId(for: dateStr) {
+			model.updateMealPlan(for: dateStr, meal: trimmed)
+		} else {
+			model.createMealPlan(for: dateStr, meal: trimmed)
+		}
+	}
+}
 #Preview {
 	MealsView()
 }
