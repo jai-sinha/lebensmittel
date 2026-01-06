@@ -102,13 +102,32 @@ final class SocketService: WebSocketDelegate {
 	}
 
 	private func connect() {
-		var request = URLRequest(url: URL(string: "wss://ls.jsinha.com/ws")!)
-		request.timeoutInterval = 5
-		socket = WebSocket(request: request)
-		socket?.delegate = self
-		socket?.connect()
+		Task {
+			do {
+				let token = try await AuthManager.shared.accessToken()
 
-		if Self.verbose { print("WebSocket: Attempting to connect...") }
+				// Build WebSocket URL with auth
+				var urlComponents = URLComponents(string: "wss://ls.jsinha.com/ws")!
+				urlComponents.queryItems = [
+					URLQueryItem(name: "token", value: token)
+				]
+
+				guard let wsURL = urlComponents.url else { return }
+
+				var request = URLRequest(url: wsURL)
+				request.timeoutInterval = 5
+				request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+				socket = WebSocket(request: request)
+				socket?.delegate = self
+				socket?.connect()
+
+				if Self.verbose { print("WebSocket: Attempting to connect...") }
+			} catch {
+				if Self.verbose { print("WebSocket: Failed to get auth token: \(error)") }
+				scheduleReconnect()
+			}
+		}
 	}
 
 	func disconnect() {

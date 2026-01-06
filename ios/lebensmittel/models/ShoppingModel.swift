@@ -65,7 +65,7 @@ class ShoppingModel {
 			purchasedBy: purchasedBy,
 			notes: notes
 		)
-		guard let url = URL(string: "https://ls.jsinha.com/api/receipts"),
+		guard let url = URL(string: "http://192.168.1.11:8000/api/receipts"),
 			let body = try? JSONEncoder().encode(payload)
 		else {
 			errorMessage = "Invalid URL or payload"
@@ -76,9 +76,12 @@ class ShoppingModel {
 		request.httpMethod = "POST"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		request.httpBody = body
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (_, response) = try await URLSession.shared.data(for: request)
+				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
 					await MainActor.run {
 						self.errorMessage = "Failed to create receipt"

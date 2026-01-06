@@ -47,10 +47,15 @@ class MealsModel {
 	// MARK: CRUD Operations
 
 	func fetchMealPlans() {
-		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans") else { return }
+		guard let url = URL(string: "http://192.168.1.11:8000/api/meal-plans") else { return }
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (data, _) = try await URLSession.shared.data(from: url)
+				var request = URLRequest(url: url)
+				request.httpMethod = "GET"
+				let (data, _) = try await client.send(request)
 				let response = try JSONDecoder().decode(MealPlansResponse.self, from: data)
 				await MainActor.run {
 					self.mealPlans.removeAll()
@@ -65,15 +70,18 @@ class MealsModel {
 	}
 
 	func createMealPlan(for dateString: String, meal: String) {
-		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans") else { return }
+		guard let url = URL(string: "http://192.168.1.11:8000/api/meal-plans") else { return }
 		var request = URLRequest(url: url)
 		request.httpMethod = "POST"
 		let newMealPlan = NewMealPlan(date: dateString, mealDescription: meal)
 		request.httpBody = try? JSONEncoder().encode(newMealPlan)
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (_, response) = try await URLSession.shared.data(for: request)
+				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
 					print("Server returned status \(http.statusCode)")
 				}
@@ -87,47 +95,53 @@ class MealsModel {
 	}
 
 	func updateMealPlan(for dateString: String, meal: String) {
-	    guard var existingPlan = mealPlans[dateString] else { return }
-	    existingPlan.mealDescription = meal
-	    mealPlans[dateString] = existingPlan
+		guard var existingPlan = mealPlans[dateString] else { return }
+		existingPlan.mealDescription = meal
+		mealPlans[dateString] = existingPlan
 
-	    guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(existingPlan.id)") else {
-	        return
-	    }
-	    var request = URLRequest(url: url)
-	    request.httpMethod = "PUT"
-	    request.httpBody = try? JSONEncoder().encode(existingPlan)
-	    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-	    Task {
-	        do {
-	            let (_, response) = try await URLSession.shared.data(for: request)
-	            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-	                print("Server returned status \(http.statusCode)")
-	                await MainActor.run {
-	                    self.fetchMealPlans()
-	                }
-	            }
-	        } catch {
-	            print("Update meal plan error: \(error)")
-	            await MainActor.run {
-	                self.fetchMealPlans()
-	            }
-	        }
-	    }
+		guard let url = URL(string: "http://192.168.1.11:8000/api/meal-plans/\(existingPlan.id)") else {
+			return
+		}
+		var request = URLRequest(url: url)
+		request.httpMethod = "PUT"
+		request.httpBody = try? JSONEncoder().encode(existingPlan)
+		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+		let client = NetworkClient()
+
+		Task {
+			do {
+				let (_, response) = try await client.send(request)
+				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+					print("Server returned status \(http.statusCode)")
+					await MainActor.run {
+						self.fetchMealPlans()
+					}
+				}
+			} catch {
+				print("Update meal plan error: \(error)")
+				await MainActor.run {
+					self.fetchMealPlans()
+				}
+			}
+		}
 	}
 
 
 	func deleteMealPlan(mealId: String) {
 		// Optimistically remove locally
 		self.removeMealPlan(withId: mealId)
-		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(mealId)") else {
+		guard let url = URL(string: "http://192.168.1.11:8000/api/meal-plans/\(mealId)") else {
 			return
 		}
 		var request = URLRequest(url: url)
 		request.httpMethod = "DELETE"
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (_, response) = try await URLSession.shared.data(for: request)
+				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
 					print("Server returned status \(http.statusCode)")
 					await MainActor.run {

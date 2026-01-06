@@ -40,14 +40,19 @@ class ReceiptsModel {
 	func fetchReceipts() {
 		isLoading = true
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/receipts") else {
+		guard let url = URL(string: "http://192.168.1.11:8000/api/receipts") else {
 			errorMessage = "Invalid URL"
 			isLoading = false
 			return
 		}
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (data, _) = try await URLSession.shared.data(from: url)
+				var request = URLRequest(url: url)
+				request.httpMethod = "GET"
+				let (data, _) = try await client.send(request)
 				let response = try JSONDecoder().decode(ReceiptsResponse.self, from: data)
 				let sortedReceipts = response.receipts.sorted { $0.date < $1.date }
 				await MainActor.run {
@@ -64,7 +69,7 @@ class ReceiptsModel {
 	}
 
 	func updateReceipt(receipt: Receipt, price: Double, purchasedBy: String, notes: String) {
-		guard let url = URL(string: "https://ls.jsinha.com/api/receipts/\(receipt.id)") else {
+		guard let url = URL(string: "http://192.168.1.11:8000/api/receipts/\(receipt.id)") else {
 			self.errorMessage = "Invalid URL"
 			return
 		}
@@ -75,7 +80,7 @@ class ReceiptsModel {
 			totalAmount: price,
 			purchasedBy: purchasedBy,
 			items: receipt.items,
-			notes: notes,
+			notes: notes
 		)
 
 		// Optimistically update locally
@@ -90,9 +95,12 @@ class ReceiptsModel {
 			self.errorMessage = "Failed to encode receipt"
 			return
 		}
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (_, response) = try await URLSession.shared.data(for: request)
+				let (_, response) = try await client.send(request)
 				if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
 					await MainActor.run {
 						if let idx = self.receipts.firstIndex(where: { $0.id == receipt.id }) {
@@ -113,7 +121,7 @@ class ReceiptsModel {
 	}
 
 	func deleteReceipt(receiptId: String) {
-		guard let url = URL(string: "https://ls.jsinha.com/api/receipts/\(receiptId)") else {
+		guard let url = URL(string: "http://192.168.1.11:8000/api/receipts/\(receiptId)") else {
 			self.errorMessage = "Invalid URL"
 			return
 		}
@@ -123,9 +131,12 @@ class ReceiptsModel {
 
 		var request = URLRequest(url: url)
 		request.httpMethod = "DELETE"
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (_, response) = try await URLSession.shared.data(for: request)
+				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
 					await MainActor.run {
 						self.errorMessage = "Server returned status \(http.statusCode)"

@@ -103,20 +103,30 @@ class GroceriesModel {
 	func fetchGroceries() {
 		isLoading = true
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items") else {
+		guard let url = URL(string: "http://192.168.1.11:8000/api/grocery-items") else {
 			errorMessage = "Invalid URL"
 			isLoading = false
 			return
 		}
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (data, _) = try await URLSession.shared.data(from: url)
+				var request = URLRequest(url: url)
+				request.httpMethod = "GET"
+				let (data, _) = try await client.send(request)
 				let response = try JSONDecoder().decode(GroceryItemsResponse.self, from: data)
-				groceryItems = response.groceryItems
-				isLoading = false
+
+				await MainActor.run {
+					self.groceryItems = response.groceryItems
+					self.isLoading = false
+				}
 			} catch {
-				errorMessage = error.localizedDescription
-				isLoading = false
+				await MainActor.run {
+					self.errorMessage = error.localizedDescription
+					self.isLoading = false
+				}
 			}
 		}
 	}
@@ -124,19 +134,23 @@ class GroceriesModel {
 	func createGroceryItem(name: String, category: String) {
 		isLoading = true
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items") else {
+		guard let url = URL(string: "http://192.168.1.11:8000/api/grocery-items") else {
 			errorMessage = "Invalid URL"
 			isLoading = false
 			return
 		}
+
 		let newItem = NewGroceryItem(name: name, category: category)
 		var request = URLRequest(url: url)
 		request.httpMethod = "POST"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		request.httpBody = try? JSONEncoder().encode(newItem)
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (_, response) = try await URLSession.shared.data(for: request)
+				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
 					await MainActor.run {
 						self.errorMessage = "Server returned status \(http.statusCode)"
@@ -165,7 +179,7 @@ class GroceriesModel {
 	// PUT method to update either isNeeded or isShoppingChecked
 	func updateGroceryItem(item: GroceryItem, field: GroceryItemField) {
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items/\(item.id)") else {
+		guard let url = URL(string: "http://192.168.1.11:8000/api/grocery-items/\(item.id)") else {
 			errorMessage = "Invalid URL"
 			return
 		}
@@ -194,9 +208,12 @@ class GroceriesModel {
 		request.httpMethod = "PUT"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		request.httpBody = jsonBody
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (_, response) = try await URLSession.shared.data(for: request)
+				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
 					await MainActor.run {
 						self.errorMessage = "Server returned status \(http.statusCode)"
@@ -213,16 +230,19 @@ class GroceriesModel {
 
 	func deleteGroceryItem(item: GroceryItem) {
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items/\(item.id)") else {
+		guard let url = URL(string: "http://192.168.1.11:8000/api/grocery-items/\(item.id)") else {
 			errorMessage = "Invalid URL"
 			return
 		}
 
 		var request = URLRequest(url: url)
 		request.httpMethod = "DELETE"
+
+		let client = NetworkClient()
+
 		Task {
 			do {
-				let (_, response) = try await URLSession.shared.data(for: request)
+				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
 					await MainActor.run {
 						self.errorMessage = "Server returned status \(http.statusCode)"
