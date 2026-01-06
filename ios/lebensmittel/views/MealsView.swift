@@ -29,31 +29,29 @@ struct MealsView: View {
 				(colorScheme == .dark
 					? Color(.systemBackground) : Color(.secondarySystemBackground))
 					.ignoresSafeArea()
-				VStack {
-					ScrollViewReader { proxy in
-						ScrollView {
-							LazyVStack(spacing: -4) {
-								// Past days (scrollable up)
-								ForEach(-7..<0, id: \.self) { dayOffset in
-									mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
-								}
-								// Current day and next 6 days (the main 7-day view)
-								ForEach(0..<7, id: \.self) { dayOffset in
-									let rowDate = date(for: dayOffset)
-									let isThisToday = isToday(utcDate: rowDate)
-									mealRowView(for: rowDate, dayOffset: dayOffset)
-										.id(isThisToday ? "today" : "day_\(dayOffset)")
-								}
-								// Future days (scrollable down)
-								ForEach(7..<10, id: \.self) { dayOffset in
-									mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
-								}
+				ScrollViewReader { proxy in
+					ScrollView {
+						VStack(spacing: -4) {
+							// Past days (scrollable up)
+							ForEach(-7..<0, id: \.self) { dayOffset in
+								mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
 							}
-							.padding(.horizontal)
+							// Current day and next 6 days (the main 7-day view)
+							ForEach(0..<7, id: \.self) { dayOffset in
+								let rowDate = date(for: dayOffset)
+								let isThisToday = isToday(utcDate: rowDate)
+								mealRowView(for: rowDate, dayOffset: dayOffset)
+									.id(isThisToday ? "today" : "day_\(dayOffset)")
+							}
+							// Future days (scrollable down)
+							ForEach(7..<10, id: \.self) { dayOffset in
+								mealRowView(for: date(for: dayOffset), dayOffset: dayOffset)
+							}
 						}
-						.onAppear {
-							proxy.scrollTo("today", anchor: .top)
-						}
+						.padding(.horizontal)
+					}
+					.onAppear {
+						proxy.scrollTo("today", anchor: .top)
 					}
 				}
 				.onChange(of: model.mealPlans) {
