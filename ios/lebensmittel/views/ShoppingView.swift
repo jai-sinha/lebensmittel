@@ -7,15 +7,12 @@
 
 import SwiftUI
 
+/// Main shopping list view, including the checkout sheet.
 struct ShoppingView: View {
 	@Environment(ShoppingModel.self) var model
 	@Environment(\.colorScheme) var colorScheme
 	// Checkout dialog state
 	@State private var showCheckoutSheet = false
-	@State private var checkoutCost = ""
-	@State private var checkoutPurchaser = ""
-	@State private var checkoutNotes = ""
-	@State private var checkoutError = ""
 
 	var body: some View {
 		NavigationStack {
@@ -26,91 +23,13 @@ struct ShoppingView: View {
 					Text("Error: \(errorMessage)").foregroundStyle(.red)
 				} else {
 					List {
-						if !model.uncheckedItems.isEmpty {
-							Section("To Buy") {
-								ForEach(model.uncheckedItems) { item in
-									HStack {
-										Button {
-											model.updateGroceryItem(
-												item: item,
-												field: GroceriesModel.GroceryItemField
-													.isShoppingChecked(true))
-										} label: {
-											Label("Mark as purchased", systemImage: "circle")
-												.labelStyle(.iconOnly)
-												.foregroundStyle(.gray)
-										}
-										.buttonStyle(PlainButtonStyle())
-
-										Text(item.name)
-
-										Spacer()
-									}
-									.padding(.vertical, 2)
-								}
-							}
-						}
-
-						if !model.checkedItems.isEmpty {
-							Section("Completed") {
-								ForEach(model.checkedItems) { item in
-									HStack {
-										Button {
-											model.updateGroceryItem(
-												item: item,
-												field: GroceriesModel.GroceryItemField
-													.isShoppingChecked(false))
-										} label: {
-											Label(
-												"Mark as not purchased",
-												systemImage: "checkmark.circle.fill"
-											)
-											.labelStyle(.iconOnly)
-											.foregroundStyle(.green)
-										}
-										.buttonStyle(PlainButtonStyle())
-
-										Text(item.name)
-											.strikethrough()
-											.foregroundStyle(.gray)
-
-										Spacer()
-									}
-									.padding(.vertical, 2)
-								}
-							}
-						}
-
-						if model.shoppingItems.isEmpty {
-							Section {
-								HStack {
-									Spacer()
-									VStack(spacing: 8) {
-										Image(systemName: "cart")
-											.imageScale(.large)
-											.font(.largeTitle)
-											.foregroundStyle(.gray)
-										Text("No items to buy!")
-											.foregroundStyle(.gray)
-										Text("Add items in the Groceries tab")
-											.font(.caption)
-											.foregroundStyle(.gray)
-									}
-									Spacer()
-								}
-								.padding(.vertical, 40)
-							}
-						}
+						listContent
 					}
 				}
 				Spacer()
 				// Checkout button
 				Button {
 					showCheckoutSheet = true
-					checkoutCost = ""
-					checkoutPurchaser = ""
-					checkoutNotes = ""
-					checkoutError = ""
 				} label: {
 					Text("Checkout")
 						.frame(maxWidth: .infinity)
@@ -127,78 +46,190 @@ struct ShoppingView: View {
 
 			// MARK: Checkout Sheet
 			.sheet(isPresented: $showCheckoutSheet) {
-				VStack(spacing: 25) {
-					Text("Submit Receipt")
-						.font(.title)
-						.bold()
-					VStack(alignment: .leading, spacing: 12) {
-						Text("Total Cost (€)")
-							.font(.headline)
-						TextField("", text: $checkoutCost)
-							.keyboardType(.decimalPad)
-							.textFieldStyle(RoundedBorderTextFieldStyle())
-							.font(.body)
+				CheckoutSheetView(
+					onCancel: { showCheckoutSheet = false },
+					onSubmit: { price, purchaser, notes in
+						model.createReceipt(price: price, purchasedBy: purchaser, notes: notes)
+						showCheckoutSheet = false
 					}
-					// Picker for purchaser
-					VStack(alignment: .leading, spacing: 12) {
-						Text("Purchased by")
-							.font(.headline)
-						Picker("Purchased by", selection: $checkoutPurchaser) {
-							Text("Jai").tag("Jai")
-							Text("Hanna").tag("Hanna")
-						}
-						.pickerStyle(SegmentedPickerStyle())
-					}
-					VStack(alignment: .leading, spacing: 12) {
-						Text("Notes (optional)")
-							.font(.headline)
-						TextEditor(text: $checkoutNotes)
-							.frame(minHeight: 40, maxHeight: 120)
-							.font(.body)
-							.background(Color(.systemGray6))
-							.clipShape(.rect(cornerRadius: 8))
-					}
-					if !checkoutError.isEmpty {
-						Text(checkoutError)
-							.foregroundStyle(.red)
-							.font(.callout)
-					}
-					HStack(spacing: 20) {
-						Button("Cancel") {
-							showCheckoutSheet = false
-						}
-						.padding(.horizontal, 20)
-						.padding(.vertical, 10)
-						.background(Color.red.opacity(0.8))
-						.foregroundStyle(.white)
-						.clipShape(.rect(cornerRadius: 8))
-						Spacer()
-						Button("Submit") {
-							// Validate cost and purchaser
-							guard let price = Double(checkoutCost), price >= 0 else {
-								checkoutError = "Please enter a valid cost."
-								return
-							}
-							guard !checkoutPurchaser.trimmingCharacters(in: .whitespaces).isEmpty
-							else {
-								checkoutError = "Please select who purchased."
-								return
-							}
-							model.createReceipt(
-								price: price, purchasedBy: checkoutPurchaser, notes: checkoutNotes)
-							showCheckoutSheet = false
-						}
-						.padding(.horizontal, 20)
-						.padding(.vertical, 10)
-						.background(Color.blue)
-						.foregroundStyle(.white)
-						.clipShape(.rect(cornerRadius: 8))
-					}
-				}
-				.padding(30)
-				.presentationDetents([.medium])
+				)
 			}
 		}
+	}
+
+	@ViewBuilder
+	private var listContent: some View {
+		if !model.uncheckedItems.isEmpty {
+			Section("To Buy") {
+				ForEach(model.uncheckedItems) { item in
+					ShoppingRow(item: item) {
+						model.updateGroceryItem(
+							item: item,
+							field: GroceriesModel.GroceryItemField.isShoppingChecked(true)
+						)
+					}
+				}
+			}
+		}
+
+		if !model.checkedItems.isEmpty {
+			Section("Completed") {
+				ForEach(model.checkedItems) { item in
+					ShoppingRow(item: item) {
+						model.updateGroceryItem(
+							item: item,
+							field: GroceriesModel.GroceryItemField.isShoppingChecked(false)
+						)
+					}
+				}
+			}
+		}
+
+		if model.shoppingItems.isEmpty {
+			Section {
+				HStack {
+					Spacer()
+					VStack(spacing: 8) {
+						Image(systemName: "cart")
+							.imageScale(.large)
+							.font(.largeTitle)
+							.foregroundStyle(.gray)
+						Text("No items to buy!")
+							.foregroundStyle(.gray)
+						Text("Add items in the Groceries tab")
+							.font(.caption)
+							.foregroundStyle(.gray)
+					}
+					Spacer()
+				}
+				.padding(.vertical, 40)
+			}
+		}
+	}
+}
+
+/// A single row in the shopping list
+struct ShoppingRow: View {
+	let item: GroceryItem
+	let action: () -> Void
+
+	var body: some View {
+		HStack {
+			Button(action: action) {
+				Label(
+					item.isShoppingChecked ? "Mark as not purchased" : "Mark as purchased",
+					systemImage: item.isShoppingChecked ? "checkmark.circle.fill" : "circle"
+				)
+				.labelStyle(.iconOnly)
+				.foregroundStyle(item.isShoppingChecked ? .green : .gray)
+			}
+			.buttonStyle(PlainButtonStyle())
+
+			Text(item.name)
+				.strikethrough(item.isShoppingChecked)
+				.foregroundStyle(item.isShoppingChecked ? .gray : .primary)
+
+			Spacer()
+		}
+		.padding(.vertical, 2)
+	}
+}
+
+struct CheckoutSheetView: View {
+	/// Called when the user taps Cancel
+	var onCancel: () -> Void
+
+	/// Called when the user submits a valid receipt. The view doesn't perform networking itself;
+	/// the parent should handle creating the receipt and dismissing the sheet.
+	var onSubmit: (_ price: Double, _ purchaser: String, _ notes: String) -> Void
+
+	@State private var cost: String = ""
+	@State private var purchaser: String = "Jai"
+	@State private var notes: String = ""
+	@State private var error: String = ""
+
+	private let purchaserOptions = ["Jai", "Hanna"]
+
+	var body: some View {
+		VStack(spacing: 25) {
+			Text("Submit Receipt")
+				.font(.title)
+				.bold()
+
+			VStack(alignment: .leading, spacing: 12) {
+				Text("Total Cost (€)")
+					.font(.headline)
+				TextField("", text: $cost)
+					.keyboardType(.decimalPad)
+					.textFieldStyle(RoundedBorderTextFieldStyle())
+					.font(.body)
+			}
+
+			VStack(alignment: .leading, spacing: 12) {
+				Text("Purchased by")
+					.font(.headline)
+				Picker("Purchased by", selection: $purchaser) {
+					ForEach(purchaserOptions, id: \.self) { option in
+						Text(option).tag(option)
+					}
+				}
+				.pickerStyle(SegmentedPickerStyle())
+			}
+
+			VStack(alignment: .leading, spacing: 12) {
+				Text("Notes (optional)")
+					.font(.headline)
+				TextEditor(text: $notes)
+					.frame(minHeight: 40, maxHeight: 120)
+					.font(.body)
+					.background(Color(.systemGray6))
+					.clipShape(.rect(cornerRadius: 8))
+			}
+
+			if !error.isEmpty {
+				Text(error)
+					.foregroundStyle(.red)
+					.font(.callout)
+			}
+
+			HStack(spacing: 20) {
+				Button("Cancel") {
+					onCancel()
+				}
+				.padding(.horizontal, 20)
+				.padding(.vertical, 10)
+				.background(Color.red.opacity(0.8))
+				.foregroundStyle(.white)
+				.clipShape(.rect(cornerRadius: 8))
+
+				Spacer()
+
+				Button("Submit") {
+					submit()
+				}
+				.padding(.horizontal, 20)
+				.padding(.vertical, 10)
+				.background(Color.blue)
+				.foregroundStyle(.white)
+				.clipShape(.rect(cornerRadius: 8))
+			}
+		}
+		.padding(30)
+		.presentationDetents([.medium])
+	}
+
+	private func submit() {
+		// accept both "." and "," as decimal separators for euro/us standards
+		let normalized = cost.replacingOccurrences(of: ",", with: ".")
+		guard let price = Double(normalized), price >= 0 else {
+			error = "Please enter a valid cost."
+			return
+		}
+		guard !purchaser.trimmingCharacters(in: .whitespaces).isEmpty else {
+			error = "Please select who purchased."
+			return
+		}
+		onSubmit(price, purchaser, notes)
 	}
 }
 

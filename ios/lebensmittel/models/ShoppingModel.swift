@@ -88,11 +88,8 @@ class ShoppingModel {
 						self.groceriesModel.isLoading = false
 					}
 				} else {
-					await MainActor.run {
-						// WebSocket will handle the update, but fetch to be safe
-						self.fetchGroceries()
-						self.groceriesModel.isLoading = false
-					}
+					// WebSocket should handle the update, fetching rn to be safe
+					self.fetchGroceries()
 				}
 			} catch {
 				await MainActor.run {
