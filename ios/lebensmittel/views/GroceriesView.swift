@@ -9,6 +9,7 @@ import SwiftUI
 
 struct GroceriesView: View {
 	@Environment(GroceriesModel.self) var model
+	@Environment(AuthStateManager.self) var authManager
 	@Environment(\.colorScheme) var colorScheme
 
 	var body: some View {
@@ -51,6 +52,11 @@ struct GroceriesView: View {
 			)
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Groceries")
+			.toolbar {
+				ToolbarItem(placement: .topBarTrailing) {
+					AuthMenuView()
+				}
+			}
 			.onAppear {
 				model.expandedCategories = Set(model.sortedCategories)
 			}

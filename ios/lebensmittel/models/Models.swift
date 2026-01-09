@@ -84,3 +84,10 @@ struct MealPlansResponse: Codable {
 	let count: Int
 	let mealPlans: [MealPlan]
 }
+
+// MARK: Groups
+
+struct AuthGroup: Identifiable, Codable, Hashable, Sendable {
+	let id: String
+	let name: String
+}

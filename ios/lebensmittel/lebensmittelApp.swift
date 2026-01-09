@@ -70,6 +70,12 @@ struct lebensmittelApp: App {
         _authManager = State(initialValue: AuthStateManager())
     }
 
+    private func refreshData() {
+		groceriesModel.fetchGroceries()
+		mealsModel.fetchMealPlans()
+		receiptsModel.fetchReceipts()
+	}
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -94,14 +100,18 @@ struct lebensmittelApp: App {
                             mealsModel.fetchMealPlans()
                             receiptsModel.fetchReceipts()
                         }
+                        // Refresh data when app comes to foreground or group changes
                         .onReceive(
                             NotificationCenter.default.publisher(
                                 for: UIApplication.willEnterForegroundNotification)
                         ) { _ in
-                            // Refresh data when app comes to foreground
-                            groceriesModel.fetchGroceries()
-                            mealsModel.fetchMealPlans()
-                            receiptsModel.fetchReceipts()
+                            refreshData()
+                        }
+                        .onReceive(
+                            NotificationCenter.default.publisher(
+                                for: Notification.Name("GroupChanged"))
+                        ) { _ in
+                            refreshData()
                         }
                 } else {
                     LoginView(authManager: authManager)
