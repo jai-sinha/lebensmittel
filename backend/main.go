@@ -73,6 +73,9 @@ func main() {
 		{"route": "/api/groups/:group_id", "methods": []string{"PUT"}, "description": "Update a group"},
 		{"route": "/api/groups/:group_id", "methods": []string{"DELETE"}, "description": "Delete a group"},
 		{"route": "/api/groups/:group_id/users", "methods": []string{"POST"}, "description": "Add user to group"},
+		{"route": "/api/users/me/groups", "methods": []string{"GET"}, "description": "Get current user groups"},
+		{"route": "/api/users/me/active-group", "methods": []string{"GET"}, "description": "Get current active group ID"},
+		{"route": "/api/groups/:group_id/users/:user_id", "methods": []string{"DELETE"}, "description": "Remove user from group"},
 	}
 
 	// Home route
@@ -131,6 +134,8 @@ func main() {
 	protected.GET("/users/:username", handlers.GetUser)
 	protected.PUT("/users/:user_id", handlers.UpdateUser)
 	protected.DELETE("/users/:user_id", handlers.DeleteUser)
+	protected.GET("/users/me/groups", handlers.GetUserGroups)
+	protected.GET("/users/me/active-group", handlers.GetActiveGroup)
 
 	// Groups routes
 	protected.POST("/groups", handlers.CreateGroup)
@@ -138,6 +143,7 @@ func main() {
 	protected.PUT("/groups/:group_id", handlers.UpdateGroup)
 	protected.DELETE("/groups/:group_id", handlers.DeleteGroup)
 	protected.POST("/groups/:group_id/users", handlers.AddUserToGroup)
+	protected.DELETE("/groups/:group_id/users/:user_id", handlers.RemoveUserFromGroup)
 
 	// Get port from environment or default to 8000
 	port := os.Getenv("PORT")

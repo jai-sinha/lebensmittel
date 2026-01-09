@@ -181,3 +181,45 @@ func AddUserToGroup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "User added to group successfully"})
 }
+
+func GetUserGroups(c *gin.Context) {
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	groups, err := database.GetUserGroups(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, groups)
+}
+
+func GetActiveGroup(c *gin.Context) {
+	groupID, err := getActiveGroupID(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"groupId": groupID})
+}
+
+func RemoveUserFromGroup(c *gin.Context) {
+	groupID := c.Param("group_id")
+	userID := c.Param("user_id")
+
+	if userID == "me" {
+		userID = c.GetString("userID")
+	}
+
+	if err := database.RemoveUserFromGroup(c.Request.Context(), userID, groupID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User removed from group successfully"})
+}

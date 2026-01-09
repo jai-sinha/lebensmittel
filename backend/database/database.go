@@ -580,6 +580,16 @@ func AddUserToGroup(ctx context.Context, userID, groupID string) error {
 	return nil
 }
 
+// RemoveUserFromGroup removes a user from a group
+func RemoveUserFromGroup(ctx context.Context, userID, groupID string) error {
+	query := `DELETE FROM user_groups WHERE user_id = $1 AND group_id = $2`
+	_, err := db.Exec(ctx, query, userID, groupID)
+	if err != nil {
+		return fmt.Errorf("failed to remove user from group: %w", err)
+	}
+	return nil
+}
+
 // GetUserGroups retrieves all groups for a user
 func GetUserGroups(ctx context.Context, userID string) ([]models.Group, error) {
 	query := `
@@ -594,7 +604,7 @@ func GetUserGroups(ctx context.Context, userID string) ([]models.Group, error) {
 	}
 	defer rows.Close()
 
-	var groups []models.Group
+	groups := []models.Group{}
 	for rows.Next() {
 		var group models.Group
 		if err := rows.Scan(&group.ID, &group.Name); err != nil {
