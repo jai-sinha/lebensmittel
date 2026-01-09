@@ -2,7 +2,7 @@
 //  AuthManager.swift
 //  lebensmittel
 //
-//  Created by Jai Sinha on 01/02/25.
+//  Created by Jai Sinha on 01/02/26.
 //
 
 import Foundation
@@ -14,8 +14,10 @@ actor AuthStorage {
     private let keychain = KeychainService()
     private let tokensKey = "tokens"
     private let userKey = "user"
+    private let activeGroupKey = "activeGroupId"
     private var cachedTokens: Tokens?
     private var cachedUser: User?
+    private var cachedActiveGroupId: String?
 
     func loadTokens() throws -> Tokens? {
         if let cached = cachedTokens {
@@ -35,6 +37,15 @@ actor AuthStorage {
         return user
     }
 
+    func loadActiveGroupId() throws -> String? {
+        if let cached = cachedActiveGroupId {
+            return cached
+        }
+        let groupId = try keychain.read(String.self, forKey: activeGroupKey)
+        cachedActiveGroupId = groupId
+        return groupId
+    }
+
     func saveTokens(_ tokens: Tokens) throws {
         cachedTokens = tokens
         try keychain.save(tokens, forKey: tokensKey)
@@ -45,6 +56,11 @@ actor AuthStorage {
         try keychain.save(user, forKey: userKey)
     }
 
+    func saveActiveGroupId(_ id: String) throws {
+        cachedActiveGroupId = id
+        try keychain.save(id, forKey: activeGroupKey)
+    }
+
     func clearTokens() throws {
         cachedTokens = nil
         try keychain.delete(forKey: tokensKey)
@@ -53,6 +69,11 @@ actor AuthStorage {
     func clearUser() throws {
         cachedUser = nil
         try keychain.delete(forKey: userKey)
+    }
+
+    func clearActiveGroupId() throws {
+        cachedActiveGroupId = nil
+        try keychain.delete(forKey: activeGroupKey)
     }
 }
 
@@ -252,10 +273,112 @@ actor AuthManager {
         return try await storage.loadUser()
     }
 
+    // MARK: - Group Management
+
+    func getUserGroups() async throws -> [AuthGroup] {
+        let token = try await accessToken()
+        guard let url = URL(string: "\(baseURL)/users/me/groups") else {
+            throw AuthError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw AuthError.invalidResponse
+        }
+
+        return try JSONDecoder().decode([AuthGroup].self, from: data)
+    }
+
+    func getActiveGroupId() async throws -> String {
+        if let localId = try await storage.loadActiveGroupId() {
+            return localId
+        }
+
+        let token = try await accessToken()
+        guard let url = URL(string: "\(baseURL)/users/me/active-group") else {
+            throw AuthError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw AuthError.invalidResponse
+        }
+
+        let result = try JSONDecoder().decode([String: String].self, from: data)
+        guard let groupId = result["groupId"] else {
+            throw AuthError.invalidResponse
+        }
+
+        try await storage.saveActiveGroupId(groupId)
+        return groupId
+    }
+
+    func setActiveGroup(_ groupId: String) async throws {
+        try await storage.saveActiveGroupId(groupId)
+    }
+
+    func addUserToGroup(groupId: String, userId: String) async throws {
+        let token = try await accessToken()
+        guard let url = URL(string: "\(baseURL)/groups/\(groupId)/users") else {
+            throw AuthError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let body = ["userId": userId]
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw AuthError.invalidResponse
+        }
+    }
+
+    func removeUserFromGroup(groupId: String, userId: String) async throws {
+        let token = try await accessToken()
+        guard let url = URL(string: "\(baseURL)/groups/\(groupId)/users/\(userId)") else {
+            throw AuthError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw AuthError.invalidResponse
+        }
+    }
+
+    func joinGroup(groupId: String) async throws {
+        guard let user = try await getCurrentUser() else { throw AuthError.notAuthenticated }
+        try await addUserToGroup(groupId: groupId, userId: user.id)
+    }
+
+    func leaveGroup(groupId: String) async throws {
+        try await removeUserFromGroup(groupId: groupId, userId: "me")
+    }
+
     /// Logout (clear tokens and user data)
     func logout() async throws {
         try await storage.clearTokens()
         try await storage.clearUser()
+        try await storage.clearActiveGroupId()
         refreshTask = nil
     }
 
@@ -282,6 +405,10 @@ struct NetworkClient {
         do {
             let token = try await auth.accessToken()
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+            if let groupId = try? await auth.getActiveGroupId() {
+                req.setValue(groupId, forHTTPHeaderField: "X-Group-ID")
+            }
         } catch {
             // If we can't get a token, try anyway (server will reject with 401)
         }

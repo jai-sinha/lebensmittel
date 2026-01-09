@@ -20,11 +20,56 @@ struct Tokens: Codable, Sendable {
         case refreshToken = "refresh_token"
         case expiresAt = "expires_at"
     }
+
+    init(accessToken: String, refreshToken: String, expiresAt: Date?) {
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
+        self.expiresAt = expiresAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.accessToken = try container.decode(String.self, forKey: .accessToken)
+        self.refreshToken = try container.decode(String.self, forKey: .refreshToken)
+        self.expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(accessToken, forKey: .accessToken)
+        try container.encode(refreshToken, forKey: .refreshToken)
+        try container.encode(expiresAt, forKey: .expiresAt)
+    }
 }
 
 struct User: Codable, Sendable {
+    let id: String
     let username: String
     let displayName: String
+
+    init(id: String, username: String, displayName: String) {
+        self.id = id
+        self.username = username
+        self.displayName = displayName
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, username, displayName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.username = try container.decode(String.self, forKey: .username)
+        self.displayName = try container.decode(String.self, forKey: .displayName)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(username, forKey: .username)
+        try container.encode(displayName, forKey: .displayName)
+    }
 }
 
 struct LoginRequest: Codable, Sendable {
@@ -72,7 +117,9 @@ struct KeychainService: Sendable {
 
     private let serviceName = "com.lebensmittel.auth"
 
-    func save<T: Codable>(_ value: T, forKey key: String) throws {
+    nonisolated init() {}
+
+    nonisolated func save<T: Codable>(_ value: T, forKey key: String) throws {
         let data = try JSONEncoder().encode(value)
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
@@ -91,7 +138,7 @@ struct KeychainService: Sendable {
         }
     }
 
-    func read<T: Codable>(_ type: T.Type, forKey key: String) throws -> T? {
+    nonisolated func read<T: Codable>(_ type: T.Type, forKey key: String) throws -> T? {
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: serviceName,
@@ -114,7 +161,7 @@ struct KeychainService: Sendable {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    func delete(forKey key: String) throws {
+    nonisolated func delete(forKey key: String) throws {
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: serviceName,
