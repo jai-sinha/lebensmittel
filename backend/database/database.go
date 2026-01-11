@@ -615,6 +615,31 @@ func GetUserGroups(ctx context.Context, userID string) ([]models.Group, error) {
 	return groups, rows.Err()
 }
 
+// GetGroupUsers retrieves all users' id and displayName in a group
+func GetGroupUsers(ctx context.Context, groupID string) ([]models.GroupUser, error) {
+	query := `
+		SELECT u.id, u.display_name
+		FROM users u
+		JOIN user_groups ug ON u.id = ug.user_id
+		WHERE ug.group_id = $1
+	`
+	rows, err := db.Query(ctx, query, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query group users: %w", err)
+	}
+	defer rows.Close()
+
+	users := []models.GroupUser{}
+	for rows.Next() {
+		var user models.GroupUser
+		if err := rows.Scan(&user.ID, &user.DisplayName); err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+	return users, rows.Err()
+}
+
 // Helper function to join strings
 func joinStrings(strs []string, sep string) string {
 	if len(strs) == 0 {

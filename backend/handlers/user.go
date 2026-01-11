@@ -182,6 +182,18 @@ func AddUserToGroup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "User added to group successfully"})
 }
 
+func GetGroupUsers(c *gin.Context) {
+	groupID := c.Param("group_id")
+
+	groupUsers, err := database.GetGroupUsers(c.Request.Context(), groupID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, groupUsers)
+}
+
 func GetUserGroups(c *gin.Context) {
 	userID := c.GetString("userID")
 	if userID == "" {

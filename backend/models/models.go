@@ -159,6 +159,12 @@ type User struct {
 	DisplayName  string `json:"displayName" db:"display_name"`
 }
 
+// GroupUser is a lightweight struct for returning user info in a group context
+type GroupUser struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+}
+
 // NewUser creates a new user with a generated UUID
 func NewUser(username, passwordHash, displayName string) *User {
 	return &User{

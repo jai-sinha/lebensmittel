@@ -73,6 +73,7 @@ func main() {
 		{"route": "/api/groups/:group_id", "methods": []string{"PUT"}, "description": "Update a group"},
 		{"route": "/api/groups/:group_id", "methods": []string{"DELETE"}, "description": "Delete a group"},
 		{"route": "/api/groups/:group_id/users", "methods": []string{"POST"}, "description": "Add user to group"},
+		{"route": "/api/groups/:group_id/users", "methods": []string{"GET"}, "description": "Get users in group"},
 		{"route": "/api/users/me/groups", "methods": []string{"GET"}, "description": "Get current user groups"},
 		{"route": "/api/users/me/active-group", "methods": []string{"GET"}, "description": "Get current active group ID"},
 		{"route": "/api/groups/:group_id/users/:user_id", "methods": []string{"DELETE"}, "description": "Remove user from group"},
@@ -143,6 +144,7 @@ func main() {
 	protected.PUT("/groups/:group_id", handlers.UpdateGroup)
 	protected.DELETE("/groups/:group_id", handlers.DeleteGroup)
 	protected.POST("/groups/:group_id/users", handlers.AddUserToGroup)
+	protected.GET("/groups/:group_id/users", handlers.GetGroupUsers)
 	protected.DELETE("/groups/:group_id/users/:user_id", handlers.RemoveUserFromGroup)
 
 	// Get port from environment or default to 8000
