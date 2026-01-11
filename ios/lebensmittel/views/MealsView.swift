@@ -88,6 +88,11 @@ struct MealsView: View {
 			}
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Meal Planning")
+			.toolbar {
+				ToolbarItem(placement: .topBarTrailing) {
+					AuthMenuView()
+				}
+			}
 		}
 	}
 }

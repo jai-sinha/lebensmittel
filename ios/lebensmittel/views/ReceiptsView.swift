@@ -44,6 +44,11 @@ struct ReceiptsView: View {
 			}
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Receipts")
+			.toolbar {
+				ToolbarItem(placement: .topBarTrailing) {
+					AuthMenuView()
+				}
+			}
 			.onAppear {
 				//                model.fetchReceipts()
 				// Expand only the current month by default

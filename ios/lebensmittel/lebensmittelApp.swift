@@ -11,6 +11,8 @@ import SwiftUI
 class AuthStateManager {
     var isAuthenticated = false
     var currentUser: User?
+    var currentUserGroups: [AuthGroup] = []
+    var currentUserActiveGroupId: String?
     var isCheckingAuth = true
     var errorMessage: String?
 
@@ -19,10 +21,14 @@ class AuthStateManager {
             do {
                 let isAuth = try await AuthManager.shared.isAuthenticated()
                 let user = try await AuthManager.shared.getCurrentUser()
+                let userGroups = try await AuthManager.shared.getUserGroups()
+                let userActiveGroupId = try await AuthManager.shared.getActiveGroupId()
 
                 await MainActor.run {
                     self.isAuthenticated = isAuth
                     self.currentUser = user
+                    self.currentUserGroups = userGroups
+                    self.currentUserActiveGroupId = userActiveGroupId
                     self.isCheckingAuth = false
                 }
             } catch {

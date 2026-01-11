@@ -10,66 +10,67 @@ import SwiftUI
 struct AuthMenuView: View {
     @Environment(AuthStateManager.self) var authStateManager
 
-    @State private var groups: [AuthGroup] = []
-    @State private var activeGroupId: String = ""
     @State private var joinCode: String = ""
     @State private var showingJoinAlert = false
     @State private var errorMessage: String?
+
+    // Rename State
+    @State private var groupToRename: AuthGroup?
+    @State private var newGroupName: String = ""
+    @State private var showingRenameAlert = false
 
     var body: some View {
         Menu {
             // MARK: - User Info
             if let user = authStateManager.currentUser {
-                Text(user.displayName)
+                Section(user.displayName) {
+                    Button(role: .destructive) {
+                        authStateManager.logout()
+                    } label: {
+                        Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                }
             }
-
-            Button(role: .destructive) {
-                authStateManager.logout()
-            } label: {
-                Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
-            }
-
-            Divider()
 
             // MARK: - Group Selection
-            if !groups.isEmpty {
-                Picker("Current Group", selection: $activeGroupId) {
-                    ForEach(groups) { group in
-                        Text(group.name).tag(group.id)
-                    }
-                }
-                .onChange(of: activeGroupId) { _, newValue in
-                    if !newValue.isEmpty {
-                        switchGroup(to: newValue)
-                    }
-                }
-            } else {
-                Text("No Groups Available")
-            }
+            let groups = authStateManager.currentUserGroups
+            let activeGroupId =  authStateManager.currentUserActiveGroupId
 
-            Divider()
+            Section("Groups") {
+                if !groups.isEmpty {
+                    ForEach(groups) { group in
+                        GroupRow(
+                            group: group,
+                            isActive: group.id == activeGroupId,
+                            onSwitch: {
+                                switchGroup(to: group.id)
+                            },
+                            onRename: {
+                                groupToRename = group
+                                newGroupName = group.name
+                                showingRenameAlert = true
+                            },
+                            onLeave: {
+                                leaveGroup(group)
+                            }
+                        )
+                    }
+                } else {
+                    Text("No Groups Available")
+                }
+            }
 
             // MARK: - Group Actions
-            Button {
-                showingJoinAlert = true
-            } label: {
-                Label("Join Group", systemImage: "person.badge.plus")
-            }
-
-            if !activeGroupId.isEmpty {
-                Button(role: .destructive) {
-                    leaveCurrentGroup()
+            Section {
+                Button {
+                    showingJoinAlert = true
                 } label: {
-                    Label("Leave Current Group", systemImage: "rectangle.portrait.and.arrow.right.fill")
+                    Label("Join Group", systemImage: "person.badge.plus")
                 }
             }
-
         } label: {
             Image(systemName: "person.circle")
                 .imageScale(.large)
-        }
-        .onAppear {
-            loadGroupData()
         }
         .alert("Join Group", isPresented: $showingJoinAlert) {
             TextField("Group ID", text: $joinCode)
@@ -81,6 +82,18 @@ struct AuthMenuView: View {
             }
         } message: {
             Text("Enter the ID of the group you want to join.")
+        }
+        .alert("Rename Group", isPresented: $showingRenameAlert) {
+            TextField("Group Name", text: $newGroupName)
+            Button("Cancel", role: .cancel) {
+                groupToRename = nil
+                newGroupName = ""
+            }
+            Button("Rename") {
+                if let group = groupToRename {
+                    renameGroup(group, to: newGroupName)
+                }
+            }
         }
         .alert("Error", isPresented: Binding(
             get: { errorMessage != nil },
@@ -96,42 +109,33 @@ struct AuthMenuView: View {
 
     // MARK: - Actions
 
-    private func loadGroupData() {
-        Task {
-            do {
-                // Fetch groups and active group in parallel
-                async let groupsTask = AuthManager.shared.getUserGroups()
-                async let activeGroupTask = AuthManager.shared.getActiveGroupId()
-
-                let (fetchedGroups, fetchedActiveId) = try await (groupsTask, activeGroupTask)
-
-                await MainActor.run {
-                    self.groups = fetchedGroups
-                    self.activeGroupId = fetchedActiveId
-
-                    // If active group is not in list (edge case), default to first if available
-                    if !fetchedActiveId.isEmpty && !fetchedGroups.contains(where: { $0.id == fetchedActiveId }) {
-                        if let first = fetchedGroups.first {
-                            self.activeGroupId = first.id
-                            switchGroup(to: first.id)
-                        }
-                    }
-                }
-            } catch {
-                print("Failed to load group data: \(error.localizedDescription)")
-            }
-        }
-    }
-
     private func switchGroup(to groupId: String) {
         Task {
             do {
                 try await AuthManager.shared.setActiveGroup(groupId)
                 // Post notification to let other views know they should refresh data
                 NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
+                loadGroupData()
             } catch {
                 await MainActor.run {
                     errorMessage = "Failed to switch group: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func renameGroup(_ group: AuthGroup, to newName: String) {
+        Task {
+            do {
+                try await AuthManager.shared.renameGroup(groupId: group.id, newName: newName)
+                loadGroupData()
+                await MainActor.run {
+                    groupToRename = nil
+                    newGroupName = ""
+                }
+            } catch {
+                 await MainActor.run {
+                    errorMessage = "Failed to rename group: \(error.localizedDescription)"
                 }
             }
         }
@@ -155,19 +159,57 @@ struct AuthMenuView: View {
         }
     }
 
-    private func leaveCurrentGroup() {
-        guard !activeGroupId.isEmpty else { return }
-
+    private func leaveGroup(_ group: AuthGroup) {
         Task {
             do {
-                try await AuthManager.shared.leaveGroup(groupId: activeGroupId)
-                // Clear active group locally
-                try await AuthManager.shared.setActiveGroup("")
+                try await AuthManager.shared.leaveGroup(groupId: group.id)
+                // If we left the active group, clear it
+                if authStateManager.currentUserActiveGroupId == group.id {
+                     try await AuthManager.shared.setActiveGroup("")
+                     // Notify change
+                     NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
+                }
                 loadGroupData()
             } catch {
                 await MainActor.run {
                     errorMessage = "Failed to leave group: \(error.localizedDescription)"
                 }
+            }
+        }
+    }
+
+    private func loadGroupData() {
+        authStateManager.checkAuthentication()
+    }
+}
+
+struct GroupRow: View {
+    let group: AuthGroup
+    let isActive: Bool
+    let onSwitch: () -> Void
+    let onRename: () -> Void
+    let onLeave: () -> Void
+
+    var body: some View {
+        Menu {
+            Button("Switch to this group") {
+                onSwitch()
+            }
+
+            Button("Rename group") {
+                onRename()
+            }
+
+            Button(role: .destructive) {
+                onLeave()
+            } label: {
+                Text("Leave group")
+            }
+        } label: {
+            if isActive {
+                Label(group.name, systemImage: "checkmark")
+            } else {
+                Label(group.name, systemImage: "circle")
             }
         }
     }

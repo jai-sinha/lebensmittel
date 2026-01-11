@@ -43,6 +43,11 @@ struct ShoppingView: View {
 			}
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Shopping List")
+			.toolbar {
+				ToolbarItem(placement: .topBarTrailing) {
+					AuthMenuView()
+				}
+			}
 
 			// MARK: Checkout Sheet
 			.sheet(isPresented: $showCheckoutSheet) {
