@@ -34,8 +34,7 @@ struct MonthlyReceiptsGroup: Identifiable {
 	let id = UUID()
 	let month: String
 	let receipts: [Receipt]
-	let jaiTotal: Double
-	let hannaTotal: Double
+	let userTotals: [String: Double]
 }
 
 // MARK: Grocery Items

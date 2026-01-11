@@ -80,6 +80,7 @@ struct MonthGroup: View {
 	@Binding var editError: String
 
 	@Environment(ReceiptsModel.self) var model
+	@Environment(AuthStateManager.self) var authManager
 
 	var body: some View {
 		DisclosureGroup(
@@ -107,27 +108,21 @@ struct MonthGroup: View {
 					)
 				}
 				// Monthly person totals
-				HStack {
-					Text("Jai's Total:")
-						.font(.subheadline)
-						.bold()
-					Text(
-						group.jaiTotal, format: .currency(code: "EUR").precision(.fractionLength(2))
-					)
-					.font(.subheadline)
-					.foregroundStyle(.green)
-					.bold()
-					Spacer()
-					Text("Hanna's Total:")
-						.font(.subheadline)
-						.bold()
-					Text(
-						group.hannaTotal,
-						format: .currency(code: "EUR").precision(.fractionLength(2))
-					)
-					.font(.subheadline)
-					.foregroundStyle(.green)
-					.bold()
+				VStack(alignment: .leading) {
+					ForEach(authManager.currentGroupUsers, id: \.id) { user in
+						HStack {
+							Text("\(user.displayName)'s Total:")
+								.font(.subheadline)
+								.bold()
+							Text(
+								group.userTotals[user.displayName] ?? 0.0,
+								format: .currency(code: "EUR").precision(.fractionLength(2))
+							)
+							.font(.subheadline)
+							.foregroundStyle(.green)
+							.bold()
+						}
+					}
 				}
 				.padding(.leading, -20)
 			},
@@ -239,6 +234,7 @@ struct EditReceiptSheet: View {
 	@Binding var showEditSheet: Bool
 
 	@Environment(ReceiptsModel.self) var model
+	@Environment(AuthStateManager.self) var authManager
 
 	var body: some View {
 		VStack(spacing: 25) {
@@ -257,8 +253,9 @@ struct EditReceiptSheet: View {
 				Text("Purchased by")
 					.font(.headline)
 				Picker("Purchased by", selection: $editPurchaser) {
-					Text("Jai").tag("Jai")
-					Text("Hanna").tag("Hanna")
+					ForEach(authManager.currentGroupUsers, id: \.id) { user in
+						Text(user.displayName).tag(user.displayName)
+					}
 				}
 				.pickerStyle(SegmentedPickerStyle())
 			}

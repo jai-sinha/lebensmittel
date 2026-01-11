@@ -190,14 +190,12 @@ class ReceiptsModel {
 		}
 		return sortedMonths.map { month in
 			let monthReceipts = groups[month]!.sorted { $0.date < $1.date }
-			let jaiTotal = monthReceipts.filter { $0.purchasedBy == "Jai" }.reduce(into: 0) {
-				$0 += $1.totalAmount
-			}
-			let hannaTotal = monthReceipts.filter { $0.purchasedBy == "Hanna" }.reduce(into: 0) {
-				$0 += $1.totalAmount
+			var userTotals: [String: Double] = [:]
+			for receipt in monthReceipts {
+				userTotals[receipt.purchasedBy, default: 0] += receipt.totalAmount
 			}
 			return MonthlyReceiptsGroup(
-				month: month, receipts: monthReceipts, jaiTotal: jaiTotal, hannaTotal: hannaTotal)
+				month: month, receipts: monthReceipts, userTotals: userTotals)
 		}
 	}
 }

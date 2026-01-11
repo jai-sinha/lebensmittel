@@ -294,6 +294,26 @@ actor AuthManager {
         return try JSONDecoder().decode([AuthGroup].self, from: data)
     }
 
+    func getUsersInGroup() async throws -> [GroupUser] {
+		let groupId = try await getActiveGroupId()
+		let token = try await accessToken()
+		guard let url = URL(string: "\(baseURL)/groups/\(groupId)/users") else {
+			throw AuthError.invalidResponse
+		}
+
+		var request = URLRequest(url: url)
+		request.httpMethod = "GET"
+		request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+		let (data, response) = try await URLSession.shared.data(for: request)
+
+		guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+			throw AuthError.invalidResponse
+		}
+
+		return try JSONDecoder().decode([GroupUser].self, from: data)
+	}
+
     func getActiveGroupId() async throws -> String {
         if let localId = try await storage.loadActiveGroupId() {
             return localId

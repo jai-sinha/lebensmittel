@@ -13,6 +13,7 @@ class AuthStateManager {
     var currentUser: User?
     var currentUserGroups: [AuthGroup] = []
     var currentUserActiveGroupId: String?
+    var currentGroupUsers: [GroupUser] = []
     var isCheckingAuth = true
     var errorMessage: String?
 
@@ -23,12 +24,14 @@ class AuthStateManager {
                 let user = try await AuthManager.shared.getCurrentUser()
                 let userGroups = try await AuthManager.shared.getUserGroups()
                 let userActiveGroupId = try await AuthManager.shared.getActiveGroupId()
+                let groupUsers = try await AuthManager.shared.getUsersInGroup()
 
                 await MainActor.run {
                     self.isAuthenticated = isAuth
                     self.currentUser = user
                     self.currentUserGroups = userGroups
                     self.currentUserActiveGroupId = userActiveGroupId
+                    self.currentGroupUsers = groupUsers
                     self.isCheckingAuth = false
                 }
             } catch {

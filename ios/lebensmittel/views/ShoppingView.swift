@@ -141,6 +141,8 @@ struct ShoppingRow: View {
 }
 
 struct CheckoutSheetView: View {
+	@Environment(AuthStateManager.self) var authManager
+
 	/// Called when the user taps Cancel
 	var onCancel: () -> Void
 
@@ -153,7 +155,9 @@ struct CheckoutSheetView: View {
 	@State private var notes: String = ""
 	@State private var error: String = ""
 
-	private let purchaserOptions = ["Jai", "Hanna"]
+	var purchaserOptions: [String] {
+		authManager.currentGroupUsers.map { $0.displayName }
+	}
 
 	var body: some View {
 		VStack(spacing: 25) {

@@ -72,6 +72,11 @@ struct User: Codable, Sendable {
     }
 }
 
+struct GroupUser: Codable, Sendable, Identifiable {
+    let id: String
+    let displayName: String
+}
+
 struct LoginRequest: Codable, Sendable {
     let username: String
     let password: String
