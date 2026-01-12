@@ -25,6 +25,10 @@ func GetReceipts(c *gin.Context) {
 		return
 	}
 
+	if receipts == nil { // ensure JSON never returns null
+		receipts = []models.Receipt{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"receipts": receipts,
 		"count":    len(receipts),

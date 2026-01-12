@@ -23,6 +23,10 @@ func GetMealPlans(c *gin.Context) {
 		return
 	}
 
+	if meals == nil { // ensure JSON never returns null
+		meals = []models.MealPlan{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"mealPlans": meals,
 		"count":     len(meals),

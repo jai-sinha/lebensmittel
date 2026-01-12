@@ -22,6 +22,10 @@ func GetGroceryItems(c *gin.Context) {
 		return
 	}
 
+	if items == nil { // ensure JSON never returns null
+		items = []models.GroceryItem{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"groceryItems": items,
 		"count":        len(items),
