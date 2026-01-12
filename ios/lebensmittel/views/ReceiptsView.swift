@@ -24,7 +24,10 @@ struct ReceiptsView: View {
 			VStack {
 				if let errorMessage = model.errorMessage {
 					Text("Error: \(errorMessage)").foregroundStyle(.red)
-				} else {
+                } else if model.receipts.isEmpty {
+                    Text("No receipts yet. Create one from the Shopping tab to get started!")
+                        .foregroundStyle(.secondary)
+                } else {
 					List {
 						ForEach(model.groupReceiptsByMonthWithPersonTotals()) { group in
 							MonthGroup(

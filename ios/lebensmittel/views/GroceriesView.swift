@@ -15,17 +15,24 @@ struct GroceriesView: View {
 		NavigationStack {
 			VStack {
 				if model.isLoading {
-					ProgressView("Loading groceries...")
+					ProgressView("Loading groceries...").background(Color(.systemBackground))
 				} else if let errorMessage = model.errorMessage {
-					Text("Error: \(errorMessage)").foregroundStyle(.red)
+					Text("Error: \(errorMessage)").foregroundStyle(.red).background(Color(.systemBackground))
 				} else {
 					HStack(spacing: 0) {
-						EssentialsPane()
-						Divider()
-							.frame(width: 1)
-							.background(Color(.separator))
-							.padding(.vertical)
-						CategoriesListPane()
+                        if model.groceryItems.isEmpty {
+                            Text("No groceries yet. Add one below to get started!")
+                                .foregroundStyle(.secondary)
+                                .background(Color(.systemBackground))
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            EssentialsPane()
+                            Divider()
+                                .frame(width: 1)
+                                .background(Color(.separator))
+                                .padding(.vertical)
+                            CategoriesListPane()
+                        }
 					}
 					.padding(.horizontal, 12)
 					.padding(.bottom, 6)
