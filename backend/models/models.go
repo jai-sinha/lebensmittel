@@ -151,6 +151,24 @@ func NewGroup(name string) *Group {
 	}
 }
 
+// JoinCode represents a temporary code to join a group
+type JoinCode struct {
+	Code      string    `json:"code" db:"code"`
+	GroupID   string    `json:"groupId" db:"group_id"`
+	ExpiresAt time.Time `json:"expiresAt" db:"expires_at"`
+	CreatedBy string    `json:"createdBy" db:"created_by"`
+}
+
+// NewJoinCode creates a new join code
+func NewJoinCode(code, groupID, createdBy string, expiresIn time.Duration) *JoinCode {
+	return &JoinCode{
+		Code:      code,
+		GroupID:   groupID,
+		ExpiresAt: time.Now().Add(expiresIn),
+		CreatedBy: createdBy,
+	}
+}
+
 // User represents a user of the application
 type User struct {
 	ID           string `json:"id" db:"id"`

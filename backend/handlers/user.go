@@ -100,10 +100,25 @@ func CreateGroup(c *gin.Context) {
 		return
 	}
 
+	// Ensure user is authenticated and get their ID from context
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	newGroup := models.NewGroup(data.Name)
 
 	if err := database.CreateGroup(c.Request.Context(), newGroup); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Add the creator to the newly created group. If this fails, attempt cleanup.
+	if err := database.AddUserToGroup(c.Request.Context(), userID, newGroup.ID); err != nil {
+		// Attempt to remove the group to avoid leaving an orphaned group
+		_ = database.DeleteGroup(c.Request.Context(), newGroup.ID)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add creator to group"})
 		return
 	}
 

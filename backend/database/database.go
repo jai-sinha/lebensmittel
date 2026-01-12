@@ -641,6 +641,47 @@ func GetGroupUsers(ctx context.Context, groupID string) ([]models.GroupUser, err
 }
 
 // Helper function to join strings
+// CreateJoinCode creates a new join code
+func CreateJoinCode(ctx context.Context, joinCode *models.JoinCode) error {
+	query := `
+		INSERT INTO join_codes (code, group_id, expires_at, created_by)
+		VALUES ($1, $2, $3, $4)
+	`
+	_, err := db.Exec(ctx, query, joinCode.Code, joinCode.GroupID, joinCode.ExpiresAt, joinCode.CreatedBy)
+	if err != nil {
+		return fmt.Errorf("failed to create join code: %w", err)
+	}
+	return nil
+}
+
+// GetJoinCode retrieves a join code by code
+func GetJoinCode(ctx context.Context, code string) (*models.JoinCode, error) {
+	query := `
+		SELECT code, group_id, expires_at, created_by
+		FROM join_codes
+		WHERE code = $1
+	`
+	var jc models.JoinCode
+	err := db.QueryRow(ctx, query, code).Scan(&jc.Code, &jc.GroupID, &jc.ExpiresAt, &jc.CreatedBy)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get join code: %w", err)
+	}
+	return &jc, nil
+}
+
+// DeleteJoinCode deletes a join code
+func DeleteJoinCode(ctx context.Context, code string) error {
+	query := `DELETE FROM join_codes WHERE code = $1`
+	_, err := db.Exec(ctx, query, code)
+	if err != nil {
+		return fmt.Errorf("failed to delete join code: %w", err)
+	}
+	return nil
+}
+
 func joinStrings(strs []string, sep string) string {
 	if len(strs) == 0 {
 		return ""

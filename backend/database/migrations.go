@@ -28,12 +28,17 @@ func RunMigrations(ctx context.Context) error {
 		return fmt.Errorf("failed to create user_groups table: %w", err)
 	}
 
-	// 4. Seed initial data if empty
+	// 4. Create join_codes table
+	if err := createJoinCodesTable(ctx); err != nil {
+		return fmt.Errorf("failed to create join_codes table: %w", err)
+	}
+
+	// 5. Seed initial data if empty
 	if err := seedInitialData(ctx); err != nil {
 		return fmt.Errorf("failed to seed initial data: %w", err)
 	}
 
-	// 4. Migrate existing tables (add columns and backfill)
+	// 6. Migrate existing tables (add columns and backfill)
 	if err := migrateExistingTables(ctx); err != nil {
 		return fmt.Errorf("failed to migrate existing tables: %w", err)
 	}
@@ -70,6 +75,18 @@ func createUserGroupsTable(ctx context.Context) error {
 		user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		group_id VARCHAR(36) NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
 		PRIMARY KEY (user_id, group_id)
+	);`
+	_, err := db.Exec(ctx, query)
+	return err
+}
+
+func createJoinCodesTable(ctx context.Context) error {
+	query := `
+	CREATE TABLE IF NOT EXISTS join_codes (
+		code VARCHAR(8) PRIMARY KEY,
+		group_id VARCHAR(36) NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+		expires_at TIMESTAMP NOT NULL,
+		created_by VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE
 	);`
 	_, err := db.Exec(ctx, query)
 	return err

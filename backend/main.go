@@ -77,6 +77,8 @@ func main() {
 		{"route": "/api/users/me/groups", "methods": []string{"GET"}, "description": "Get current user groups"},
 		{"route": "/api/users/me/active-group", "methods": []string{"GET"}, "description": "Get current active group ID"},
 		{"route": "/api/groups/:group_id/users/:user_id", "methods": []string{"DELETE"}, "description": "Remove user from group"},
+		{"route": "/api/groups/:group_id/invite", "methods": []string{"POST"}, "description": "Generate join code for group"},
+		{"route": "/api/groups/join", "methods": []string{"POST"}, "description": "Join group using code"},
 	}
 
 	// Home route
@@ -146,6 +148,8 @@ func main() {
 	protected.POST("/groups/:group_id/users", handlers.AddUserToGroup)
 	protected.GET("/groups/:group_id/users", handlers.GetGroupUsers)
 	protected.DELETE("/groups/:group_id/users/:user_id", handlers.RemoveUserFromGroup)
+	protected.POST("/groups/:group_id/invite", handlers.GenerateJoinCode)
+	protected.POST("/groups/join", handlers.JoinGroupWithCode)
 
 	// Get port from environment or default to 8000
 	port := os.Getenv("PORT")
