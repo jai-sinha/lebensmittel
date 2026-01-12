@@ -164,7 +164,7 @@ func NewJoinCode(code, groupID, createdBy string, expiresIn time.Duration) *Join
 	return &JoinCode{
 		Code:      code,
 		GroupID:   groupID,
-		ExpiresAt: time.Now().Add(expiresIn),
+		ExpiresAt: time.Now().UTC().Add(expiresIn),
 		CreatedBy: createdBy,
 	}
 }

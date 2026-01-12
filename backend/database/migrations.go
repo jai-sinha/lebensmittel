@@ -43,6 +43,11 @@ func RunMigrations(ctx context.Context) error {
 		return fmt.Errorf("failed to migrate existing tables: %w", err)
 	}
 
+	// 7. Fix join_codes timestamp type
+	if err := fixJoinCodesTimestamp(ctx); err != nil {
+		return fmt.Errorf("failed to fix join_codes timestamp: %w", err)
+	}
+
 	log.Println("Migrations completed successfully")
 	return nil
 }
@@ -85,7 +90,7 @@ func createJoinCodesTable(ctx context.Context) error {
 	CREATE TABLE IF NOT EXISTS join_codes (
 		code VARCHAR(8) PRIMARY KEY,
 		group_id VARCHAR(36) NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-		expires_at TIMESTAMP NOT NULL,
+		expires_at TIMESTAMPTZ NOT NULL,
 		created_by VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE
 	);`
 	_, err := db.Exec(ctx, query)
@@ -232,6 +237,27 @@ func addColumnIfNotExists(ctx context.Context, table, column, colType string) er
 	_, err := db.Exec(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to add column %s to %s: %w", column, table, err)
+	}
+	return nil
+}
+
+func fixJoinCodesTimestamp(ctx context.Context) error {
+	var dataType string
+	err := db.QueryRow(ctx, "SELECT data_type FROM information_schema.columns WHERE table_name='join_codes' AND column_name='expires_at'").Scan(&dataType)
+	if err != nil {
+		return nil
+	}
+
+	if dataType == "timestamp without time zone" {
+		log.Println("Migrating join_codes.expires_at to TIMESTAMPTZ...")
+		_, err = db.Exec(ctx, `
+			ALTER TABLE join_codes
+			ALTER COLUMN expires_at TYPE TIMESTAMPTZ
+			USING expires_at AT TIME ZONE 'UTC'
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to alter join_codes.expires_at: %w", err)
+		}
 	}
 	return nil
 }

@@ -86,7 +86,7 @@ func JoinGroupWithCode(c *gin.Context) {
 	}
 
 	// 2. Check Expiry
-	if time.Now().After(joinCode.ExpiresAt) {
+	if time.Now().UTC().After(joinCode.ExpiresAt) {
 		// Clean up expired code
 		_ = database.DeleteJoinCode(c.Request.Context(), data.Code)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Code has expired"})
