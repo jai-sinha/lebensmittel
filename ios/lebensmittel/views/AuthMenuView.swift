@@ -7,17 +7,39 @@
 
 import SwiftUI
 
+enum ActiveAlert: Equatable {
+    case join
+    case rename
+    case create
+    case inviteCode
+    case error(String)
+
+    var title: String {
+        switch self {
+        case .join: "Join Group"
+        case .rename: "Rename Group"
+        case .create: "Create Group"
+        case .inviteCode: "Invite Code"
+        case .error: "Error"
+        }
+    }
+}
+
 struct AuthMenuView: View {
     @Environment(AuthStateManager.self) var authStateManager
 
     @State private var joinCode: String = ""
-    @State private var showingJoinAlert = false
     @State private var errorMessage: String?
+
+    @State private var createdGroupName: String = ""
+
+    @State private var inviteCode = ""
 
     // Rename State
     @State private var groupToRename: AuthGroup?
-    @State private var newGroupName: String = ""
-    @State private var showingRenameAlert = false
+    @State private var renamedGroupName: String = ""
+
+    @State private var activeAlert: ActiveAlert?
 
     var body: some View {
         Menu {
@@ -47,11 +69,14 @@ struct AuthMenuView: View {
                             },
                             onRename: {
                                 groupToRename = group
-                                newGroupName = group.name
-                                showingRenameAlert = true
+                                renamedGroupName = group.name
+                                activeAlert = .rename
                             },
                             onLeave: {
                                 leaveGroup(group)
+                            },
+                            onInvite: {
+                            	getGroupInviteCode(group)
                             }
                         )
                     }
@@ -63,47 +88,97 @@ struct AuthMenuView: View {
             // MARK: - Group Actions
             Section {
                 Button {
-                    showingJoinAlert = true
+                    activeAlert = .join
                 } label: {
                     Label("Join Group", systemImage: "person.badge.plus")
+                }
+            }
+            Section {
+                Button {
+                    activeAlert = .create
+                } label: {
+                    Label("Create Group", systemImage: "plus.circle")
                 }
             }
         } label: {
             Image(systemName: "person.circle")
                 .imageScale(.large)
         }
-        .alert("Join Group", isPresented: $showingJoinAlert) {
-            TextField("Group ID", text: $joinCode)
+        .alert(
+            activeAlert?.title ?? "",
+            isPresented: Binding(
+                get: { activeAlert != nil },
+                set: { if !$0 { activeAlert = nil } }
+            )
+        ) {
+            alertContent()
+        } message: {
+            alertMessage()
+        }
+    }
+
+    // MARK: - Alert Content
+
+    @ViewBuilder
+    private func alertContent() -> some View {
+        switch activeAlert {
+        case .join:
+            TextField("Invite Code", text: $joinCode)
             Button("Cancel", role: .cancel) {
                 joinCode = ""
             }
             Button("Join") {
                 joinGroup()
             }
-        } message: {
-            Text("Enter the ID of the group you want to join.")
-        }
-        .alert("Rename Group", isPresented: $showingRenameAlert) {
-            TextField("Group Name", text: $newGroupName)
+        case .rename:
+            TextField("Group Name", text: $renamedGroupName)
             Button("Cancel", role: .cancel) {
                 groupToRename = nil
-                newGroupName = ""
+                renamedGroupName = ""
             }
             Button("Rename") {
                 if let group = groupToRename {
-                    renameGroup(group, to: newGroupName)
+                    renameGroup(group, to: renamedGroupName)
                 }
             }
-        }
-        .alert("Error", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button("OK") {}
-        } message: {
-            if let errorMessage {
-                Text(errorMessage)
+        case .create:
+            TextField("Group Name", text: $createdGroupName)
+            Button("Cancel", role: .cancel) {
+                createdGroupName = ""
             }
+            Button("Create") {
+                if !createdGroupName.isEmpty {
+                    createGroup()
+                }
+            }
+        case .inviteCode:
+            Button("Copy Code") {
+                UIPasteboard.general.string = inviteCode
+                inviteCode = ""
+            }
+            Button("OK", role: .cancel) {
+                inviteCode = ""
+            }
+        case .error:
+            Button("OK", role: .cancel) {
+                errorMessage = nil
+            }
+        case .none:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func alertMessage() -> some View {
+        switch activeAlert {
+        case .join:
+            Text("Enter the code for the group you want to join.")
+        case .error(let message):
+            Text(message)
+        case .inviteCode:
+            Text("Your invite code is: \(inviteCode)")
+        default:
+            EmptyView()
         }
     }
 
@@ -118,7 +193,8 @@ struct AuthMenuView: View {
                 loadGroupData()
             } catch {
                 await MainActor.run {
-                    errorMessage = "Failed to switch group: \(error.localizedDescription)"
+                    errorMessage = error.localizedDescription
+                    activeAlert = .error(errorMessage ?? "Unknown error")
                 }
             }
         }
@@ -131,11 +207,12 @@ struct AuthMenuView: View {
                 loadGroupData()
                 await MainActor.run {
                     groupToRename = nil
-                    newGroupName = ""
+                    renamedGroupName = ""
                 }
             } catch {
                  await MainActor.run {
-                    errorMessage = "Failed to rename group: \(error.localizedDescription)"
+                    errorMessage = error.localizedDescription
+                    activeAlert = .error(errorMessage ?? "Unknown error")
                 }
             }
         }
@@ -153,10 +230,47 @@ struct AuthMenuView: View {
                 loadGroupData()
             } catch {
                 await MainActor.run {
-                    errorMessage = "Failed to join group: \(error.localizedDescription)"
+                    errorMessage = error.localizedDescription
+                    activeAlert = .error(errorMessage ?? "Unknown error")
                 }
             }
         }
+    }
+
+    private func getGroupInviteCode(_ group: AuthGroup) {
+        Task {
+            do {
+                let code = try await AuthManager.shared.getGroupInviteCode(groupId: group.id)
+                await MainActor.run {
+                    inviteCode = code
+                    activeAlert = .inviteCode
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    activeAlert = .error(errorMessage ?? "Unknown error")
+                }
+            }
+        }
+    }
+
+    private func createGroup() {
+        guard !createdGroupName.isEmpty else { return }
+        Task {
+            do {
+                try await AuthManager.shared.createGroup(groupName: createdGroupName)
+                await MainActor.run {
+                    createdGroupName = ""
+                }
+                loadGroupData()
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    activeAlert = .error(errorMessage ?? "Unknown error")
+                }
+            }
+        }
+
     }
 
     private func leaveGroup(_ group: AuthGroup) {
@@ -172,7 +286,8 @@ struct AuthMenuView: View {
                 loadGroupData()
             } catch {
                 await MainActor.run {
-                    errorMessage = "Failed to leave group: \(error.localizedDescription)"
+                    errorMessage = error.localizedDescription
+                    activeAlert = .error(errorMessage ?? "Unknown error")
                 }
             }
         }
@@ -189,11 +304,18 @@ struct GroupRow: View {
     let onSwitch: () -> Void
     let onRename: () -> Void
     let onLeave: () -> Void
+    let onInvite: () -> Void
 
     var body: some View {
         Menu {
-            Button("Switch to this group") {
-                onSwitch()
+            if !isActive {
+                Button("Switch to this group") {
+                    onSwitch()
+                }
+            }
+
+            Button("Get group invite code") {
+                onInvite()
             }
 
             Button("Rename group") {
@@ -207,9 +329,10 @@ struct GroupRow: View {
             }
         } label: {
             if isActive {
-                Label(group.name, systemImage: "checkmark")
+                Text(group.name)
+                    .fontWeight(.bold)
             } else {
-                Label(group.name, systemImage: "circle")
+                Text(group.name)
             }
         }
     }
