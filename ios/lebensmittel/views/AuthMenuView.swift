@@ -156,9 +156,6 @@ struct AuthMenuView: View {
                 UIPasteboard.general.string = inviteCode
                 inviteCode = ""
             }
-            Button("OK", role: .cancel) {
-                inviteCode = ""
-            }
         case .error:
             Button("OK", role: .cancel) {
                 errorMessage = nil
@@ -223,7 +220,7 @@ struct AuthMenuView: View {
 
         Task {
             do {
-                try await AuthManager.shared.joinGroup(groupId: joinCode)
+                try await AuthManager.shared.joinGroup(code: joinCode)
                 await MainActor.run {
                     joinCode = ""
                 }

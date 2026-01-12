@@ -347,27 +347,6 @@ actor AuthManager {
         try await storage.saveActiveGroupId(groupId)
     }
 
-    func addUserToGroup(groupId: String, userId: String) async throws {
-        let token = try await accessToken()
-        guard let url = URL(string: "\(baseURL)/groups/\(groupId)/users") else {
-            throw AuthError.invalidResponse
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let body = ["userId": userId]
-        request.httpBody = try JSONEncoder().encode(body)
-
-        let (_, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw AuthError.invalidResponse
-        }
-    }
-
     func removeUserFromGroup(groupId: String, userId: String) async throws {
         let token = try await accessToken()
         guard let url = URL(string: "\(baseURL)/groups/\(groupId)/users/\(userId)") else {
@@ -428,9 +407,24 @@ actor AuthManager {
         }
     }
 
-    func joinGroup(groupId: String) async throws {
-        guard let user = try await getCurrentUser() else { throw AuthError.notAuthenticated }
-        try await addUserToGroup(groupId: groupId, userId: user.id)
+    func joinGroup(code: String) async throws {
+        let token = try await accessToken()
+        guard let url = URL(string: "\(baseURL)/groups/join") else {
+            throw AuthError.invalidResponse
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let body = ["code": code]
+        request.httpBody = try JSONEncoder().encode(body)
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw AuthError.invalidResponse
+        }
     }
 
     func leaveGroup(groupId: String) async throws {
