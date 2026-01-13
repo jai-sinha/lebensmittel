@@ -120,6 +120,7 @@ struct lebensmittelApp: App {
                             NotificationCenter.default.publisher(
                                 for: Notification.Name("GroupChanged"))
                         ) { _ in
+                            SocketService.shared.restart()
                             refreshData()
                         }
                 } else {

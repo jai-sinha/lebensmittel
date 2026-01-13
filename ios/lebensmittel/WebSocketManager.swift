@@ -105,12 +105,19 @@ final class SocketService: WebSocketDelegate {
 		Task {
 			do {
 				let token = try await AuthManager.shared.accessToken()
+				let activeGroupId = try? await AuthManager.shared.getActiveGroupId()
 
 				// Build WebSocket URL with auth
-				var urlComponents = URLComponents(string: "wss://ls.jsinha.com/ws")!
-				urlComponents.queryItems = [
+				var urlComponents = URLComponents(string: "ws://192.168.1.11:8000/ws")!
+				var queryItems = [
 					URLQueryItem(name: "token", value: token)
 				]
+
+				if let activeGroupId {
+					queryItems.append(URLQueryItem(name: "groups", value: activeGroupId))
+				}
+
+				urlComponents.queryItems = queryItems
 
 				guard let wsURL = urlComponents.url else { return }
 
@@ -137,6 +144,11 @@ final class SocketService: WebSocketDelegate {
 		socket = nil
 		isConnected = false
 		if Self.verbose { print("WebSocket: Disconnected") }
+	}
+
+	func restart() {
+		disconnect()
+		connect()
 	}
 
 	// MARK: - WebSocketDelegate Methods

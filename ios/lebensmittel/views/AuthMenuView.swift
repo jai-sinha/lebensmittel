@@ -326,10 +326,9 @@ struct GroupRow: View {
             }
         } label: {
             if isActive {
-                Text(group.name)
-                    .fontWeight(.bold)
+                Label(group.name, systemImage: "checkmark.circle.fill")
             } else {
-                Text(group.name)
+                Label(group.name, systemImage: "circle")
             }
         }
     }
