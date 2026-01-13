@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -120,6 +121,10 @@ func CreateGroup(c *gin.Context) {
 		_ = database.DeleteGroup(c.Request.Context(), newGroup.ID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add creator to group"})
 		return
+	}
+
+	if err := GenerateExampleData(c.Request.Context(), userID, newGroup.ID); err != nil {
+		fmt.Printf("Failed to generate example data: %v\n", err)
 	}
 
 	c.JSON(http.StatusCreated, newGroup)
