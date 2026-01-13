@@ -201,7 +201,7 @@ actor AuthManager {
 
     /// Get a valid access token, refreshing if necessary
     func accessToken() async throws -> String {
-        if let tokens = try await storage.loadTokens(), !isTokenExpired(tokens.accessToken) {
+        if let tokens = try await storage.loadTokens(), !TokenUtils.isTokenExpired(tokens.accessToken) {
             return tokens.accessToken
         }
 
@@ -262,7 +262,7 @@ actor AuthManager {
 
     /// Check if user is currently authenticated
     func isAuthenticated() async throws -> Bool {
-        if let tokens = try await storage.loadTokens(), !isTokenExpired(tokens.accessToken) {
+        if let tokens = try await storage.loadTokens(), !TokenUtils.isTokenExpired(tokens.accessToken) {
             return true
         }
         return false
@@ -387,7 +387,7 @@ actor AuthManager {
 
 		return inviteCode
     }
-    
+
     func createGroup(groupName: String) async throws {
         let token = try await accessToken()
         guard let url = URL(string: "\(baseURL)/groups") else {
@@ -400,7 +400,7 @@ actor AuthManager {
 
         let body = ["name": groupName]
         request.httpBody = try JSONEncoder().encode(body)
-        
+
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             throw AuthError.invalidResponse
@@ -412,15 +412,15 @@ actor AuthManager {
         guard let url = URL(string: "\(baseURL)/groups/join") else {
             throw AuthError.invalidResponse
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
+
         let body = ["code": code]
         request.httpBody = try JSONEncoder().encode(body)
-        
+
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             throw AuthError.invalidResponse
