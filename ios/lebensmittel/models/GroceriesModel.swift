@@ -103,7 +103,7 @@ class GroceriesModel {
 	func fetchGroceries() {
 		isLoading = true
 		errorMessage = nil
-		guard let url = URL(string: "http://192.168.1.11:8000/api/grocery-items") else {
+		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items") else {
 			errorMessage = "Invalid URL"
 			isLoading = false
 			return
@@ -134,7 +134,7 @@ class GroceriesModel {
 	func createGroceryItem(name: String, category: String) {
 		isLoading = true
 		errorMessage = nil
-		guard let url = URL(string: "http://192.168.1.11:8000/api/grocery-items") else {
+		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items") else {
 			errorMessage = "Invalid URL"
 			isLoading = false
 			return
@@ -179,7 +179,7 @@ class GroceriesModel {
 	// PUT method to update either isNeeded or isShoppingChecked
 	func updateGroceryItem(item: GroceryItem, field: GroceryItemField) {
 		errorMessage = nil
-		guard let url = URL(string: "http://192.168.1.11:8000/api/grocery-items/\(item.id)") else {
+		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items/\(item.id)") else {
 			errorMessage = "Invalid URL"
 			return
 		}
@@ -230,7 +230,7 @@ class GroceriesModel {
 
 	func deleteGroceryItem(item: GroceryItem) {
 		errorMessage = nil
-		guard let url = URL(string: "http://192.168.1.11:8000/api/grocery-items/\(item.id)") else {
+		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items/\(item.id)") else {
 			errorMessage = "Invalid URL"
 			return
 		}

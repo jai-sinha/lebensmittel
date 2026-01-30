@@ -57,7 +57,7 @@ func GetAllGroceryItems(ctx context.Context, groupID string) ([]models.GroceryIt
 	}
 	defer rows.Close()
 
-	var items []models.GroceryItem
+	items := []models.GroceryItem{}
 	for rows.Next() {
 		var item models.GroceryItem
 		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID, &item.UserID)
@@ -135,7 +135,7 @@ func GetAllMealPlans(ctx context.Context, groupID string) ([]models.MealPlan, er
 	}
 	defer rows.Close()
 
-	var meals []models.MealPlan
+	meals := []models.MealPlan{}
 	for rows.Next() {
 		var meal models.MealPlan
 		err := rows.Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID, &meal.UserID)
@@ -226,7 +226,7 @@ func GetAllReceipts(ctx context.Context, groupID string) ([]models.Receipt, erro
 	}
 	defer rows.Close()
 
-	var receipts []models.Receipt
+	receipts := []models.Receipt{}
 	for rows.Next() {
 		var receipt models.Receipt
 		var notes *string
@@ -505,6 +505,7 @@ func RemoveUserFromGroup(ctx context.Context, userID, groupID string) error {
 	return err
 }
 
+// GetUserGroups returns the groups for a given user.
 func GetUserGroups(ctx context.Context, userID string) ([]models.Group, error) {
 	query := `
         SELECT g.id, g.name
@@ -518,7 +519,8 @@ func GetUserGroups(ctx context.Context, userID string) ([]models.Group, error) {
 	}
 	defer rows.Close()
 
-	var groups []models.Group
+	// Initialize slice to empty to ensure JSON serialization is [] not null
+	groups := []models.Group{}
 	for rows.Next() {
 		var g models.Group
 		if err := rows.Scan(&g.ID, &g.Name); err != nil {

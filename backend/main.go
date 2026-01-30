@@ -25,11 +25,6 @@ func main() {
 	}
 	defer database.CloseDB()
 
-	// Run database migrations
-	if err := database.RunMigrations(context.Background()); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
-	}
-
 	// Initialize WebSocket manager
 	websocket.InitWebSocketManager()
 
@@ -159,7 +154,7 @@ func main() {
 
 	log.Printf("Server starting on port %s", port)
 	srv := &http.Server{
-		Addr:    ":8000",
+		Addr:    ":" + port,
 		Handler: r,
 	}
 

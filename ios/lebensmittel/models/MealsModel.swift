@@ -47,7 +47,7 @@ class MealsModel {
 	// MARK: CRUD Operations
 
 	func fetchMealPlans() {
-		guard let url = URL(string: "http://192.168.1.11:8000/api/meal-plans") else { return }
+		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans") else { return }
 
 		let client = NetworkClient()
 
@@ -70,7 +70,7 @@ class MealsModel {
 	}
 
 	func createMealPlan(for dateString: String, meal: String) {
-		guard let url = URL(string: "http://192.168.1.11:8000/api/meal-plans") else { return }
+		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans") else { return }
 		var request = URLRequest(url: url)
 		request.httpMethod = "POST"
 		let newMealPlan = NewMealPlan(date: dateString, mealDescription: meal)
@@ -99,7 +99,7 @@ class MealsModel {
 		existingPlan.mealDescription = meal
 		mealPlans[dateString] = existingPlan
 
-		guard let url = URL(string: "http://192.168.1.11:8000/api/meal-plans/\(existingPlan.id)") else {
+		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(existingPlan.id)") else {
 			return
 		}
 		var request = URLRequest(url: url)
@@ -131,7 +131,7 @@ class MealsModel {
 	func deleteMealPlan(mealId: String) {
 		// Optimistically remove locally
 		self.removeMealPlan(withId: mealId)
-		guard let url = URL(string: "http://192.168.1.11:8000/api/meal-plans/\(mealId)") else {
+		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(mealId)") else {
 			return
 		}
 		var request = URLRequest(url: url)

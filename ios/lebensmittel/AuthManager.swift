@@ -106,7 +106,7 @@ actor AuthManager {
     static let shared = AuthManager()
 
     private let storage = AuthStorage()
-    private let baseURL = "http://192.168.1.11:8000/api"
+    private let baseURL = "https://ls.jsinha.com/api"
     private var refreshTask: Task<Tokens, Error>?
 
     // MARK: Public Methods

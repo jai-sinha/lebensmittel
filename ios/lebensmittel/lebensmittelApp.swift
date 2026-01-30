@@ -51,6 +51,9 @@ class AuthStateManager {
                 await MainActor.run {
                     self.isAuthenticated = false
                     self.currentUser = nil
+                    self.currentUserGroups = []
+                    self.currentUserActiveGroupId = nil
+                    self.currentGroupUsers = []
                 }
             } catch {
                 await MainActor.run {
@@ -108,6 +111,7 @@ struct lebensmittelApp: App {
                             groceriesModel.fetchGroceries()
                             mealsModel.fetchMealPlans()
                             receiptsModel.fetchReceipts()
+                            authManager.checkAuthentication()
                         }
                         // Refresh data when app comes to foreground or group changes
                         .onReceive(

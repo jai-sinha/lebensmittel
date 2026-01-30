@@ -15,6 +15,13 @@ import (
 func GetReceipts(c *gin.Context) {
 	groupID, err := getActiveGroupID(c)
 	if err != nil {
+		if err.Error() == "user has no groups" {
+			c.JSON(http.StatusOK, gin.H{
+				"receipts": []models.Receipt{},
+				"count":    0,
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

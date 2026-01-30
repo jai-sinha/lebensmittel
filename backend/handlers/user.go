@@ -233,6 +233,10 @@ func GetUserGroups(c *gin.Context) {
 func GetActiveGroup(c *gin.Context) {
 	groupID, err := getActiveGroupID(c)
 	if err != nil {
+		if err.Error() == "user has no groups" {
+			c.JSON(http.StatusOK, gin.H{"groupId": ""})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
