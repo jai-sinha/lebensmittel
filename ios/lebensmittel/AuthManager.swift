@@ -108,6 +108,7 @@ actor AuthManager {
     private let storage = AuthStorage()
     private let baseURL = "https://ls.jsinha.com/api"
     private var refreshTask: Task<Tokens, Error>?
+    private var activeGroupTask: Task<String, Error>?
 
     // MARK: Public Methods
 
@@ -319,28 +320,45 @@ actor AuthManager {
             return localId
         }
 
-        let token = try await accessToken()
-        guard let url = URL(string: "\(baseURL)/users/me/active-group") else {
-            throw AuthError.invalidResponse
+        if let task = activeGroupTask {
+            return try await task.value
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let task = Task<String, Error> {
+            let token = try await self.accessToken()
+            guard let url = URL(string: "\(self.baseURL)/users/me/active-group") else {
+                throw AuthError.invalidResponse
+            }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw AuthError.invalidResponse
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                throw AuthError.invalidResponse
+            }
+
+            let result = try JSONDecoder().decode([String: String].self, from: data)
+            guard let groupId = result["groupId"] else {
+                throw AuthError.invalidResponse
+            }
+
+            try await self.storage.saveActiveGroupId(groupId)
+            return groupId
         }
 
-        let result = try JSONDecoder().decode([String: String].self, from: data)
-        guard let groupId = result["groupId"] else {
-            throw AuthError.invalidResponse
-        }
+        activeGroupTask = task
 
-        try await storage.saveActiveGroupId(groupId)
-        return groupId
+        do {
+            let result = try await task.value
+            activeGroupTask = nil
+            return result
+        } catch {
+            activeGroupTask = nil
+            throw error
+        }
     }
 
     func setActiveGroup(_ groupId: String) async throws {

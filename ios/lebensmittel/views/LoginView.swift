@@ -42,7 +42,7 @@ struct LoginForm: View {
             SecureField("Password", text: $password)
                 .textFieldStyle(.roundedBorder)
 
-            if let error = authManager.errorMessage {
+            if let error = authManager.errorMessage, error != "No refresh token available" {
                 Text(error)
                     .foregroundColor(.red)
                     .font(.caption)
