@@ -13,11 +13,18 @@ struct ShoppingView: View {
 	@Environment(\.colorScheme) var colorScheme
 	// Checkout dialog state
 	@State private var showCheckoutSheet = false
+	@State private var hasGroups: Bool = true
 
 	var body: some View {
 		NavigationStack {
 			VStack {
-				if model.isLoading {
+				if !hasGroups {
+					Text("Please create or join a group to see your shopping list.")
+						.foregroundStyle(.secondary)
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.background(Color(.systemBackground))
+				} else {
+					if model.isLoading {
 					ProgressView("Loading shopping list...")
 				} else if let errorMessage = model.errorMessage {
 					Text("Error: \(errorMessage)").foregroundStyle(.red)
@@ -39,7 +46,7 @@ struct ShoppingView: View {
 						.clipShape(.rect(cornerRadius: 10))
 				}
 				.padding([.horizontal, .bottom])
-
+				}
 			}
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Shopping List")
@@ -58,6 +65,14 @@ struct ShoppingView: View {
 						showCheckoutSheet = false
 					}
 				)
+			}
+			.task {
+				do {
+					let groups = try await AuthManager.shared.getUserGroups()
+					hasGroups = !groups.isEmpty
+				} catch {
+					print("Error checking groups: \(error)")
+				}
 			}
 		}
 	}

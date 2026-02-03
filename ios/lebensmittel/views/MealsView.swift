@@ -11,6 +11,7 @@ struct MealsView: View {
 	@Environment(MealsModel.self) var model
 	@Environment(\.colorScheme) var colorScheme
 	@State private var mealTexts: [String: String] = [:]
+	@State private var hasGroups: Bool = true
 
 	private func date(for dayOffset: Int) -> Date {
 		Calendar.current.date(byAdding: .day, value: dayOffset, to: model.baseDate)
@@ -26,63 +27,70 @@ struct MealsView: View {
 	var body: some View {
 		NavigationStack {
 			ZStack {
-				(colorScheme == .dark
-					? Color(.systemBackground) : Color(.secondarySystemBackground))
-					.ignoresSafeArea()
-				ScrollViewReader { proxy in
-					ScrollView {
-						VStack(spacing: -4) {
-							// Past days (scrollable up)
-							ForEach(-7..<0, id: \.self) { dayOffset in
-								let rowDate = date(for: dayOffset)
-								let dateStr = MealsModel.utcDateString(for: rowDate)
-								MealRowView(
-									date: rowDate,
-									text: Binding(
-										get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
-										set: { mealTexts[dateStr] = $0 }
+				if !hasGroups {
+					Text("Please create or join a group to start meal planning.")
+						.foregroundStyle(.secondary)
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.background(Color(.systemBackground))
+				} else {
+					(colorScheme == .dark
+						? Color(.systemBackground) : Color(.secondarySystemBackground))
+						.ignoresSafeArea()
+					ScrollViewReader { proxy in
+						ScrollView {
+							VStack(spacing: -4) {
+								// Past days (scrollable up)
+								ForEach(-7..<0, id: \.self) { dayOffset in
+									let rowDate = date(for: dayOffset)
+									let dateStr = MealsModel.utcDateString(for: rowDate)
+									MealRowView(
+										date: rowDate,
+										text: Binding(
+											get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
+											set: { mealTexts[dateStr] = $0 }
+										)
 									)
-								)
-							}
-							// Current day and next 6 days (the main 7-day view)
-							ForEach(0..<7, id: \.self) { dayOffset in
-								let rowDate = date(for: dayOffset)
-								let dateStr = MealsModel.utcDateString(for: rowDate)
-								let isThisToday = isToday(utcDate: rowDate)
-								MealRowView(
-									date: rowDate,
-									text: Binding(
-										get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
-										set: { mealTexts[dateStr] = $0 }
+								}
+								// Current day and next 6 days (the main 7-day view)
+								ForEach(0..<7, id: \.self) { dayOffset in
+									let rowDate = date(for: dayOffset)
+									let dateStr = MealsModel.utcDateString(for: rowDate)
+									let isThisToday = isToday(utcDate: rowDate)
+									MealRowView(
+										date: rowDate,
+										text: Binding(
+											get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
+											set: { mealTexts[dateStr] = $0 }
+										)
 									)
-								)
-								.id(isThisToday ? "today" : "day_\(dayOffset)")
-							}
-							// Future days (scrollable down)
-							ForEach(7..<10, id: \.self) { dayOffset in
-								let rowDate = date(for: dayOffset)
-								let dateStr = MealsModel.utcDateString(for: rowDate)
-								MealRowView(
-									date: rowDate,
-									text: Binding(
-										get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
-										set: { mealTexts[dateStr] = $0 }
+									.id(isThisToday ? "today" : "day_\(dayOffset)")
+								}
+								// Future days (scrollable down)
+								ForEach(7..<10, id: \.self) { dayOffset in
+									let rowDate = date(for: dayOffset)
+									let dateStr = MealsModel.utcDateString(for: rowDate)
+									MealRowView(
+										date: rowDate,
+										text: Binding(
+											get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
+											set: { mealTexts[dateStr] = $0 }
+										)
 									)
-								)
+								}
 							}
+							.padding(.horizontal)
 						}
-						.padding(.horizontal)
+						.onAppear {
+							proxy.scrollTo("today", anchor: .top)
+						}
 					}
-					.onAppear {
-						proxy.scrollTo("today", anchor: .top)
-					}
-				}
-				.onChange(of: model.mealPlans) {
-					// Remove keys from mealTexts that are no longer in mealPlans
-					mealTexts = mealTexts.filter { model.mealPlans.keys.contains($0.key) }
-					// Update or add descriptions for existing keys
-					for (date, plan) in model.mealPlans {
-						mealTexts[date] = plan.mealDescription
+					.onChange(of: model.mealPlans) {
+						// Remove keys from mealTexts that are no longer in mealPlans
+						mealTexts = mealTexts.filter { model.mealPlans.keys.contains($0.key) }
+						// Update or add descriptions for existing keys
+						for (date, plan) in model.mealPlans {
+							mealTexts[date] = plan.mealDescription
+						}
 					}
 				}
 			}
@@ -91,6 +99,14 @@ struct MealsView: View {
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
 					AuthMenuView()
+				}
+			}
+			.task {
+				do {
+					let groups = try await AuthManager.shared.getUserGroups()
+					hasGroups = !groups.isEmpty
+				} catch {
+					print("Error checking groups: \(error)")
 				}
 			}
 		}

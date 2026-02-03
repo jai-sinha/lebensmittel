@@ -53,7 +53,6 @@ struct ReceiptsView: View {
 				}
 			}
 			.onAppear {
-				//                model.fetchReceipts()
 				// Expand only the current month by default
 				expandedMonths = [model.currentMonth]
 			}

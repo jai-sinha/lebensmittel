@@ -10,6 +10,7 @@ import SwiftUI
 struct GroceriesView: View {
 	@Environment(GroceriesModel.self) var model
 	@Environment(\.colorScheme) var colorScheme
+	@State private var hasGroups: Bool = true
 
 	var body: some View {
 		NavigationStack {
@@ -19,38 +20,45 @@ struct GroceriesView: View {
 				} else if let errorMessage = model.errorMessage {
 					Text("Error: \(errorMessage)").foregroundStyle(.red).background(Color(.systemBackground))
 				} else {
-					HStack(spacing: 0) {
-                        if model.groceryItems.isEmpty {
-                            Text("No groceries yet. Add one below to get started!")
-                                .foregroundStyle(.secondary)
-                                .background(Color(.systemBackground))
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            EssentialsPane()
-                            Divider()
-                                .frame(width: 1)
-                                .background(Color(.separator))
-                                .padding(.vertical)
-                            CategoriesListPane()
-                        }
-					}
-					.padding(.horizontal, 12)
-					.padding(.bottom, 6)
-					.background(
-						colorScheme == .dark
-							? Color(.secondarySystemBackground) : Color(.systemBackground)
-					)
-					.clipShape(.rect(cornerRadius: 12))
-					.shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-					.padding(.horizontal, 12)
-					// Show search results above the search bar
-					SearchResultsDropdown()
-					AddItemSection()
-						.frame(maxWidth: .infinity, alignment: .center)
-						.fixedSize(horizontal: false, vertical: true)
+					if !hasGroups {
+						Text("Please create or join a group to start adding groceries.")
+							.foregroundStyle(.secondary)
+							.frame(maxWidth: .infinity, maxHeight: .infinity)
+							.background(Color(.systemBackground))
+					} else {
+						HStack(spacing: 0) {
+                        	if model.groceryItems.isEmpty {
+                            	Text("No groceries yet. Add one below to get started!")
+                                	.foregroundStyle(.secondary)
+                                	.background(Color(.systemBackground))
+                                	.frame(maxWidth: .infinity, maxHeight: .infinity)
+                        	} else {
+                            	EssentialsPane()
+                            	Divider()
+                                	.frame(width: 1)
+                                	.background(Color(.separator))
+                                	.padding(.vertical)
+                            	CategoriesListPane()
+                        	}
+						}
 						.padding(.horizontal, 12)
-						.padding(.top, 4)
-						.padding(.bottom, 0)
+						.padding(.bottom, 6)
+						.background(
+							colorScheme == .dark
+								? Color(.secondarySystemBackground) : Color(.systemBackground)
+						)
+						.clipShape(.rect(cornerRadius: 12))
+						.shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+						.padding(.horizontal, 12)
+						// Show search results above the search bar
+						SearchResultsDropdown()
+						AddItemSection()
+							.frame(maxWidth: .infinity, alignment: .center)
+							.fixedSize(horizontal: false, vertical: true)
+							.padding(.horizontal, 12)
+							.padding(.top, 4)
+							.padding(.bottom, 0)
+					}
 				}
 			}
 			.background(
@@ -61,6 +69,14 @@ struct GroceriesView: View {
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
 					AuthMenuView()
+				}
+			}
+			.task {
+				do {
+					let groups = try await AuthManager.shared.getUserGroups()
+					hasGroups = !groups.isEmpty
+				} catch {
+					print("Error checking groups: \(error)")
 				}
 			}
 			.onAppear {
