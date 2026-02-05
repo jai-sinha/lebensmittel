@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 struct LoginView: View {
     @State private var isShowingRegister = false
@@ -84,16 +85,39 @@ struct LoginForm: View {
 
 struct RegisterForm: View {
     @State private var username = ""
+    @State private var email = ""
     @State private var password = ""
     @State private var displayName = ""
     @State private var isLoading = false
     @Bindable var authManager: AuthStateManager
     @Binding var isShowingRegister: Bool
 
+    var isValidEmail: Bool {
+        let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegEx)
+        return emailPred.evaluate(with: email)
+    }
+
     var body: some View {
         VStack(spacing: 16) {
             TextField("Display Name", text: $displayName)
                 .textFieldStyle(.roundedBorder)
+
+            TextField("Email", text: $email)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.emailAddress)
+                .overlay(
+                    HStack {
+                        Spacer()
+                        if !email.isEmpty && !isValidEmail {
+                            Image(systemName: "exclamationmark.circle")
+                                .foregroundColor(.red)
+                                .padding(.trailing, 8)
+                        }
+                    }
+                )
 
             TextField("Username", text: $username)
                 .textFieldStyle(.roundedBorder)
@@ -103,7 +127,7 @@ struct RegisterForm: View {
             SecureField("Password", text: $password)
                 .textFieldStyle(.roundedBorder)
 
-            if let error = authManager.errorMessage {
+            if let error = authManager.errorMessage, error != "No refresh token available" {
                 Text(error)
                     .foregroundColor(.red)
                     .font(.caption)
@@ -115,6 +139,7 @@ struct RegisterForm: View {
                     do {
                         let (user, _) = try await AuthManager.shared.register(
                             username: username,
+                            email: email,
                             password: password,
                             displayName: displayName
                         )
@@ -131,7 +156,7 @@ struct RegisterForm: View {
                     }
                 }
             }
-            .disabled(username.isEmpty || password.isEmpty || displayName.isEmpty || isLoading)
+            .disabled(username.isEmpty || !isValidEmail || password.isEmpty || displayName.isEmpty || isLoading)
 
             Button("Already have an account? Login") {
                 isShowingRegister = false

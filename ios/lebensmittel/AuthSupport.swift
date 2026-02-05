@@ -128,11 +128,13 @@ struct RegisterRequest: Codable, Sendable {
     let username: String
     let password: String
     let displayName: String
+    let email: String
 
-    nonisolated init(username: String, password: String, displayName: String) {
+    nonisolated init(username: String, password: String, displayName: String, email: String) {
         self.username = username
         self.password = password
         self.displayName = displayName
+        self.email = email
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -140,6 +142,7 @@ struct RegisterRequest: Codable, Sendable {
         self.username = try container.decode(String.self, forKey: .username)
         self.password = try container.decode(String.self, forKey: .password)
         self.displayName = try container.decode(String.self, forKey: .displayName)
+        self.email = try container.decode(String.self, forKey: .email)
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
@@ -147,10 +150,11 @@ struct RegisterRequest: Codable, Sendable {
         try container.encode(username, forKey: .username)
         try container.encode(password, forKey: .password)
         try container.encode(displayName, forKey: .displayName)
+        try container.encode(email, forKey: .email)
     }
 
     enum CodingKeys: String, CodingKey {
-        case username, password, displayName
+        case username, password, displayName, email
     }
 }
 

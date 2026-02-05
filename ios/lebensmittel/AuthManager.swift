@@ -85,6 +85,7 @@ actor AuthManager {
         case refreshFailed
         case notAuthenticated
         case invalidResponse
+        case usernameTaken
         case networkError(String)
 
         var errorDescription: String? {
@@ -97,6 +98,8 @@ actor AuthManager {
                 return "User is not authenticated"
             case .invalidResponse:
                 return "Invalid server response"
+            case .usernameTaken:
+                return "Username already taken"
             case .networkError(let msg):
                 return "Network error: \(msg)"
             }
@@ -112,12 +115,12 @@ actor AuthManager {
 
     // MARK: Public Methods
 
-    func register(username: String, password: String, displayName: String) async throws -> (User, Tokens) {
+    func register(username: String, email: String, password: String, displayName: String) async throws -> (User, Tokens) {
         guard let url = URL(string: "\(baseURL)/register") else {
             throw AuthError.invalidResponse
         }
 
-        let request = RegisterRequest(username: username, password: password, displayName: displayName)
+        let request = RegisterRequest(username: username, password: password, displayName: displayName, email: email)
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -128,6 +131,10 @@ actor AuthManager {
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw AuthError.invalidResponse
+            }
+
+            if httpResponse.statusCode == 409 {
+                throw AuthError.usernameTaken
             }
 
             guard (200...299).contains(httpResponse.statusCode) else {
