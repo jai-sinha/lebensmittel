@@ -3,12 +3,14 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lebensmittel/backend/models"
 )
@@ -429,15 +431,22 @@ func DeleteGroup(ctx context.Context, groupID string) error {
 // Users
 
 func CreateUser(ctx context.Context, user *models.User) error {
-	query := `INSERT INTO users (id, username, password_hash, display_name) VALUES ($1, $2, $3, $4)`
-	_, err := db.Exec(ctx, query, user.ID, user.Username, user.PasswordHash, user.DisplayName)
-	return err
+	query := `INSERT INTO users (id, username, email, password_hash, display_name) VALUES ($1, $2, $3, $4, $5)`
+	_, err := db.Exec(ctx, query, user.ID, user.Username, user.Email, user.PasswordHash, user.DisplayName)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return fmt.Errorf("username already taken")
+		}
+		return err
+	}
+	return nil
 }
 
 func GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
-	query := `SELECT id, username, password_hash, display_name FROM users WHERE username = $1`
+	query := `SELECT id, username, email, password_hash, display_name FROM users WHERE username = $1`
 	var user models.User
-	err := db.QueryRow(ctx, query, username).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.DisplayName)
+	err := db.QueryRow(ctx, query, username).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.DisplayName)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -448,9 +457,9 @@ func GetUserByUsername(ctx context.Context, username string) (*models.User, erro
 }
 
 func GetUserByID(ctx context.Context, id string) (*models.User, error) {
-	query := `SELECT id, username, password_hash, display_name FROM users WHERE id = $1`
+	query := `SELECT id, username, email, password_hash, display_name FROM users WHERE id = $1`
 	var user models.User
-	err := db.QueryRow(ctx, query, id).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.DisplayName)
+	err := db.QueryRow(ctx, query, id).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.DisplayName)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -479,9 +488,9 @@ func UpdateUser(ctx context.Context, id string, updates map[string]any) (*models
 		return GetUserByID(ctx, id)
 	}
 
-	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $1 RETURNING id, username, password_hash, display_name", strings.Join(setParts, ", "))
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $1 RETURNING id, username, email, password_hash, display_name", strings.Join(setParts, ", "))
 	var user models.User
-	err := db.QueryRow(ctx, query, args...).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.DisplayName)
+	err := db.QueryRow(ctx, query, args...).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.DisplayName)
 	if err != nil {
 		return nil, err
 	}

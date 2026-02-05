@@ -173,6 +173,7 @@ func NewJoinCode(code, groupID, createdBy string, expiresIn time.Duration) *Join
 type User struct {
 	ID           string `json:"id" db:"id"`
 	Username     string `json:"username" db:"username"`
+	Email        string `json:"email" db:"email"`
 	PasswordHash string `json:"-" db:"password_hash"`
 	DisplayName  string `json:"displayName" db:"display_name"`
 }
@@ -184,10 +185,11 @@ type GroupUser struct {
 }
 
 // NewUser creates a new user with a generated UUID
-func NewUser(username, passwordHash, displayName string) *User {
+func NewUser(username, email, passwordHash, displayName string) *User {
 	return &User{
 		ID:           uuid.New().String(),
 		Username:     username,
+		Email:        email,
 		PasswordHash: passwordHash,
 		DisplayName:  displayName,
 	}

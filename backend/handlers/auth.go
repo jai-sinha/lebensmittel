@@ -12,6 +12,7 @@ import (
 func Register(c *gin.Context) {
 	var data struct {
 		Username    string `json:"username" binding:"required"`
+		Email       string `json:"email"`
 		Password    string `json:"password" binding:"required"`
 		DisplayName string `json:"displayName" binding:"required"`
 	}
@@ -27,10 +28,14 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	newUser := models.NewUser(data.Username, hashedPassword, data.DisplayName)
+	newUser := models.NewUser(data.Username, data.Email, hashedPassword, data.DisplayName)
 
 	if err := database.CreateUser(c.Request.Context(), newUser); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if err.Error() == "username already taken" {
+			c.JSON(http.StatusConflict, gin.H{"error": "Username already taken"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
