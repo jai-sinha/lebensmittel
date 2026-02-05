@@ -19,27 +19,44 @@ class AuthStateManager {
 
     func checkAuthentication() {
         Task {
-            do {
-                let isAuth = try await AuthManager.shared.isAuthenticated()
+            await refreshState()
+            await MainActor.run {
+                self.isCheckingAuth = false
+            }
+        }
+    }
+
+    func refreshState() async {
+        do {
+            let isAuth = try await AuthManager.shared.isAuthenticated()
+
+            if isAuth {
                 let user = try await AuthManager.shared.getCurrentUser()
                 let userGroups = try await AuthManager.shared.getUserGroups()
                 let userActiveGroupId = try await AuthManager.shared.getActiveGroupId()
                 let groupUsers = try await AuthManager.shared.getUsersInGroup()
 
                 await MainActor.run {
-                    self.isAuthenticated = isAuth
+                    self.isAuthenticated = true
                     self.currentUser = user
                     self.currentUserGroups = userGroups
                     self.currentUserActiveGroupId = userActiveGroupId
                     self.currentGroupUsers = groupUsers
-                    self.isCheckingAuth = false
+                    self.errorMessage = nil
                 }
-            } catch {
+            } else {
                 await MainActor.run {
-                    self.errorMessage = error.localizedDescription
                     self.isAuthenticated = false
-                    self.isCheckingAuth = false
+                    self.currentUser = nil
+                    self.currentUserGroups = []
+                    self.currentUserActiveGroupId = nil
+                    self.currentGroupUsers = []
                 }
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+                self.isAuthenticated = false
             }
         }
     }

@@ -9,38 +9,35 @@ import SwiftUI
 import Foundation
 
 struct LoginView: View {
-    @State private var isShowingRegister = false
+    @State private var model = LoginModel()
     @Bindable var authManager: AuthStateManager
 
     var body: some View {
         NavigationStack {
             VStack {
-                if isShowingRegister {
-                    RegisterForm(authManager: authManager, isShowingRegister: $isShowingRegister)
+                if model.isShowingRegister {
+                    RegisterForm(model: model, authManager: authManager)
                 } else {
-                    LoginForm(authManager: authManager, isShowingRegister: $isShowingRegister)
+                    LoginForm(model: model, authManager: authManager)
                 }
             }
-            .navigationTitle(isShowingRegister ? "Create Account" : "Login")
+            .navigationTitle(model.isShowingRegister ? "Create Account" : "Login")
         }
     }
 }
 
 struct LoginForm: View {
-    @State private var username = ""
-    @State private var password = ""
-    @State private var isLoading = false
+    @Bindable var model: LoginModel
     @Bindable var authManager: AuthStateManager
-    @Binding var isShowingRegister: Bool
 
     var body: some View {
         VStack(spacing: 16) {
-            TextField("Username", text: $username)
+            TextField("Username", text: $model.username)
                 .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
 
-            SecureField("Password", text: $password)
+            SecureField("Password", text: $model.password)
                 .textFieldStyle(.roundedBorder)
 
             if let error = authManager.errorMessage, error != "No refresh token available" {
@@ -50,30 +47,12 @@ struct LoginForm: View {
             }
 
             Button("Login") {
-                isLoading = true
-                Task {
-                    do {
-                        let (user, _) = try await AuthManager.shared.login(
-                            username: username,
-                            password: password
-                        )
-                        await MainActor.run {
-                            authManager.isAuthenticated = true
-                            authManager.currentUser = user
-                            authManager.errorMessage = nil
-                        }
-                    } catch {
-                        await MainActor.run {
-                            authManager.errorMessage = error.localizedDescription
-                            isLoading = false
-                        }
-                    }
-                }
+                model.login(authManager: authManager)
             }
-            .disabled(username.isEmpty || password.isEmpty || isLoading)
+            .disabled(model.username.isEmpty || model.password.isEmpty || model.isLoading)
 
             Button("Don't have an account? Sign up") {
-                isShowingRegister = true
+                model.isShowingRegister = true
             }
             .foregroundColor(.blue)
 
@@ -84,26 +63,15 @@ struct LoginForm: View {
 }
 
 struct RegisterForm: View {
-    @State private var username = ""
-    @State private var email = ""
-    @State private var password = ""
-    @State private var displayName = ""
-    @State private var isLoading = false
+    @Bindable var model: LoginModel
     @Bindable var authManager: AuthStateManager
-    @Binding var isShowingRegister: Bool
-
-    var isValidEmail: Bool {
-        let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
-        let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegEx)
-        return emailPred.evaluate(with: email)
-    }
 
     var body: some View {
         VStack(spacing: 16) {
-            TextField("Display Name", text: $displayName)
+            TextField("Display Name", text: $model.displayName)
                 .textFieldStyle(.roundedBorder)
 
-            TextField("Email", text: $email)
+            TextField("Email", text: $model.email)
                 .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -111,7 +79,7 @@ struct RegisterForm: View {
                 .overlay(
                     HStack {
                         Spacer()
-                        if !email.isEmpty && !isValidEmail {
+                        if !model.email.isEmpty && !model.isValidEmail {
                             Image(systemName: "exclamationmark.circle")
                                 .foregroundColor(.red)
                                 .padding(.trailing, 8)
@@ -119,12 +87,12 @@ struct RegisterForm: View {
                     }
                 )
 
-            TextField("Username", text: $username)
+            TextField("Username", text: $model.username)
                 .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
 
-            SecureField("Password", text: $password)
+            SecureField("Password", text: $model.password)
                 .textFieldStyle(.roundedBorder)
 
             if let error = authManager.errorMessage, error != "No refresh token available" {
@@ -134,32 +102,12 @@ struct RegisterForm: View {
             }
 
             Button("Create Account") {
-                isLoading = true
-                Task {
-                    do {
-                        let (user, _) = try await AuthManager.shared.register(
-                            username: username,
-                            email: email,
-                            password: password,
-                            displayName: displayName
-                        )
-                        await MainActor.run {
-                            authManager.isAuthenticated = true
-                            authManager.currentUser = user
-                            authManager.errorMessage = nil
-                        }
-                    } catch {
-                        await MainActor.run {
-                            authManager.errorMessage = error.localizedDescription
-                            isLoading = false
-                        }
-                    }
-                }
+                model.register(authManager: authManager)
             }
-            .disabled(username.isEmpty || !isValidEmail || password.isEmpty || displayName.isEmpty || isLoading)
+            .disabled(model.username.isEmpty || !model.isValidEmail || model.password.isEmpty || model.displayName.isEmpty || model.isLoading)
 
             Button("Already have an account? Login") {
-                isShowingRegister = false
+                model.isShowingRegister = false
             }
             .foregroundColor(.blue)
 

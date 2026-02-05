@@ -7,39 +7,9 @@
 
 import SwiftUI
 
-enum ActiveAlert: Equatable {
-    case join
-    case rename
-    case create
-    case inviteCode
-    case error(String)
-
-    var title: String {
-        switch self {
-        case .join: "Join Group"
-        case .rename: "Rename Group"
-        case .create: "Create Group"
-        case .inviteCode: "Invite Code"
-        case .error: "Error"
-        }
-    }
-}
-
 struct AuthMenuView: View {
     @Environment(AuthStateManager.self) var authStateManager
-
-    @State private var joinCode: String = ""
-    @State private var errorMessage: String?
-
-    @State private var createdGroupName: String = ""
-
-    @State private var inviteCode = ""
-
-    // Rename State
-    @State private var groupToRename: AuthGroup?
-    @State private var renamedGroupName: String = ""
-
-    @State private var activeAlert: ActiveAlert?
+    @State private var model = AuthMenuModel()
 
     var body: some View {
         Menu {
@@ -65,18 +35,18 @@ struct AuthMenuView: View {
                             group: group,
                             isActive: group.id == activeGroupId,
                             onSwitch: {
-                                switchGroup(to: group.id)
+                                model.switchGroup(to: group.id, authStateManager: authStateManager)
                             },
                             onRename: {
-                                groupToRename = group
-                                renamedGroupName = group.name
-                                activeAlert = .rename
+                                model.groupToRename = group
+                                model.renamedGroupName = group.name
+                                model.activeAlert = .rename
                             },
                             onLeave: {
-                                leaveGroup(group)
+                                model.leaveGroup(group, authStateManager: authStateManager)
                             },
                             onInvite: {
-                            	getGroupInviteCode(group)
+                                model.getGroupInviteCode(group)
                             }
                         )
                     }
@@ -88,14 +58,14 @@ struct AuthMenuView: View {
             // MARK: - Group Actions
             Section {
                 Button {
-                    activeAlert = .join
+                    model.activeAlert = .join
                 } label: {
                     Label("Join Group", systemImage: "person.badge.plus")
                 }
             }
             Section {
                 Button {
-                    activeAlert = .create
+                    model.activeAlert = .create
                 } label: {
                     Label("Create Group", systemImage: "plus.circle")
                 }
@@ -105,10 +75,10 @@ struct AuthMenuView: View {
                 .imageScale(.large)
         }
         .alert(
-            activeAlert?.title ?? "",
+            model.activeAlert?.title ?? "",
             isPresented: Binding(
-                get: { activeAlert != nil },
-                set: { if !$0 { activeAlert = nil } }
+                get: { model.activeAlert != nil },
+                set: { if !$0 { model.activeAlert = nil } }
             )
         ) {
             alertContent()
@@ -121,44 +91,43 @@ struct AuthMenuView: View {
 
     @ViewBuilder
     private func alertContent() -> some View {
-        switch activeAlert {
+        switch model.activeAlert {
         case .join:
-            TextField("Invite Code", text: $joinCode)
+            TextField("Invite Code", text: $model.joinCode)
             Button("Cancel", role: .cancel) {
-                joinCode = ""
+                model.joinCode = ""
             }
             Button("Join") {
-                joinGroup()
+                model.joinGroup(authStateManager: authStateManager)
             }
         case .rename:
-            TextField("Group Name", text: $renamedGroupName)
+            TextField("Group Name", text: $model.renamedGroupName)
             Button("Cancel", role: .cancel) {
-                groupToRename = nil
-                renamedGroupName = ""
+                model.groupToRename = nil
+                model.renamedGroupName = ""
             }
             Button("Rename") {
-                if let group = groupToRename {
-                    renameGroup(group, to: renamedGroupName)
+                if let group = model.groupToRename {
+                    model.renameGroup(group: group, newName: model.renamedGroupName, authStateManager: authStateManager)
                 }
             }
         case .create:
-            TextField("Group Name", text: $createdGroupName)
+            TextField("Group Name", text: $model.createdGroupName)
             Button("Cancel", role: .cancel) {
-                createdGroupName = ""
+                model.createdGroupName = ""
             }
             Button("Create") {
-                if !createdGroupName.isEmpty {
-                    createGroup()
+                if !model.createdGroupName.isEmpty {
+                    model.createGroup(authStateManager: authStateManager)
                 }
             }
         case .inviteCode:
             Button("Copy Code") {
-                UIPasteboard.general.string = inviteCode
-                inviteCode = ""
+                model.copyInviteCode()
             }
         case .error:
             Button("OK", role: .cancel) {
-                errorMessage = nil
+                model.errorMessage = nil
             }
         case .none:
             EmptyView()
@@ -167,131 +136,16 @@ struct AuthMenuView: View {
 
     @ViewBuilder
     private func alertMessage() -> some View {
-        switch activeAlert {
+        switch model.activeAlert {
         case .join:
             Text("Enter the code for the group you want to join.")
         case .error(let message):
             Text(message)
         case .inviteCode:
-            Text("Your invite code is: \(inviteCode)")
+            Text("Your invite code is: \(model.inviteCode)")
         default:
             EmptyView()
         }
-    }
-
-    // MARK: - Actions
-
-    private func switchGroup(to groupId: String) {
-        Task {
-            do {
-                try await AuthManager.shared.setActiveGroup(groupId)
-                // Post notification to let other views know they should refresh data
-                NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
-                loadGroupData()
-            } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
-                }
-            }
-        }
-    }
-
-    private func renameGroup(_ group: AuthGroup, to newName: String) {
-        Task {
-            do {
-                try await AuthManager.shared.renameGroup(groupId: group.id, newName: newName)
-                loadGroupData()
-                await MainActor.run {
-                    groupToRename = nil
-                    renamedGroupName = ""
-                }
-            } catch {
-                 await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
-                }
-            }
-        }
-    }
-
-    private func joinGroup() {
-        guard !joinCode.isEmpty else { return }
-
-        Task {
-            do {
-                try await AuthManager.shared.joinGroup(code: joinCode)
-                await MainActor.run {
-                    joinCode = ""
-                }
-                loadGroupData()
-            } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
-                }
-            }
-        }
-    }
-
-    private func getGroupInviteCode(_ group: AuthGroup) {
-        Task {
-            do {
-                let code = try await AuthManager.shared.getGroupInviteCode(groupId: group.id)
-                await MainActor.run {
-                    inviteCode = code
-                    activeAlert = .inviteCode
-                }
-            } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
-                }
-            }
-        }
-    }
-
-    private func createGroup() {
-        guard !createdGroupName.isEmpty else { return }
-        Task {
-            do {
-                try await AuthManager.shared.createGroup(groupName: createdGroupName)
-                await MainActor.run {
-                    createdGroupName = ""
-                }
-                loadGroupData()
-            } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
-                }
-            }
-        }
-
-    }
-
-    private func leaveGroup(_ group: AuthGroup) {
-        Task {
-            do {
-                try await AuthManager.shared.leaveGroup(groupId: group.id)
-                // If we left the active group, clear it
-                if authStateManager.currentUserActiveGroupId == group.id {
-                     try await AuthManager.shared.setActiveGroup("")
-                     // Notify change
-                     NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
-                }
-                loadGroupData()
-            } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
-                }
-            }
-        }
-    }
-
-    private func loadGroupData() {
-        authStateManager.checkAuthentication()
     }
 }
 
