@@ -593,3 +593,8 @@ func DeleteJoinCode(ctx context.Context, code string) error {
 	_, err := db.Exec(ctx, "DELETE FROM join_codes WHERE code = $1", code)
 	return err
 }
+
+func DeleteExpiredJoinCodes(ctx context.Context) error {
+	_, err := db.Exec(ctx, "DELETE FROM join_codes WHERE expires_at < NOW()")
+	return err
+}

@@ -25,6 +25,17 @@ func main() {
 	}
 	defer database.CloseDB()
 
+	// Start background task to clean up expired join codes
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := database.DeleteExpiredJoinCodes(context.Background()); err != nil {
+				log.Printf("Failed to delete expired join codes: %v", err)
+			}
+		}
+	}()
+
 	// Initialize WebSocket manager
 	websocket.InitWebSocketManager()
 
