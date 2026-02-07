@@ -9,8 +9,8 @@ import SwiftUI
 
 struct GroceriesView: View {
 	@Environment(GroceriesModel.self) var model
+	@Environment(AuthStateManager.self) var authManager
 	@Environment(\.colorScheme) var colorScheme
-	@State private var hasGroups: Bool = true
 
 	var body: some View {
 		NavigationStack {
@@ -20,7 +20,7 @@ struct GroceriesView: View {
 				} else if let errorMessage = model.errorMessage {
 					Text("Error: \(errorMessage)").foregroundStyle(.red).background(Color(.systemBackground))
 				} else {
-					if !hasGroups {
+					if authManager.currentUserGroups.isEmpty {
 						Text("Please create or join a group to start adding groceries.")
 							.foregroundStyle(.secondary)
 							.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -69,14 +69,6 @@ struct GroceriesView: View {
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
 					AuthMenuView()
-				}
-			}
-			.task {
-				do {
-					let groups = try await AuthManager.shared.getUserGroups()
-					hasGroups = !groups.isEmpty
-				} catch {
-					print("Error checking groups: \(error)")
 				}
 			}
 			.onAppear {

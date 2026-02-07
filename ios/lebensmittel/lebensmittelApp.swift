@@ -141,6 +141,7 @@ struct lebensmittelApp: App {
                             NotificationCenter.default.publisher(
                                 for: Notification.Name("GroupChanged"))
                         ) { _ in
+                            print("Group Changed! Group ID: \(authManager.currentUserActiveGroupId ?? "nil")")
                             SocketService.shared.restart()
                             refreshData()
                         }

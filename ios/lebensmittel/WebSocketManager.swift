@@ -63,6 +63,7 @@ struct AnyCodable: Codable {
 }
 
 // Simple singleton WebSocket manager
+@MainActor
 final class SocketService: WebSocketDelegate {
 	static let shared = SocketService()
 
@@ -71,7 +72,7 @@ final class SocketService: WebSocketDelegate {
 
 	private var socket: WebSocket?
 	private var isConnected = false
-	private var reconnectTimer: Timer?
+	private var reconnectTask: Task<Void, Never>?
 	private let reconnectDelay: TimeInterval = 3.0
 
 	// Models are required — they will be set when `start(...)` is called.
@@ -138,8 +139,8 @@ final class SocketService: WebSocketDelegate {
 	}
 
 	func disconnect() {
-		reconnectTimer?.invalidate()
-		reconnectTimer = nil
+		reconnectTask?.cancel()
+		reconnectTask = nil
 		socket?.disconnect()
 		socket = nil
 		isConnected = false
@@ -153,38 +154,52 @@ final class SocketService: WebSocketDelegate {
 
 	// MARK: - WebSocketDelegate Methods
 
-	func didReceive(event: WebSocketEvent, client: WebSocketClient) {
+	nonisolated func didReceive(event: WebSocketEvent, client: WebSocketClient) {
 		switch event {
 		case .connected(let headers):
-			isConnected = true
-			reconnectTimer?.invalidate()
-			reconnectTimer = nil
-			if Self.verbose { print("WebSocket connected:", headers) }
+			Task { @MainActor in
+				isConnected = true
+				reconnectTask?.cancel()
+				reconnectTask = nil
+				if Self.verbose { print("WebSocket connected:", headers) }
+			}
 
 		case .disconnected(let reason, let code):
-			isConnected = false
-			if Self.verbose { print("WebSocket disconnected:", reason, "code:", code) }
-			scheduleReconnect()
+			Task { @MainActor in
+				isConnected = false
+				if Self.verbose { print("WebSocket disconnected:", reason, "code:", code) }
+				scheduleReconnect()
+			}
 
 		case .text(let text):
-			handleMessage(text)
-
-		case .binary(let data):
-			if let text = String(data: data, encoding: .utf8) {
+			Task { @MainActor in
 				handleMessage(text)
 			}
 
+		case .binary(let data):
+			Task { @MainActor in
+				if let text = String(data: data, encoding: .utf8) {
+					handleMessage(text)
+				}
+			}
+
 		case .error(let error):
-			if Self.verbose { print("WebSocket error:", error ?? "unknown error") }
+			Task { @MainActor in
+				if Self.verbose { print("WebSocket error:", error ?? "unknown error") }
+			}
 
 		case .cancelled:
-			isConnected = false
-			if Self.verbose { print("WebSocket cancelled") }
+			Task { @MainActor in
+				isConnected = false
+				if Self.verbose { print("WebSocket cancelled") }
+			}
 
 		case .peerClosed:
-			isConnected = false
-			if Self.verbose { print("WebSocket peer closed") }
-			scheduleReconnect()
+			Task { @MainActor in
+				isConnected = false
+				if Self.verbose { print("WebSocket peer closed") }
+				scheduleReconnect()
+			}
 
 		default:
 			break
@@ -285,14 +300,16 @@ final class SocketService: WebSocketDelegate {
 	// MARK: - Reconnection Logic
 
 	private func scheduleReconnect() {
-		guard reconnectTimer == nil else { return }
+		guard reconnectTask == nil else { return }
 
 		if Self.verbose { print("WebSocket: Scheduling reconnect in \(reconnectDelay) seconds...") }
 
-		reconnectTimer = Timer.scheduledTimer(withTimeInterval: reconnectDelay, repeats: false) {
-			[weak self] _ in
-			self?.reconnectTimer = nil
-			self?.connect()
+		reconnectTask = Task {
+			try? await Task.sleep(nanoseconds: UInt64(reconnectDelay * 1_000_000_000))
+			if !Task.isCancelled {
+				self.reconnectTask = nil
+				self.connect()
+			}
 		}
 	}
 

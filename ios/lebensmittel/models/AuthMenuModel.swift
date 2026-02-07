@@ -42,11 +42,9 @@ class AuthMenuModel {
         Task {
             do {
                 try await AuthManager.shared.setActiveGroup(groupId)
+                await authStateManager.refreshState()
                 // Post notification to let other views know they should refresh data
                 NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
-                await MainActor.run {
-                    authStateManager.checkAuthentication()
-                }
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
@@ -82,8 +80,9 @@ class AuthMenuModel {
                 try await AuthManager.shared.joinGroup(code: joinCode)
                 await MainActor.run {
                     joinCode = ""
-                    authStateManager.checkAuthentication()
                 }
+                await authStateManager.refreshState()
+                NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
@@ -122,8 +121,9 @@ class AuthMenuModel {
                 try await AuthManager.shared.createGroup(groupName: createdGroupName)
                 await MainActor.run {
                     createdGroupName = ""
-                    authStateManager.checkAuthentication()
                 }
+                await authStateManager.refreshState()
+                NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
@@ -137,14 +137,17 @@ class AuthMenuModel {
         Task {
             do {
                 try await AuthManager.shared.leaveGroup(groupId: group.id)
-                // If we left the active group, clear it
+
+                var didLeaveActive = false
                 if authStateManager.currentUserActiveGroupId == group.id {
                      try await AuthManager.shared.setActiveGroup("")
-                     // Notify change
-                     NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
+                     didLeaveActive = true
                 }
-                await MainActor.run {
-                    authStateManager.checkAuthentication()
+
+                await authStateManager.refreshState()
+
+                if didLeaveActive {
+                     NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
                 }
             } catch {
                 await MainActor.run {

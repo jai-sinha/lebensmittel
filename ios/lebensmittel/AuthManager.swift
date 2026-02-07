@@ -426,10 +426,13 @@ actor AuthManager {
         let body = ["name": groupName]
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (groupData, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             throw AuthError.invalidResponse
         }
+
+        let group = try JSONDecoder().decode(AuthGroup.self, from: groupData)
+        try await self.setActiveGroup(group.id)
     }
 
     func joinGroup(code: String) async throws {
@@ -446,10 +449,17 @@ actor AuthManager {
         let body = ["code": code]
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (responseData, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             throw AuthError.invalidResponse
         }
+
+        struct JoinResponse: Decodable {
+            let groupId: String
+        }
+
+        let result = try JSONDecoder().decode(JoinResponse.self, from: responseData)
+        try await self.setActiveGroup(result.groupId)
     }
 
     func leaveGroup(groupId: String) async throws {
