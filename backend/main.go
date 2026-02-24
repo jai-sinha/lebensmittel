@@ -88,7 +88,7 @@ func main() {
 	}
 
 	// Home route
-	r.GET("/", func(c *gin.Context) {
+	r.GET("/routes", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message":   "Welcome to the Lebensmittel Backend API",
 			"status":    "success",
