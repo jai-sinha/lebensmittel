@@ -13,6 +13,7 @@ enum ActiveAlert: Equatable {
     case rename
     case create
     case inviteCode
+    case deleteUser
     case error(String)
 
     var title: String {
@@ -22,6 +23,7 @@ enum ActiveAlert: Equatable {
         case .create: "Create Group"
         case .inviteCode: "Invite Code"
         case .error: "Error"
+        case .deleteUser: "Delete Account"
         }
     }
 }
@@ -157,4 +159,21 @@ class AuthMenuModel {
             }
         }
     }
+
+    func deleteUser(authStateManager: AuthStateManager) {
+		Task {
+			do {
+				try await AuthManager.shared.deleteAccount()
+				await MainActor.run {
+					activeAlert = nil
+				}
+				await authStateManager.refreshState()
+			} catch {
+				await MainActor.run {
+					errorMessage = error.localizedDescription
+					activeAlert = .error(errorMessage ?? "Unknown error")
+				}
+			}
+		}
+	}
 }

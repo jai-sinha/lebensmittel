@@ -281,6 +281,30 @@ actor AuthManager {
         return try await storage.loadUser()
     }
 
+    /// Delete user account
+    // Note: This will also invalidate tokens and log the user out
+	func deleteAccount() async throws {
+		let token = try await accessToken()
+		guard let id = try await storage.loadUser()?.id else {
+			throw AuthError.invalidResponse
+		}
+		guard let url = URL(string: "\(baseURL)/users/\(id)") else {
+			throw AuthError.invalidResponse
+		}
+
+		var request = URLRequest(url: url)
+		request.httpMethod = "DELETE"
+		request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+		let (_, response) = try await URLSession.shared.data(for: request)
+
+		guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+			throw AuthError.invalidResponse
+		}
+
+		try await logout()
+	}
+
     // MARK: - Group Management
 
     func getUserGroups() async throws -> [AuthGroup] {

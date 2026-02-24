@@ -21,6 +21,11 @@ struct AuthMenuView: View {
                     } label: {
                         Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
                     }
+                    Button(role: .destructive) {
+                        model.activeAlert = .deleteUser
+                    } label: {
+                        Label("Delete Account", systemImage: "trash")
+                    }
                 }
             }
 
@@ -125,6 +130,13 @@ struct AuthMenuView: View {
             Button("Copy Code") {
                 model.copyInviteCode()
             }
+        case .deleteUser:
+            Button("Cancel", role: .cancel) {
+                model.activeAlert = nil
+            }
+            Button("Delete", role: .destructive) {
+                model.deleteUser(authStateManager: authStateManager)
+            }
         case .error:
             Button("OK", role: .cancel) {
                 model.errorMessage = nil
@@ -139,6 +151,8 @@ struct AuthMenuView: View {
         switch model.activeAlert {
         case .join:
             Text("Enter the code for the group you want to join.")
+        case .deleteUser:
+            Text("This will permanently delete your account and sign you out. This action cannot be undone.")
         case .error(let message):
             Text(message)
         case .inviteCode:
