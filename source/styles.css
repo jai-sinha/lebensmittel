@@ -1,0 +1,19 @@
+body {
+	font-size: 18px;
+	background-color: #eeeeee;
+	color: #444;
+	max-width: 650px;
+	margin: 60px auto;
+	padding: 0 20px;
+	margin-top: -0.5em;
+}
+
+p,
+a {
+	line-height: 1.4;
+	text-decoration: none;
+}
+
+img {
+	border-radius: 10px;
+}
