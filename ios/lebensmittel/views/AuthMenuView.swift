@@ -10,85 +10,98 @@ import SwiftUI
 struct AuthMenuView: View {
     @Environment(AuthStateManager.self) var authStateManager
     @State private var model = AuthMenuModel()
+    @State private var showLoginSheet = false
 
     var body: some View {
-        Menu {
-            // MARK: - User Info
-            if let user = authStateManager.currentUser {
-                Section(user.displayName) {
-                    Button(role: .destructive) {
-                        authStateManager.logout()
+        if !authStateManager.isAuthenticated {
+            Button {
+                showLoginSheet = true
+            } label: {
+                Image(systemName: "person.circle")
+                    .imageScale(.large)
+            }
+            .sheet(isPresented: $showLoginSheet) {
+                LoginView(authManager: authStateManager)
+            }
+        } else {
+            Menu {
+                // MARK: - User Info
+                if let user = authStateManager.currentUser {
+                    Section(user.displayName) {
+                        Button(role: .destructive) {
+                            authStateManager.logout()
+                        } label: {
+                            Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                        Button(role: .destructive) {
+                            model.activeAlert = .deleteUser
+                        } label: {
+                            Label("Delete Account", systemImage: "trash")
+                        }
+                    }
+                }
+
+                // MARK: - Group Selection
+                let groups = authStateManager.currentUserGroups
+                let activeGroupId =  authStateManager.currentUserActiveGroupId
+
+                Section("Groups") {
+                    if !groups.isEmpty {
+                        ForEach(groups) { group in
+                            GroupRow(
+                                group: group,
+                                isActive: group.id == activeGroupId,
+                                onSwitch: {
+                                    model.switchGroup(to: group.id, authStateManager: authStateManager)
+                                },
+                                onRename: {
+                                    model.groupToRename = group
+                                    model.renamedGroupName = group.name
+                                    model.activeAlert = .rename
+                                },
+                                onLeave: {
+                                    model.leaveGroup(group, authStateManager: authStateManager)
+                                },
+                                onInvite: {
+                                    model.getGroupInviteCode(group)
+                                }
+                            )
+                        }
+                    } else {
+                        Text("No Groups Available")
+                    }
+                }
+
+                // MARK: - Group Actions
+                Section {
+                    Button {
+                        model.activeAlert = .join
                     } label: {
-                        Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                        Label("Join Group", systemImage: "person.badge.plus")
                     }
-                    Button(role: .destructive) {
-                        model.activeAlert = .deleteUser
+                }
+                Section {
+                    Button {
+                        model.activeAlert = .create
                     } label: {
-                        Label("Delete Account", systemImage: "trash")
+                        Label("Create Group", systemImage: "plus.circle")
                     }
                 }
+            } label: {
+                Image(systemName: "person.circle")
+                    .imageScale(.large)
             }
-
-            // MARK: - Group Selection
-            let groups = authStateManager.currentUserGroups
-            let activeGroupId =  authStateManager.currentUserActiveGroupId
-
-            Section("Groups") {
-                if !groups.isEmpty {
-                    ForEach(groups) { group in
-                        GroupRow(
-                            group: group,
-                            isActive: group.id == activeGroupId,
-                            onSwitch: {
-                                model.switchGroup(to: group.id, authStateManager: authStateManager)
-                            },
-                            onRename: {
-                                model.groupToRename = group
-                                model.renamedGroupName = group.name
-                                model.activeAlert = .rename
-                            },
-                            onLeave: {
-                                model.leaveGroup(group, authStateManager: authStateManager)
-                            },
-                            onInvite: {
-                                model.getGroupInviteCode(group)
-                            }
-                        )
-                    }
-                } else {
-                    Text("No Groups Available")
-                }
+            .alert(
+                model.activeAlert?.title ?? "",
+                isPresented: Binding(
+                    get: { model.activeAlert != nil },
+                    set: { if !$0 { model.activeAlert = nil } }
+                )
+            ) {
+                alertContent()
+            } message: {
+                alertMessage()
             }
-
-            // MARK: - Group Actions
-            Section {
-                Button {
-                    model.activeAlert = .join
-                } label: {
-                    Label("Join Group", systemImage: "person.badge.plus")
-                }
-            }
-            Section {
-                Button {
-                    model.activeAlert = .create
-                } label: {
-                    Label("Create Group", systemImage: "plus.circle")
-                }
-            }
-        } label: {
-            Image(systemName: "person.circle")
-                .imageScale(.large)
-        }
-        .alert(
-            model.activeAlert?.title ?? "",
-            isPresented: Binding(
-                get: { model.activeAlert != nil },
-                set: { if !$0 { model.activeAlert = nil } }
-            )
-        ) {
-            alertContent()
-        } message: {
-            alertMessage()
         }
     }
 

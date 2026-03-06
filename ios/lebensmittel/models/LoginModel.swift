@@ -22,7 +22,7 @@ class LoginModel {
         return emailPred.evaluate(with: email)
     }
 
-    func login(authManager: AuthStateManager) {
+    func login(authManager: AuthStateManager, onSuccess: (() -> Void)? = nil) {
         isLoading = true
 
         Task {
@@ -34,6 +34,7 @@ class LoginModel {
                 await authManager.refreshState()
                 await MainActor.run {
                     isLoading = false
+                    onSuccess?()
                 }
             } catch {
                 await MainActor.run {
@@ -44,7 +45,7 @@ class LoginModel {
         }
     }
 
-    func register(authManager: AuthStateManager) {
+    func register(authManager: AuthStateManager, onSuccess: (() -> Void)? = nil) {
         isLoading = true
 
         Task {
@@ -58,6 +59,7 @@ class LoginModel {
                 await authManager.refreshState()
                 await MainActor.run {
                     isLoading = false
+                    onSuccess?()
                 }
             } catch {
                 await MainActor.run {

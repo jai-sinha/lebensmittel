@@ -9,19 +9,35 @@ import SwiftUI
 import Foundation
 
 struct LoginView: View {
-    @State private var model = LoginModel()
+    @State private var model: LoginModel
     @Bindable var authManager: AuthStateManager
+    @Environment(\.dismiss) private var dismiss
+
+    init(authManager: AuthStateManager, startWithRegister: Bool = false) {
+        self.authManager = authManager
+        let m = LoginModel()
+        m.isShowingRegister = startWithRegister
+        _model = State(initialValue: m)
+    }
 
     var body: some View {
         NavigationStack {
             VStack {
                 if model.isShowingRegister {
-                    RegisterForm(model: model, authManager: authManager)
+                    RegisterForm(model: model, authManager: authManager, onSuccess: { dismiss() })
                 } else {
-                    LoginForm(model: model, authManager: authManager)
+                    LoginForm(model: model, authManager: authManager, onSuccess: { dismiss() })
                 }
             }
-            .navigationTitle(model.isShowingRegister ? "Create Account" : "Login")
+            .navigationTitle(model.isShowingRegister ? "Create Account" : "Sign In")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
@@ -29,6 +45,7 @@ struct LoginView: View {
 struct LoginForm: View {
     @Bindable var model: LoginModel
     @Bindable var authManager: AuthStateManager
+    var onSuccess: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 16) {
@@ -46,8 +63,8 @@ struct LoginForm: View {
                     .font(.caption)
             }
 
-            Button("Login") {
-                model.login(authManager: authManager)
+            Button("Sign In") {
+                model.login(authManager: authManager, onSuccess: onSuccess)
             }
             .disabled(model.username.isEmpty || model.password.isEmpty || model.isLoading)
 
@@ -65,6 +82,7 @@ struct LoginForm: View {
 struct RegisterForm: View {
     @Bindable var model: LoginModel
     @Bindable var authManager: AuthStateManager
+    var onSuccess: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 16) {
@@ -102,11 +120,11 @@ struct RegisterForm: View {
             }
 
             Button("Create Account") {
-                model.register(authManager: authManager)
+                model.register(authManager: authManager, onSuccess: onSuccess)
             }
             .disabled(model.username.isEmpty || !model.isValidEmail || model.password.isEmpty || model.displayName.isEmpty || model.isLoading)
 
-            Button("Already have an account? Login") {
+            Button("Already have an account? Sign in") {
                 model.isShowingRegister = false
             }
             .foregroundColor(.blue)

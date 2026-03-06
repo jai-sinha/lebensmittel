@@ -66,11 +66,7 @@ class AuthStateManager {
             do {
                 try await AuthManager.shared.logout()
                 await MainActor.run {
-                    self.isAuthenticated = false
-                    self.currentUser = nil
-                    self.currentUserGroups = []
-                    self.currentUserActiveGroupId = nil
-                    self.currentGroupUsers = []
+                    self.clearLocalState()
                 }
             } catch {
                 await MainActor.run {
@@ -78,6 +74,18 @@ class AuthStateManager {
                 }
             }
         }
+    }
+
+    /// Clears only the observable UI state. Use this when the underlying
+    /// keychain/storage has already been wiped (e.g. after deleteAccount,
+    /// which calls logout() internally before returning).
+    func clearLocalState() {
+        isAuthenticated = false
+        currentUser = nil
+        currentUserGroups = []
+        currentUserActiveGroupId = nil
+        currentGroupUsers = []
+        errorMessage = nil
     }
 }
 
@@ -89,7 +97,6 @@ struct lebensmittelApp: App {
     @State private var receiptsModel: ReceiptsModel
     @State private var shoppingModel: ShoppingModel
 
-    // Initialize shoppingModel with groceriesModel reference
     init() {
         let groceries = GroceriesModel()
         _groceriesModel = State(initialValue: groceries)
@@ -99,11 +106,23 @@ struct lebensmittelApp: App {
         _authManager = State(initialValue: AuthStateManager())
     }
 
+    private func startSession() {
+        SocketService.shared.start(
+            with: groceriesModel,
+            mealsModel: mealsModel,
+            receiptsModel: receiptsModel,
+            shoppingModel: shoppingModel
+        )
+        groceriesModel.fetchGroceries()
+        mealsModel.fetchMealPlans()
+        receiptsModel.fetchReceipts()
+    }
+
     private func refreshData() {
-		groceriesModel.fetchGroceries()
-		mealsModel.fetchMealPlans()
-		receiptsModel.fetchReceipts()
-	}
+        groceriesModel.fetchGroceries()
+        mealsModel.fetchMealPlans()
+        receiptsModel.fetchReceipts()
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -118,19 +137,9 @@ struct lebensmittelApp: App {
                         .environment(shoppingModel)
                         .environment(authManager)
                         .onAppear {
-                            SocketService.shared.start(
-                                with: groceriesModel,
-                                mealsModel: mealsModel,
-                                receiptsModel: receiptsModel,
-                                shoppingModel: shoppingModel
-                            )
-                            // Initial data fetch
-                            groceriesModel.fetchGroceries()
-                            mealsModel.fetchMealPlans()
-                            receiptsModel.fetchReceipts()
+                            startSession()
                             authManager.checkAuthentication()
                         }
-                        // Refresh data when app comes to foreground or group changes
                         .onReceive(
                             NotificationCenter.default.publisher(
                                 for: UIApplication.willEnterForegroundNotification)
@@ -146,7 +155,12 @@ struct lebensmittelApp: App {
                             refreshData()
                         }
                 } else {
-                    LoginView(authManager: authManager)
+                    GuestHomeView(authManager: authManager)
+                        // Once auth state flips to true after sign-in, the Group above takes
+                        // over, but we still want to kick off a session if the user signs in
+                        // while already on this view (sheet dismiss → authManager updates →
+                        // SwiftUI re-evaluates the Group condition above, so startSession is
+                        // called by ContentView's onAppear). No extra work needed here.
                 }
             }
             .onAppear {

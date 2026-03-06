@@ -163,11 +163,15 @@ class AuthMenuModel {
     func deleteUser(authStateManager: AuthStateManager) {
 		Task {
 			do {
+				// deleteAccount() calls logout() internally, which clears all
+				// keychain storage and in-memory caches before returning.
 				try await AuthManager.shared.deleteAccount()
 				await MainActor.run {
 					activeAlert = nil
+					// Use clearLocalState() rather than logout() to avoid
+					// redundantly hitting the keychain a second time.
+					authStateManager.clearLocalState()
 				}
-				await authStateManager.refreshState()
 			} catch {
 				await MainActor.run {
 					errorMessage = error.localizedDescription
