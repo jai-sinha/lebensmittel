@@ -118,6 +118,7 @@ struct MealRowView: View {
 	@Binding var text: String
 
 	@Environment(MealsModel.self) var model
+	@FocusState private var isFocused: Bool
 
 	private var dateStr: String {
 		MealsModel.utcDateString(for: date)
@@ -156,7 +157,11 @@ struct MealRowView: View {
 			.textFieldStyle(RoundedBorderTextFieldStyle())
 			.foregroundStyle(.primary)
 			.submitLabel(.done)
+			.focused($isFocused)
 			.onSubmit {
+				handleSubmit()
+			}
+			.onChange(of: isFocused) {
 				handleSubmit()
 			}
 		}
@@ -177,7 +182,4 @@ struct MealRowView: View {
 			model.createMealPlan(for: dateStr, meal: trimmed)
 		}
 	}
-}
-#Preview {
-	MealsView()
 }
