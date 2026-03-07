@@ -15,7 +15,7 @@ struct GuestHomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 12) {
                 	// MARK: - App Introduction
                         Text("Lebensmittel")
                             .font(.largeTitle)
@@ -28,7 +28,7 @@ struct GuestHomeView: View {
                             .padding(.horizontal, 24)
 
                     // MARK: - Feature Highlights
-                    VStack(spacing: 16) {
+                    VStack(spacing: 12) {
                         FeatureRow(
                             icon: "list.bullet",
                             color: .blue,
@@ -104,6 +104,17 @@ struct GuestHomeView: View {
                         }
                     }
                     .padding(.horizontal, 24)
+
+                    // MARK: - Guest Bypass
+                    Button {
+                        authManager.continueAsGuest()
+                    } label: {
+                        Text("Continue without signing in")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                    }
+
+                    Spacer().frame(height: 32)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

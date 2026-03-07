@@ -20,11 +20,15 @@ struct GroceriesView: View {
 				} else if let errorMessage = model.errorMessage {
 					Text("Error: \(errorMessage)").foregroundStyle(.red).background(Color(.systemBackground))
 				} else {
-					if authManager.currentUserGroups.isEmpty {
-						Text("Please create or join a group to start adding groceries.")
-							.foregroundStyle(.secondary)
-							.frame(maxWidth: .infinity, maxHeight: .infinity)
-							.background(Color(.systemBackground))
+					if !authManager.isAuthenticated {
+							GuestSignInPrompt(message: "Sign in and join a household group to manage your shared grocery list.")
+								.frame(maxWidth: .infinity, maxHeight: .infinity)
+								.background(Color(.systemBackground))
+						} else if authManager.currentUserGroups.isEmpty {
+							Text("Please create or join a group to start adding groceries.")
+								.foregroundStyle(.secondary)
+								.frame(maxWidth: .infinity, maxHeight: .infinity)
+								.background(Color(.systemBackground))
 					} else {
 						HStack(spacing: 0) {
                         	if model.groceryItems.isEmpty {

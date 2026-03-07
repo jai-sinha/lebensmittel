@@ -11,7 +11,7 @@ struct MealsView: View {
 	@Environment(MealsModel.self) var model
 	@Environment(\.colorScheme) var colorScheme
 	@State private var mealTexts: [String: String] = [:]
-	@State private var hasGroups: Bool = true
+	@Environment(AuthStateManager.self) var authManager
 
 	private func date(for dayOffset: Int) -> Date {
 		Calendar.current.date(byAdding: .day, value: dayOffset, to: model.baseDate)
@@ -27,7 +27,11 @@ struct MealsView: View {
 	var body: some View {
 		NavigationStack {
 			ZStack {
-				if !hasGroups {
+				if !authManager.isAuthenticated {
+					GuestSignInPrompt(message: "Sign in and join a household group to start meal planning.")
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.background(Color(.systemBackground))
+				} else if authManager.currentUserGroups.isEmpty {
 					Text("Please create or join a group to start meal planning.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -101,14 +105,7 @@ struct MealsView: View {
 					AuthMenuView()
 				}
 			}
-			.task {
-				do {
-					let groups = try await AuthManager.shared.getUserGroups()
-					hasGroups = !groups.isEmpty
-				} catch {
-					print("Error checking groups: \(error)")
-				}
-			}
+
 		}
 	}
 }

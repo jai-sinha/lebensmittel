@@ -19,12 +19,23 @@ struct ReceiptsView: View {
 	@State private var editNotes: String = ""
 	@State private var editError: String = ""
 
+	@Environment(AuthStateManager.self) var authManager
+
 	var body: some View {
 		NavigationStack {
 			VStack {
 				if let errorMessage = model.errorMessage {
 					Text("Error: \(errorMessage)").foregroundStyle(.red)
-                } else if model.receipts.isEmpty {
+                } else if !authManager.isAuthenticated {
+					GuestSignInPrompt(message: "Sign in and join a household group to create receipts and track spending.")
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.background(Color(.systemBackground))
+				} else if authManager.currentUserGroups.isEmpty {
+					Text("Please create or join a group to start meal planning.")
+						.foregroundStyle(.secondary)
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.background(Color(.systemBackground))
+				} else if model.receipts.isEmpty {
                     Text("No receipts yet. Create one from the Shopping tab to get started!")
                         .foregroundStyle(.secondary)
                 } else {

@@ -10,15 +10,19 @@ import SwiftUI
 /// Main shopping list view, including the checkout sheet.
 struct ShoppingView: View {
 	@Environment(ShoppingModel.self) var model
+	@Environment(AuthStateManager.self) var authManager
 	@Environment(\.colorScheme) var colorScheme
 	// Checkout dialog state
 	@State private var showCheckoutSheet = false
-	@State private var hasGroups: Bool = true
 
 	var body: some View {
 		NavigationStack {
 			VStack {
-				if !hasGroups {
+				if !authManager.isAuthenticated {
+					GuestSignInPrompt(message: "Sign in and join a household group to see your shared shopping list.")
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.background(Color(.systemBackground))
+				} else if authManager.currentUserGroups.isEmpty {
 					Text("Please create or join a group to see your shopping list.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -66,14 +70,7 @@ struct ShoppingView: View {
 					}
 				)
 			}
-			.task {
-				do {
-					let groups = try await AuthManager.shared.getUserGroups()
-					hasGroups = !groups.isEmpty
-				} catch {
-					print("Error checking groups: \(error)")
-				}
-			}
+
 		}
 	}
 

@@ -10,6 +10,7 @@ import SwiftUI
 @Observable
 class AuthStateManager {
     var isAuthenticated = false
+    var isGuest = false
     var currentUser: User?
     var currentUserGroups: [AuthGroup] = []
     var currentUserActiveGroupId: String?
@@ -81,11 +82,23 @@ class AuthStateManager {
     /// which calls logout() internally before returning).
     func clearLocalState() {
         isAuthenticated = false
+        isGuest = false
         currentUser = nil
         currentUserGroups = []
         currentUserActiveGroupId = nil
         currentGroupUsers = []
         errorMessage = nil
+    }
+
+    /// Skips sign-in and enters the app in a read-only guest state.
+    func continueAsGuest() {
+        isGuest = true
+    }
+
+    /// Called when a guest taps "Sign In" from within the app; returns
+    /// them to GuestHomeView so they can authenticate properly.
+    func exitGuestMode() {
+        isGuest = false
     }
 }
 
@@ -154,13 +167,17 @@ struct lebensmittelApp: App {
                             SocketService.shared.restart()
                             refreshData()
                         }
+                } else if authManager.isGuest {
+                    // Guest mode: show the full tab UI but with no data loaded.
+                    // Each feature view shows an inline sign-in prompt instead of content.
+                    ContentView()
+                        .environment(groceriesModel)
+                        .environment(mealsModel)
+                        .environment(receiptsModel)
+                        .environment(shoppingModel)
+                        .environment(authManager)
                 } else {
                     GuestHomeView(authManager: authManager)
-                        // Once auth state flips to true after sign-in, the Group above takes
-                        // over, but we still want to kick off a session if the user signs in
-                        // while already on this view (sheet dismiss → authManager updates →
-                        // SwiftUI re-evaluates the Group condition above, so startSession is
-                        // called by ContentView's onAppear). No extra work needed here.
                 }
             }
             .onAppear {
