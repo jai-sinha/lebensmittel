@@ -46,7 +46,7 @@ func main() {
 	// Configure CORS
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	config.AllowMethods = []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	r.Use(cors.New(config))
 
@@ -57,26 +57,26 @@ func main() {
 		{"route": "/ws", "methods": []string{"GET"}, "description": "WebSocket connection"},
 		{"route": "/api/grocery-items", "methods": []string{"GET"}, "description": "Get all grocery items"},
 		{"route": "/api/grocery-items", "methods": []string{"POST"}, "description": "Create a grocery item"},
-		{"route": "/api/grocery-items/:item_id", "methods": []string{"PUT"}, "description": "Update a grocery item"},
+		{"route": "/api/grocery-items/:item_id", "methods": []string{"PATCH"}, "description": "Update a grocery item"},
 		{"route": "/api/grocery-items/:item_id", "methods": []string{"DELETE"}, "description": "Delete a grocery item"},
 		{"route": "/api/meal-plans", "methods": []string{"GET"}, "description": "Get all meal plans"},
 		{"route": "/api/meal-plans", "methods": []string{"POST"}, "description": "Create a meal plan"},
-		{"route": "/api/meal-plans/:meal_id", "methods": []string{"PUT"}, "description": "Update a meal plan"},
+		{"route": "/api/meal-plans/:meal_id", "methods": []string{"PATCH"}, "description": "Update a meal plan"},
 		{"route": "/api/meal-plans/:meal_id", "methods": []string{"DELETE"}, "description": "Delete a meal plan"},
 		{"route": "/api/receipts", "methods": []string{"GET"}, "description": "Get all receipts"},
 		{"route": "/api/receipts", "methods": []string{"POST"}, "description": "Create a receipt"},
-		{"route": "/api/receipts/:receipt_id", "methods": []string{"PUT"}, "description": "Update a receipt"},
+		{"route": "/api/receipts/:receipt_id", "methods": []string{"PATCH"}, "description": "Update a receipt"},
 		{"route": "/api/receipts/:receipt_id", "methods": []string{"DELETE"}, "description": "Delete a receipt"},
 		{"route": "/api/register", "methods": []string{"POST"}, "description": "Register a new user"},
 		{"route": "/api/login", "methods": []string{"POST"}, "description": "Login"},
 		{"route": "/api/refresh", "methods": []string{"POST"}, "description": "Refresh access token"},
 		{"route": "/api/users", "methods": []string{"POST"}, "description": "Create a user"},
 		{"route": "/api/users/:username", "methods": []string{"GET"}, "description": "Get a user"},
-		{"route": "/api/users/:user_id", "methods": []string{"PUT"}, "description": "Update a user"},
+		{"route": "/api/users/:user_id", "methods": []string{"PATCH"}, "description": "Update a user"},
 		{"route": "/api/users/:user_id", "methods": []string{"DELETE"}, "description": "Delete a user"},
 		{"route": "/api/groups", "methods": []string{"POST"}, "description": "Create a group"},
 		{"route": "/api/groups/:group_id", "methods": []string{"GET"}, "description": "Get a group"},
-		{"route": "/api/groups/:group_id", "methods": []string{"PUT"}, "description": "Update a group"},
+		{"route": "/api/groups/:group_id", "methods": []string{"PATCH"}, "description": "Update a group"},
 		{"route": "/api/groups/:group_id", "methods": []string{"DELETE"}, "description": "Delete a group"},
 		{"route": "/api/groups/:group_id/users", "methods": []string{"POST"}, "description": "Add user to group"},
 		{"route": "/api/groups/:group_id/users", "methods": []string{"GET"}, "description": "Get users in group"},
@@ -123,25 +123,25 @@ func main() {
 	// Grocery Items routes
 	protected.GET("/grocery-items", handlers.GetGroceryItems)
 	protected.POST("/grocery-items", handlers.CreateGroceryItem)
-	protected.PUT("/grocery-items/:item_id", handlers.UpdateGroceryItem)
+	protected.PATCH("/grocery-items/:item_id", handlers.UpdateGroceryItem)
 	protected.DELETE("/grocery-items/:item_id", handlers.DeleteGroceryItem)
 
 	// Meal Plans routes
 	protected.GET("/meal-plans", handlers.GetMealPlans)
 	protected.POST("/meal-plans", handlers.CreateMealPlan)
-	protected.PUT("/meal-plans/:meal_id", handlers.UpdateMealPlan)
+	protected.PATCH("/meal-plans/:meal_id", handlers.UpdateMealPlan)
 	protected.DELETE("/meal-plans/:meal_id", handlers.DeleteMealPlan)
 
 	// Receipts routes
 	protected.GET("/receipts", handlers.GetReceipts)
 	protected.POST("/receipts", handlers.CreateReceipt)
-	protected.PUT("/receipts/:receipt_id", handlers.UpdateReceipt)
+	protected.PATCH("/receipts/:receipt_id", handlers.UpdateReceipt)
 	protected.DELETE("/receipts/:receipt_id", handlers.DeleteReceipt)
 
 	// Users routes
 	protected.POST("/users", handlers.CreateUser)
 	protected.GET("/users/:username", handlers.GetUser)
-	protected.PUT("/users/:user_id", handlers.UpdateUser)
+	protected.PATCH("/users/:user_id", handlers.UpdateUser)
 	protected.DELETE("/users/:user_id", handlers.DeleteUser)
 	protected.GET("/users/me/groups", handlers.GetUserGroups)
 	protected.GET("/users/me/active-group", handlers.GetActiveGroup)
@@ -149,7 +149,7 @@ func main() {
 	// Groups routes
 	protected.POST("/groups", handlers.CreateGroup)
 	protected.GET("/groups/:group_id", handlers.GetGroup)
-	protected.PUT("/groups/:group_id", handlers.UpdateGroup)
+	protected.PATCH("/groups/:group_id", handlers.UpdateGroup)
 	protected.DELETE("/groups/:group_id", handlers.DeleteGroup)
 	protected.POST("/groups/:group_id/users", handlers.AddUserToGroup)
 	protected.GET("/groups/:group_id/users", handlers.GetGroupUsers)

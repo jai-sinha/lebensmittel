@@ -40,10 +40,9 @@ func getActiveGroupID(c *gin.Context) (string, error) {
 				break
 			}
 		}
-		if !isMember {
-			return "", fmt.Errorf("user is not a member of the requested group")
+		if isMember {
+			return requestedGroupID, nil
 		}
-		return requestedGroupID, nil
 	}
 
 	// Default to the first group
