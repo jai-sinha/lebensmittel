@@ -59,13 +59,6 @@ struct NewGroceryItem: Codable {
 	var isShoppingChecked: Bool = false
 }
 
-struct UpdateGroceryItem: Codable {
-	var name: String
-	var category: String
-	var isNeeded: Bool
-	var isShoppingChecked: Bool
-}
-
 // MARK: Meal Plans
 
 struct MealPlan: Identifiable, Codable, Equatable {

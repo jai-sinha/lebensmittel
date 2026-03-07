@@ -152,6 +152,8 @@ actor AuthManager {
             if let user = authResponse.user {
                 try await storage.saveUser(user)
                 try await storage.saveTokens(tokens)
+                try await storage.clearActiveGroupId()
+                activeGroupTask = nil
                 return (user, tokens)
             }
 
@@ -196,6 +198,8 @@ actor AuthManager {
             if let user = authResponse.user {
                 try await storage.saveUser(user)
                 try await storage.saveTokens(tokens)
+                try await storage.clearActiveGroupId()
+                activeGroupTask = nil
                 return (user, tokens)
             }
 
@@ -497,7 +501,7 @@ actor AuthManager {
         }
 
         var request = URLRequest(url: url)
-        request.httpMethod = "PUT"
+        request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 

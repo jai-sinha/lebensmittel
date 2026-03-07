@@ -102,8 +102,9 @@ class MealsModel {
 			return
 		}
 		var request = URLRequest(url: url)
-		request.httpMethod = "PUT"
-		request.httpBody = try? JSONEncoder().encode(existingPlan)
+		request.httpMethod = "PATCH"
+		let updatePayload = ["mealDescription": meal]
+		request.httpBody = try? JSONSerialization.data(withJSONObject: updatePayload)
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
 		let client = NetworkClient()

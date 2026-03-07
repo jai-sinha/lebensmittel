@@ -87,10 +87,15 @@ class ReceiptsModel {
 		updateReceipt(updatedReceipt)
 
 		var request = URLRequest(url: url)
-		request.httpMethod = "PUT"
+		request.httpMethod = "PATCH"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+		let updatePayload: [String: Any] = [
+			"totalAmount": price,
+			"purchasedBy": purchasedBy,
+			"notes": notes
+		]
 		do {
-			request.httpBody = try JSONEncoder().encode(updatedReceipt)
+			request.httpBody = try JSONSerialization.data(withJSONObject: updatePayload)
 		} catch {
 			self.errorMessage = "Failed to encode receipt"
 			return

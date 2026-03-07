@@ -176,7 +176,7 @@ class GroceriesModel {
 		case isShoppingChecked(Bool)
 	}
 
-	// PUT method to update either isNeeded or isShoppingChecked
+	// PATCH method to update either isNeeded or isShoppingChecked
 	func updateGroceryItem(item: GroceryItem, field: GroceryItemField) {
 		errorMessage = nil
 		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items/\(item.id)") else {
@@ -184,28 +184,22 @@ class GroceriesModel {
 			return
 		}
 
-		// Build updated item for the request
-		var updatedItem = item
+		// Build payload for partial update
+		var updatePayload: [String: Bool] = [:]
 		switch field {
 		case .isNeeded(let value):
-			updatedItem.isNeeded = value
+			updatePayload["isNeeded"] = value
+			updatePayload["isShoppingChecked"] = false
 		case .isShoppingChecked(let value):
-			updatedItem.isShoppingChecked = value
+			updatePayload["isShoppingChecked"] = value
 		}
 
-		// Send full item in PUT request
-		let updatePayload = UpdateGroceryItem(
-			name: updatedItem.name,
-			category: updatedItem.category,
-			isNeeded: updatedItem.isNeeded,
-			isShoppingChecked: updatedItem.isShoppingChecked
-		)
-		guard let jsonBody = try? JSONEncoder().encode(updatePayload) else {
+		guard let jsonBody = try? JSONSerialization.data(withJSONObject: updatePayload) else {
 			errorMessage = "Failed to encode update payload"
 			return
 		}
 		var request = URLRequest(url: url)
-		request.httpMethod = "PUT"
+		request.httpMethod = "PATCH"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		request.httpBody = jsonBody
 
