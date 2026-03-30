@@ -84,6 +84,15 @@ final class SocketService: WebSocketDelegate {
 
 	private init() {}
 
+	/// Call from willEnterForeground to guarantee the socket is alive.
+	func ensureConnected() {
+		guard groceriesModel != nil else { return } // start() hasn't been called yet
+		if !isConnected && reconnectTask == nil {
+			if Self.verbose { print("WebSocket: ensureConnected — not connected, reconnecting") }
+			connect()
+		}
+	}
+
 	func start(
 		with groceriesModel: GroceriesModel,
 		mealsModel: MealsModel,
@@ -185,13 +194,16 @@ final class SocketService: WebSocketDelegate {
 
 		case .error(let error):
 			Task { @MainActor in
+				isConnected = false
 				if Self.verbose { print("WebSocket error:", error ?? "unknown error") }
+				scheduleReconnect()
 			}
 
 		case .cancelled:
 			Task { @MainActor in
 				isConnected = false
 				if Self.verbose { print("WebSocket cancelled") }
+				scheduleReconnect()
 			}
 
 		case .peerClosed:

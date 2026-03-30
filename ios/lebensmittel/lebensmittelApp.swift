@@ -157,6 +157,7 @@ struct lebensmittelApp: App {
                             NotificationCenter.default.publisher(
                                 for: UIApplication.willEnterForegroundNotification)
                         ) { _ in
+                            SocketService.shared.ensureConnected()
                             refreshData()
                         }
                         .onReceive(
