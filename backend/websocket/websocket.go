@@ -74,7 +74,7 @@ func NewWebSocketManager() *WebSocketManager {
 	return &WebSocketManager{
 		clients:    make(map[*websocket.Conn]*Client),
 		groups:     make(map[string]map[*websocket.Conn]bool),
-		broadcast:  make(chan BroadcastMessage),
+		broadcast:  make(chan BroadcastMessage, 256),
 		register:   make(chan *Client),
 		unregister: make(chan *websocket.Conn),
 		subscribe:  make(chan Subscription),
