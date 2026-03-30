@@ -40,9 +40,10 @@ const (
 
 // Client represents a connected WebSocket client
 type Client struct {
-	Conn   *websocket.Conn
-	UserID string
-	Groups map[string]bool // Set of group IDs
+	Conn    *websocket.Conn
+	UserID  string
+	Groups  map[string]bool // Set of group IDs
+	writeMu sync.Mutex      // Serializes data-frame writes (broadcasts, welcome, echo)
 }
 
 // BroadcastMessage represents a message to be sent to clients
@@ -103,8 +104,10 @@ func (manager *WebSocketManager) Run() {
 				"data":  map[string]string{"message": "Connected to Lebensmittel backend"},
 			}
 			msgBytes, _ := json.Marshal(welcomeMsg)
+			client.writeMu.Lock()
 			client.Conn.SetWriteDeadline(time.Now().Add(writeWait))
 			client.Conn.WriteMessage(websocket.TextMessage, msgBytes)
+			client.writeMu.Unlock()
 
 		case sub := <-manager.subscribe:
 			manager.mutex.Lock()
@@ -157,18 +160,24 @@ func (manager *WebSocketManager) Run() {
 				}
 
 				for conn := range targetConns {
-					conn.SetWriteDeadline(time.Now().Add(writeWait))
-					err := conn.WriteMessage(websocket.TextMessage, message.Data)
-					if err != nil {
-						log.Printf("Error writing message: %v", err)
-						conn.Close()
+					if client, ok := manager.clients[conn]; ok {
+						client.writeMu.Lock()
+						conn.SetWriteDeadline(time.Now().Add(writeWait))
+						err := conn.WriteMessage(websocket.TextMessage, message.Data)
+						client.writeMu.Unlock()
+						if err != nil {
+							log.Printf("Error writing message: %v", err)
+							conn.Close()
+						}
 					}
 				}
 			} else {
 				// Broadcast to all (legacy behavior)
-				for conn := range manager.clients {
+				for conn, client := range manager.clients {
+					client.writeMu.Lock()
 					conn.SetWriteDeadline(time.Now().Add(writeWait))
 					err := conn.WriteMessage(websocket.TextMessage, message.Data)
+					client.writeMu.Unlock()
 					if err != nil {
 						log.Printf("Error writing message: %v", err)
 						conn.Close()
@@ -279,12 +288,13 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 	// Start ping ticker for keep-alive
 	ticker := time.NewTicker(pingPeriod)
 
-	// Handle outgoing pings
+	// Handle outgoing pings — WriteControl is safe for concurrent use
+	// with WriteMessage, unlike WriteMessage which would race with
+	// the broadcast writes in Run().
 	go func() {
 		defer ticker.Stop()
 		for range ticker.C {
-			conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
 				return
 			}
 		}
@@ -352,8 +362,10 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 									"data":  msg["data"],
 								}
 								echoBytes, _ := json.Marshal(echoMsg)
+								client.writeMu.Lock()
 								conn.SetWriteDeadline(time.Now().Add(writeWait))
 								conn.WriteMessage(websocket.TextMessage, echoBytes)
+								client.writeMu.Unlock()
 								log.Printf("Echoed message: %v", msg["data"])
 							}
 						default:
