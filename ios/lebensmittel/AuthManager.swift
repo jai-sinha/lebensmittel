@@ -277,7 +277,13 @@ actor AuthManager {
         if let tokens = try await storage.loadTokens(), !TokenUtils.isTokenExpired(tokens.accessToken) {
             return true
         }
-        return false
+        // Access token expired — try refreshing with the refresh token
+        do {
+            _ = try await refresh()
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Get current user
