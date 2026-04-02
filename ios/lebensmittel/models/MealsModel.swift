@@ -92,8 +92,6 @@ class MealsModel {
 				await MainActor.run {
 					self.fetchMealPlans()
 				}
-			} catch {
-				print("Create meal plan error: \(error)")
 			}
 		}
 	}
@@ -134,8 +132,6 @@ class MealsModel {
 
 
 	func deleteMealPlan(mealId: String) {
-		// Optimistically remove locally
-		self.removeMealPlan(withId: mealId)
 		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(mealId)") else {
 			return
 		}
