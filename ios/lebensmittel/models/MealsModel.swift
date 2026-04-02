@@ -83,7 +83,12 @@ class MealsModel {
 				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
 					print("Server returned status \(http.statusCode)")
+					await MainActor.run {
+						self.fetchMealPlans()
+					}
 				}
+			} catch {
+				print("Create meal plan error: \(error)")
 				await MainActor.run {
 					self.fetchMealPlans()
 				}
