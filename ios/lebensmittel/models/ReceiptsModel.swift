@@ -83,9 +83,6 @@ class ReceiptsModel {
 			notes: notes
 		)
 
-		// Optimistically update locally
-		updateReceipt(updatedReceipt)
-
 		var request = URLRequest(url: url)
 		request.httpMethod = "PATCH"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -130,9 +127,6 @@ class ReceiptsModel {
 			self.errorMessage = "Invalid URL"
 			return
 		}
-
-		// Optimistically remove locally
-		deleteReceipt(withId: receiptId)
 
 		var request = URLRequest(url: url)
 		request.httpMethod = "DELETE"
