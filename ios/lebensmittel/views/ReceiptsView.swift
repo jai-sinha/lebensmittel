@@ -25,7 +25,20 @@ struct ReceiptsView: View {
 		NavigationStack {
 			VStack {
 				if let errorMessage = model.errorMessage {
-					Text("Error: \(errorMessage)").foregroundStyle(.red)
+						ScrollView {
+							VStack(spacing: 12) {
+								Text("Error: \(errorMessage)")
+									.foregroundStyle(.red)
+								Text("Pull down to retry")
+									.font(.caption)
+									.foregroundStyle(.secondary)
+							}
+							.frame(maxWidth: .infinity)
+							.padding(.top, 100)
+						}
+						.refreshable {
+							model.fetchReceipts()
+						}
                 } else if !authManager.isAuthenticated {
 					GuestSignInPrompt(message: "Sign in and join a household group to create receipts and track spending.")
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -53,6 +66,9 @@ struct ReceiptsView: View {
 								editError: $editError
 							)
 						}
+					}
+					.refreshable {
+						model.fetchReceipts()
 					}
 				}
 			}

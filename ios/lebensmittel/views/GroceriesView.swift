@@ -18,7 +18,21 @@ struct GroceriesView: View {
 				if model.isLoading {
 					ProgressView("Loading groceries...").background(Color(.systemBackground))
 				} else if let errorMessage = model.errorMessage {
-					Text("Error: \(errorMessage)").foregroundStyle(.red).background(Color(.systemBackground))
+					ScrollView {
+						VStack(spacing: 12) {
+							Text("Error: \(errorMessage)")
+								.foregroundStyle(.red)
+							Text("Pull down to retry")
+								.font(.caption)
+								.foregroundStyle(.secondary)
+						}
+						.frame(maxWidth: .infinity)
+						.padding(.top, 100)
+					}
+					.refreshable {
+						model.fetchGroceries()
+					}
+					.background(Color(.systemBackground))
 				} else {
 					if !authManager.isAuthenticated {
 							GuestSignInPrompt(message: "Sign in and join a household group to manage your shared grocery list.")

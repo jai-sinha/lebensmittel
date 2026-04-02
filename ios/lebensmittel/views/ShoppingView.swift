@@ -31,10 +31,27 @@ struct ShoppingView: View {
 					if model.isLoading {
 					ProgressView("Loading shopping list...")
 				} else if let errorMessage = model.errorMessage {
-					Text("Error: \(errorMessage)").foregroundStyle(.red)
+					ScrollView {
+						VStack(spacing: 12) {
+							Text("Error: \(errorMessage)")
+								.foregroundStyle(.red)
+							Text("Pull down to retry")
+								.font(.caption)
+								.foregroundStyle(.secondary)
+						}
+						.frame(maxWidth: .infinity)
+						.padding(.top, 100)
+					}
+					.refreshable {
+						model.errorMessage = nil
+						model.fetchGroceries()
+					}
 				} else {
 					List {
 						listContent
+					}
+					.refreshable {
+						model.fetchGroceries()
 					}
 				}
 				Spacer()
