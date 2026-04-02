@@ -84,6 +84,7 @@ struct MealsView: View {
 							}
 							.padding(.horizontal)
 						}
+						.refreshable { model.fetchMealPlans() }
 						.onAppear {
 							proxy.scrollTo("today", anchor: .top)
 						}
