@@ -19,7 +19,6 @@ import (
 
 func main() {
 
-	// Initialize database
 	if err := database.InitDB(); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
@@ -36,68 +35,17 @@ func main() {
 		}
 	}()
 
-	// Initialize WebSocket manager
 	websocket.InitWebSocketManager()
 
-	// Create Gin router
-	r := gin.Default()
 	gin.SetMode(gin.ReleaseMode)
+	r := gin.Default()
 
-	// Configure CORS
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
 	config.AllowMethods = []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	r.Use(cors.New(config))
 
-	// API routes list for documentation
-	apiRoutes := []map[string]any{
-		{"route": "/", "methods": []string{"GET"}, "description": "Home route (API info)"},
-		{"route": "/health", "methods": []string{"GET"}, "description": "Health check"},
-		{"route": "/ws", "methods": []string{"GET"}, "description": "WebSocket connection"},
-		{"route": "/api/grocery-items", "methods": []string{"GET"}, "description": "Get all grocery items"},
-		{"route": "/api/grocery-items", "methods": []string{"POST"}, "description": "Create a grocery item"},
-		{"route": "/api/grocery-items/:item_id", "methods": []string{"PATCH"}, "description": "Update a grocery item"},
-		{"route": "/api/grocery-items/:item_id", "methods": []string{"DELETE"}, "description": "Delete a grocery item"},
-		{"route": "/api/meal-plans", "methods": []string{"GET"}, "description": "Get all meal plans"},
-		{"route": "/api/meal-plans", "methods": []string{"POST"}, "description": "Create a meal plan"},
-		{"route": "/api/meal-plans/:meal_id", "methods": []string{"PATCH"}, "description": "Update a meal plan"},
-		{"route": "/api/meal-plans/:meal_id", "methods": []string{"DELETE"}, "description": "Delete a meal plan"},
-		{"route": "/api/receipts", "methods": []string{"GET"}, "description": "Get all receipts"},
-		{"route": "/api/receipts", "methods": []string{"POST"}, "description": "Create a receipt"},
-		{"route": "/api/receipts/:receipt_id", "methods": []string{"PATCH"}, "description": "Update a receipt"},
-		{"route": "/api/receipts/:receipt_id", "methods": []string{"DELETE"}, "description": "Delete a receipt"},
-		{"route": "/api/register", "methods": []string{"POST"}, "description": "Register a new user"},
-		{"route": "/api/login", "methods": []string{"POST"}, "description": "Login"},
-		{"route": "/api/refresh", "methods": []string{"POST"}, "description": "Refresh access token"},
-		{"route": "/api/users", "methods": []string{"POST"}, "description": "Create a user"},
-		{"route": "/api/users/:username", "methods": []string{"GET"}, "description": "Get a user"},
-		{"route": "/api/users/:user_id", "methods": []string{"PATCH"}, "description": "Update a user"},
-		{"route": "/api/users/:user_id", "methods": []string{"DELETE"}, "description": "Delete a user"},
-		{"route": "/api/groups", "methods": []string{"POST"}, "description": "Create a group"},
-		{"route": "/api/groups/:group_id", "methods": []string{"GET"}, "description": "Get a group"},
-		{"route": "/api/groups/:group_id", "methods": []string{"PATCH"}, "description": "Update a group"},
-		{"route": "/api/groups/:group_id", "methods": []string{"DELETE"}, "description": "Delete a group"},
-		{"route": "/api/groups/:group_id/users", "methods": []string{"POST"}, "description": "Add user to group"},
-		{"route": "/api/groups/:group_id/users", "methods": []string{"GET"}, "description": "Get users in group"},
-		{"route": "/api/users/me/groups", "methods": []string{"GET"}, "description": "Get current user groups"},
-		{"route": "/api/users/me/active-group", "methods": []string{"GET"}, "description": "Get current active group ID"},
-		{"route": "/api/groups/:group_id/users/:user_id", "methods": []string{"DELETE"}, "description": "Remove user from group"},
-		{"route": "/api/groups/:group_id/invite", "methods": []string{"POST"}, "description": "Generate join code for group"},
-		{"route": "/api/groups/join", "methods": []string{"POST"}, "description": "Join group using code"},
-	}
-
-	// Home route
-	r.GET("/routes", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message":   "Welcome to the Lebensmittel Backend API",
-			"status":    "success",
-			"version":   "2.0.0",
-			"apiRoutes": apiRoutes,
-		})
-	})
-
-	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "healthy",
@@ -120,25 +68,21 @@ func main() {
 	protected := api.Group("/")
 	protected.Use(middleware.AuthMiddleware())
 
-	// Grocery Items routes
 	protected.GET("/grocery-items", handlers.GetGroceryItems)
 	protected.POST("/grocery-items", handlers.CreateGroceryItem)
 	protected.PATCH("/grocery-items/:item_id", handlers.UpdateGroceryItem)
 	protected.DELETE("/grocery-items/:item_id", handlers.DeleteGroceryItem)
 
-	// Meal Plans routes
 	protected.GET("/meal-plans", handlers.GetMealPlans)
 	protected.POST("/meal-plans", handlers.CreateMealPlan)
 	protected.PATCH("/meal-plans/:meal_id", handlers.UpdateMealPlan)
 	protected.DELETE("/meal-plans/:meal_id", handlers.DeleteMealPlan)
 
-	// Receipts routes
 	protected.GET("/receipts", handlers.GetReceipts)
 	protected.POST("/receipts", handlers.CreateReceipt)
 	protected.PATCH("/receipts/:receipt_id", handlers.UpdateReceipt)
 	protected.DELETE("/receipts/:receipt_id", handlers.DeleteReceipt)
 
-	// Users routes
 	protected.POST("/users", handlers.CreateUser)
 	protected.GET("/users/:username", handlers.GetUser)
 	protected.PATCH("/users/:user_id", handlers.UpdateUser)
@@ -146,7 +90,6 @@ func main() {
 	protected.GET("/users/me/groups", handlers.GetUserGroups)
 	protected.GET("/users/me/active-group", handlers.GetActiveGroup)
 
-	// Groups routes
 	protected.POST("/groups", handlers.CreateGroup)
 	protected.GET("/groups/:group_id", handlers.GetGroup)
 	protected.PATCH("/groups/:group_id", handlers.UpdateGroup)
@@ -157,7 +100,6 @@ func main() {
 	protected.POST("/groups/:group_id/invite", handlers.GenerateJoinCode)
 	protected.POST("/groups/join", handlers.JoinGroupWithCode)
 
-	// Get port from environment or default to 8000
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8000"
