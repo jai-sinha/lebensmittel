@@ -9,12 +9,9 @@ import Foundation
 
 @Observable
 class MealsModel {
-	var baseDate: Date
 	var mealPlans: [String: MealPlan] = [:]  // Keyed by date string
 
-	init(baseDate: Date = Calendar.current.startOfDay(for: Date())) {
-		self.baseDate = baseDate
-	}
+	init() {}
 
 	func getMealPlan(for dateString: String) -> String {
 		return mealPlans[dateString]?.mealDescription ?? ""
@@ -155,7 +152,10 @@ class MealsModel {
 		}
 	}
 
-	static func utcDateString(for date: Date) -> String {
+	/// Returns a "yyyy-MM-dd" string representing the user's local calendar date for the given Date.
+	/// Intentionally uses the device's current timezone — NOT UTC — so that "Oct 20" in the UI
+	/// always maps to the string "2025-10-20" regardless of what timezone the user is in.
+	static func calendarDateString(for date: Date) -> String {
 		let formatter = DateFormatter()
 		formatter.dateFormat = "yyyy-MM-dd"
 		formatter.timeZone = TimeZone.current
