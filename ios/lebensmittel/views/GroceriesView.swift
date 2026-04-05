@@ -35,32 +35,44 @@ struct GroceriesView: View {
 					.background(Color(.systemBackground))
 				} else {
 					if !authManager.isAuthenticated {
-							GuestSignInPrompt(message: "Sign in and join a household group to manage your shared grocery list.")
-								.frame(maxWidth: .infinity, maxHeight: .infinity)
-								.background(Color(.systemBackground))
-						} else if authManager.currentUserGroups.isEmpty {
-							Text("Please create or join a group to start adding groceries.")
-								.foregroundStyle(.secondary)
-								.frame(maxWidth: .infinity, maxHeight: .infinity)
-								.background(Color(.systemBackground))
+						GuestSignInPrompt(message: "Sign in and join a household group to manage your shared grocery list.")
+							.frame(maxWidth: .infinity, maxHeight: .infinity)
+							.background(Color(.systemBackground))
+					} else if authManager.currentUserGroups.isEmpty {
+						Text("Please create or join a group to start adding groceries.")
+							.foregroundStyle(.secondary)
+							.frame(maxWidth: .infinity, maxHeight: .infinity)
+							.background(Color(.systemBackground))
 					} else {
-						HStack(spacing: 0) {
-                        	if model.groceryItems.isEmpty {
-                            	Text("No groceries yet. Add one below to get started!")
-                                	.foregroundStyle(.secondary)
-                                	.background(Color(.systemBackground))
-                                	.frame(maxWidth: .infinity, maxHeight: .infinity)
-                        	} else {
-                            	EssentialsPane()
-                            	Divider()
-                                	.frame(width: 1)
-                                	.background(Color(.separator))
-                                	.padding(.vertical)
-                            	CategoriesListPane()
-                        	}
+						VStack(spacing: 0) {
+							// Sticky category pills row
+							ScrollView(.horizontal, showsIndicators: false) {
+								HStack(spacing: 8) {
+									ForEach(model.categories, id: \.self) { category in
+										CategoryPill(category: category)
+									}
+								}
+								.padding(.horizontal, 16)
+								.padding(.vertical, 10)
+							}
+							.mask(
+								LinearGradient(
+									stops: [
+										.init(color: .clear, location: 0),
+										.init(color: .black, location: 0.06),
+										.init(color: .black, location: 0.94),
+										.init(color: .clear, location: 1),
+									],
+									startPoint: .leading,
+									endPoint: .trailing
+								)
+							)
+
+							Divider()
+
+							// 2-col item grid
+							GroceriesGridView()
 						}
-						.padding(.horizontal, 12)
-						.padding(.bottom, 6)
 						.background(
 							colorScheme == .dark
 								? Color(.secondarySystemBackground) : Color(.systemBackground)
@@ -68,6 +80,7 @@ struct GroceriesView: View {
 						.clipShape(.rect(cornerRadius: 12))
 						.shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
 						.padding(.horizontal, 12)
+
 						// Show search results above the search bar
 						SearchResultsDropdown()
 						AddItemSection()
@@ -96,172 +109,161 @@ struct GroceriesView: View {
 	}
 }
 
-struct EssentialsPane: View {
+// MARK: - Category Pills
+
+struct CategoryPill: View {
 	@Environment(GroceriesModel.self) var model
-	@Environment(\.colorScheme) var colorScheme
-
-	var body: some View {
-		List {
-			Section(
-				header:
-					Text("Essentials")
-					.font(.headline)
-					.foregroundStyle(.primary)
-					.listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 12))
-			) {
-				if !model.essentialsItems.isEmpty {
-					ForEach(
-						model.essentialsItems.sorted {
-							$0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-						}
-					) { item in
-						GroceryItemRow(item: item)
-							.listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 12))
-							.listRowSeparator(.hidden)
-							.listRowSpacing(0)
-							.listRowBackground(
-								colorScheme == .dark
-									? Color(.secondarySystemBackground) : Color(.systemBackground)
-							)
-							.swipeActions(edge: .trailing, allowsFullSwipe: true) {
-								Button(role: .destructive) {
-									model.deleteGroceryItem(item: item)
-								} label: {
-									Image(systemName: "trash")
-										.imageScale(.small)
-								}
-							}
-					}
-				} else {
-					Text("No Essentials")
-						.foregroundStyle(.secondary)
-						.listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 12))
-						.listRowSeparator(.hidden)
-						.listRowBackground(
-							colorScheme == .dark
-								? Color(.secondarySystemBackground) : Color(.systemBackground))
-				}
-			}
-		}
-		.listStyle(PlainListStyle())
-		.listRowSpacing(0)
-		.listSectionSpacing(0)
-		.environment(\.defaultMinListRowHeight, 28)
-		.frame(maxWidth: .infinity, maxHeight: .infinity)
-		.padding(.top, -10)
-		.scrollContentBackground(.hidden)
-		.background(
-			colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
-	}
-}
-
-struct CategoriesListPane: View {
-	@Environment(GroceriesModel.self) var model
-	@Environment(\.colorScheme) var colorScheme
-
-	var body: some View {
-		List {
-			ForEach(model.otherCategories, id: \.self) { category in
-				CategoryListSection(category: category)
-			}
-		}
-		.listStyle(PlainListStyle())
-		.listRowSpacing(0)
-		.listSectionSpacing(0)
-		.environment(\.defaultMinListRowHeight, 28)
-		.frame(maxWidth: .infinity, maxHeight: .infinity)
-		.padding(.top, -16)
-		.scrollContentBackground(.hidden)
-		.background(
-			colorScheme == .dark ? Color(.secondarySystemBackground) : Color(.systemBackground))
-	}
-}
-
-struct CategoryListSection: View {
-	@Environment(GroceriesModel.self) var model
-	@Environment(\.colorScheme) var colorScheme
 	let category: String
 
+	private var isSelected: Bool { model.selectedCategory == category }
+
 	var body: some View {
-		Section(
-			header:
-				Button {
-					if model.expandedCategories.contains(category) {
-						model.expandedCategories.remove(category)
-					} else {
-						model.expandedCategories.insert(category)
-					}
-				} label: {
-					HStack {
-						Text(category)
-							.font(.headline)
-							.foregroundStyle(.primary)
-						Spacer()
-						Image(
-							systemName: model.expandedCategories.contains(category)
-								? "chevron.down" : "chevron.right"
-						)
-						.font(.caption)
-						.foregroundStyle(.secondary)
-					}
-				}
-				.buttonStyle(PlainButtonStyle())
-				.listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-		) {
-			if model.expandedCategories.contains(category),
-				let items = model.itemsByCategory[category], !items.isEmpty
-			{
-				ForEach(
-					items.sorted {
-						$0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-					}
-				) { item in
-					GroceryItemRow(item: item)
-						.listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-						.listRowSeparator(.hidden)
-						.listRowSpacing(0)
-						.listRowBackground(
-							colorScheme == .dark
-								? Color(.secondarySystemBackground) : Color(.systemBackground)
-						)
-						.swipeActions(edge: .trailing, allowsFullSwipe: true) {
-							Button(role: .destructive) {
-								model.deleteGroceryItem(item: item)
-							} label: {
-								Image(systemName: "trash")
-									.imageScale(.small)
-							}
-						}
-				}
-			}
+		Button {
+			model.selectedCategory = category
+		} label: {
+			Text(category)
+				.font(.subheadline)
+				.fontWeight(isSelected ? .semibold : .regular)
+				.padding(.horizontal, 16)
+				.padding(.vertical, 8)
+				.background(
+					Capsule()
+						.fill(isSelected ? Color.accentColor : Color(.secondarySystemFill))
+				)
+				.foregroundStyle(isSelected ? .white : .primary)
 		}
+		.buttonStyle(PlainButtonStyle())
+		.animation(.easeInOut(duration: 0.15), value: isSelected)
 	}
 }
 
-struct GroceryItemRow: View {
+// MARK: - Items Grid
+
+struct GroceriesGridView: View {
 	@Environment(GroceriesModel.self) var model
+
+	private let columns = [
+		GridItem(.flexible(), spacing: 12),
+		GridItem(.flexible(), spacing: 12),
+	]
+
+	private var items: [GroceryItem] {
+		(model.itemsByCategory[model.selectedCategory] ?? [])
+			.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+	}
+
+	var body: some View {
+		ScrollView {
+			if items.isEmpty {
+				VStack(spacing: 10) {
+					Image(systemName: "cart")
+						.font(.system(size: 36))
+						.foregroundStyle(.quaternary)
+					Text("No items in \(model.selectedCategory)")
+						.font(.subheadline)
+						.foregroundStyle(.secondary)
+				}
+				.frame(maxWidth: .infinity)
+				.padding(.top, 60)
+			} else {
+				LazyVGrid(columns: columns, spacing: 12) {
+					ForEach(items) { item in
+						GroceryItemCard(item: item)
+					}
+				}
+				.padding(12)
+			}
+		}
+		// Reset scroll position when the category changes
+		.id(model.selectedCategory)
+	}
+}
+
+// MARK: - Item Card
+
+struct GroceryItemCard: View {
+	@Environment(GroceriesModel.self) var model
+	@Environment(\.colorScheme) var colorScheme
 	let item: GroceryItem
 
+	@State private var offset: CGFloat = 0
+
+	private let deleteThreshold: CGFloat = -80
+
 	var body: some View {
-		HStack {
-			Button {
-				model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
-			} label: {
-				Label(
-					item.isNeeded ? "Mark as not needed" : "Mark as needed",
-					systemImage: item.isNeeded ? "checkmark.square" : "square"
-				)
-				.labelStyle(.iconOnly)
-				.foregroundStyle(item.isNeeded ? Color.green : Color.primary)
-			}
-			.buttonStyle(PlainButtonStyle())
+		HStack(spacing: 8) {
 			Text(item.name)
-				.foregroundStyle(item.isNeeded ? Color.green : Color.primary)
-			Spacer()
+				.font(.subheadline)
+				.fontWeight(.medium)
+				.foregroundStyle(item.isNeeded ? .green : .primary)
+				.lineLimit(2)
+				.multilineTextAlignment(.leading)
+				.frame(maxWidth: .infinity, alignment: .leading)
+			Image(systemName: item.isNeeded ? "checkmark.circle.fill" : "circle")
+				.font(.title3)
+				.foregroundStyle(item.isNeeded ? .green : Color(.tertiaryLabel))
 		}
-		.padding(.vertical, 2)
+		.padding(12)
+		.frame(maxWidth: .infinity)
+		.background(
+			RoundedRectangle(cornerRadius: 12)
+				.fill(
+					colorScheme == .dark
+						? Color(.tertiarySystemBackground)
+						: Color(.systemBackground)
+				)
+		)
+		.overlay(
+			RoundedRectangle(cornerRadius: 12)
+				.stroke(
+					item.isNeeded
+						? Color.green.opacity(0.35)
+						: Color(.separator).opacity(0.4),
+					lineWidth: 1
+				)
+		)
+		.contentShape(Rectangle())
+		.onTapGesture {
+			model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
+		}
+		.offset(x: offset)
+		.animation(.interactiveSpring(), value: offset)
+		.simultaneousGesture(
+			DragGesture(minimumDistance: 10, coordinateSpace: .local)
+				.onChanged { value in
+					offset = min(0, value.translation.width)
+				}
+				.onEnded { value in
+					if offset < deleteThreshold {
+						withAnimation(.easeOut(duration: 0.2)) {
+							offset = -300
+						}
+						Task { @MainActor in
+							try? await Task.sleep(for: .seconds(0.2))
+							model.deleteGroceryItem(item: item)
+						}
+					} else {
+						withAnimation(.spring()) {
+							offset = 0
+						}
+					}
+				}
+		)
+		.background(alignment: .trailing) {
+			RoundedRectangle(cornerRadius: 12)
+				.fill(Color.red.opacity(min(1, abs(offset) / abs(deleteThreshold))))
+				.overlay(alignment: .trailing) {
+					Image(systemName: "trash")
+						.foregroundStyle(.white)
+						.font(.body.weight(.semibold))
+						.padding(.trailing, 16)
+						.opacity(min(1, abs(offset) / abs(deleteThreshold)))
+				}
+		}
 	}
 }
+
+// MARK: - Search Results Dropdown
 
 struct SearchResultsDropdown: View {
 	@Environment(GroceriesModel.self) var model
@@ -306,6 +308,8 @@ struct SearchResultsDropdown: View {
 	}
 }
 
+// MARK: - Add Item Section (untouched)
+
 struct AddItemSection: View {
 	@Environment(GroceriesModel.self) var model
 
@@ -319,8 +323,8 @@ struct AddItemSection: View {
 				Picker(
 					"Category",
 					selection: Binding(
-						get: { model.selectedCategory },
-						set: { model.selectedCategory = $0 }
+						get: { model.searchCategory },
+						set: { model.searchCategory = $0 }
 					)
 				) {
 					ForEach(model.categories, id: \.self) { category in

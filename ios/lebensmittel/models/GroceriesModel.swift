@@ -13,7 +13,8 @@ class GroceriesModel {
 	var isLoading = false
 	var errorMessage: String? = nil
 	var newItemName: String = ""
-	var selectedCategory: String = "Other"
+	var searchCategory: String = "Other"
+	var selectedCategory: String = "Essentials"
 	var expandedCategories: Set<String> = []
 	var isSearching: Bool = false
 
@@ -66,8 +67,8 @@ class GroceriesModel {
 					updateGroceryItem(item: existingItem, field: GroceryItemField.isNeeded(true))
 				}
 			} else {
-				createGroceryItem(name: trimmedName, category: selectedCategory)
-				expandedCategories.insert(selectedCategory)
+				createGroceryItem(name: trimmedName, category: searchCategory)
+				expandedCategories.insert(searchCategory)
 			}
 			newItemName = ""
 			isSearching = false
@@ -75,9 +76,7 @@ class GroceriesModel {
 	}
 
 	func selectExistingItem(_ item: GroceryItem) {
-		if !item.isNeeded {
-			updateGroceryItem(item: item, field: GroceryItemField.isNeeded(true))
-		}
+		updateGroceryItem(item: item, field: GroceryItemField.isNeeded(!item.isNeeded))
 		newItemName = ""
 		isSearching = false
 	}
@@ -132,11 +131,9 @@ class GroceriesModel {
 	}
 
 	func createGroceryItem(name: String, category: String) {
-		isLoading = true
 		errorMessage = nil
 		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items") else {
 			errorMessage = "Invalid URL"
-			isLoading = false
 			return
 		}
 
@@ -154,18 +151,11 @@ class GroceriesModel {
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
 					await MainActor.run {
 						self.errorMessage = "Server returned status \(http.statusCode)"
-						self.isLoading = false
-					}
-				} else {
-					await MainActor.run {
-						self.isLoading = false
-						// WebSocket will handle updating the UI via grocery_item_created event
 					}
 				}
 			} catch {
 				await MainActor.run {
 					self.errorMessage = error.localizedDescription
-					self.isLoading = false
 				}
 			}
 		}
