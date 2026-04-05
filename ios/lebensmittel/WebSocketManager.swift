@@ -62,7 +62,6 @@ struct AnyCodable: Codable {
 	}
 }
 
-// Simple singleton WebSocket manager
 @MainActor
 final class SocketService: WebSocketDelegate {
 	static let shared = SocketService()
@@ -75,8 +74,6 @@ final class SocketService: WebSocketDelegate {
 	private var reconnectTask: Task<Void, Never>?
 	private let reconnectDelay: TimeInterval = 3.0
 
-	// Models are required — they will be set when `start(...)` is called.
-	// Use implicitly unwrapped types so they behave as non-optional after start is called.
 	public private(set) var groceriesModel: GroceriesModel!
 	public private(set) var shoppingModel: ShoppingModel!
 	public private(set) var mealsModel: MealsModel!
@@ -84,22 +81,12 @@ final class SocketService: WebSocketDelegate {
 
 	private init() {}
 
-	/// Call from willEnterForeground to guarantee the socket is alive.
-	func ensureConnected() {
-		guard groceriesModel != nil else { return } // start() hasn't been called yet
-		if !isConnected && reconnectTask == nil {
-			if Self.verbose { print("WebSocket: ensureConnected — not connected, reconnecting") }
-			connect()
-		}
-	}
-
 	func start(
 		with groceriesModel: GroceriesModel,
 		mealsModel: MealsModel,
 		receiptsModel: ReceiptsModel,
 		shoppingModel: ShoppingModel
 	) {
-		// Store required models
 		self.groceriesModel = groceriesModel
 		self.mealsModel = mealsModel
 		self.receiptsModel = receiptsModel
@@ -111,22 +98,25 @@ final class SocketService: WebSocketDelegate {
 		connect()
 	}
 
+	/// Call from willEnterForeground to guarantee the socket is alive.
+	func ensureConnected() {
+		guard groceriesModel != nil, !isConnected else { return }
+		reconnectTask?.cancel()
+		reconnectTask = nil
+		connect()
+	}
+
 	private func connect() {
 		Task {
 			do {
 				let token = try await AuthManager.shared.accessToken()
 				let activeGroupId = try? await AuthManager.shared.getActiveGroupId()
 
-				// Build WebSocket URL with auth
 				var urlComponents = URLComponents(string: "wss://ls.jsinha.com/ws")!
-				var queryItems = [
-					URLQueryItem(name: "token", value: token)
-				]
-
+				var queryItems = [URLQueryItem(name: "token", value: token)]
 				if let activeGroupId {
 					queryItems.append(URLQueryItem(name: "groups", value: activeGroupId))
 				}
-
 				urlComponents.queryItems = queryItems
 
 				guard let wsURL = urlComponents.url else { return }
@@ -135,11 +125,20 @@ final class SocketService: WebSocketDelegate {
 				request.timeoutInterval = 5
 				request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-				socket = WebSocket(request: request)
-				socket?.delegate = self
-				socket?.connect()
+				// Nil the old delegate before releasing the socket.
+				// Without this, its dealloc-triggered .cancelled fires back into
+				// didReceive, setting isConnected = false and kicking off another
+				// reconnect — creating a churn loop that compounds over time.
+				socket?.delegate = nil
+				socket?.disconnect()
+				socket = nil
 
-				if Self.verbose { print("WebSocket: Attempting to connect...") }
+				let ws = WebSocket(request: request)
+				ws.delegate = self
+				socket = ws
+				ws.connect()
+
+				if Self.verbose { print("WebSocket: Connecting...") }
 			} catch {
 				if Self.verbose { print("WebSocket: Failed to get auth token: \(error)") }
 				scheduleReconnect()
@@ -150,6 +149,7 @@ final class SocketService: WebSocketDelegate {
 	func disconnect() {
 		reconnectTask?.cancel()
 		reconnectTask = nil
+		socket?.delegate = nil
 		socket?.disconnect()
 		socket = nil
 		isConnected = false
@@ -161,7 +161,7 @@ final class SocketService: WebSocketDelegate {
 		connect()
 	}
 
-	// MARK: - WebSocketDelegate Methods
+	// MARK: - WebSocketDelegate
 
 	nonisolated func didReceive(event: WebSocketEvent, client: WebSocketClient) {
 		switch event {
@@ -215,6 +215,19 @@ final class SocketService: WebSocketDelegate {
 
 		default:
 			break
+		}
+	}
+
+	// MARK: - Reconnect
+
+	private func scheduleReconnect() {
+		guard reconnectTask == nil else { return }
+		if Self.verbose { print("WebSocket: reconnecting in \(reconnectDelay)s...") }
+		reconnectTask = Task {
+			try? await Task.sleep(nanoseconds: UInt64(reconnectDelay * 1_000_000_000))
+			guard !Task.isCancelled else { return }
+			reconnectTask = nil
+			connect()
 		}
 	}
 
@@ -298,10 +311,10 @@ final class SocketService: WebSocketDelegate {
 	}
 
 	private func decode<T: Decodable>(
-		_ payload: Any, as type: T.Type, _ completion: @escaping (T) -> Void
+		_ payload: Any, as type: T.Type, _ completion: (T) -> Void
 	) {
 		do {
-			let jsonData = try JSONSerialization.data(withJSONObject: payload, options: [])
+			let jsonData = try JSONSerialization.data(withJSONObject: payload)
 			let obj = try JSONDecoder().decode(T.self, from: jsonData)
 			completion(obj)
 		} catch {
@@ -309,37 +322,16 @@ final class SocketService: WebSocketDelegate {
 		}
 	}
 
-	// MARK: - Reconnection Logic
-
-	private func scheduleReconnect() {
-		guard reconnectTask == nil else { return }
-
-		if Self.verbose { print("WebSocket: Scheduling reconnect in \(reconnectDelay) seconds...") }
-
-		reconnectTask = Task {
-			try? await Task.sleep(nanoseconds: UInt64(reconnectDelay * 1_000_000_000))
-			if !Task.isCancelled {
-				self.reconnectTask = nil
-				self.connect()
-			}
-		}
-	}
-
-	// MARK: - Send Messages
+	// MARK: - Send
 
 	func send(event: String, data: [String: Any]) {
 		guard isConnected else {
 			if Self.verbose { print("WebSocket: Cannot send, not connected") }
 			return
 		}
-
-		let message: [String: Any] = [
-			"event": event,
-			"data": data,
-		]
-
+		let message: [String: Any] = ["event": event, "data": data]
 		do {
-			let jsonData = try JSONSerialization.data(withJSONObject: message, options: [])
+			let jsonData = try JSONSerialization.data(withJSONObject: message)
 			if let jsonString = String(data: jsonData, encoding: .utf8) {
 				socket?.write(string: jsonString)
 				if Self.verbose { print("WebSocket sent:", event) }
