@@ -156,11 +156,10 @@ struct MealRowView: View {
 			.foregroundStyle(.primary)
 			.submitLabel(.done)
 			.focused($isFocused)
-			.onSubmit {
-				handleSubmit()
-			}
 			.onChange(of: isFocused) {
-				handleSubmit()
+				if !isFocused {
+					handleSubmit()
+				}
 			}
 		}
 		.padding(.vertical, 4)

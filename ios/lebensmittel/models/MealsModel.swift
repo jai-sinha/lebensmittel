@@ -97,13 +97,10 @@ class MealsModel {
 	}
 
 	func updateMealPlan(for dateString: String, meal: String) {
-		guard var existingPlan = mealPlans[dateString] else { return }
-		existingPlan.mealDescription = meal
-		mealPlans[dateString] = existingPlan
+		guard let existingPlan = mealPlans[dateString] else { return }
+		if existingPlan.mealDescription == meal { return } // No change, skip update
 
-		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(existingPlan.id)") else {
-			return
-		}
+		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(existingPlan.id)") else { return }
 		var request = URLRequest(url: url)
 		request.httpMethod = "PATCH"
 		let updatePayload = ["mealDescription": meal]
