@@ -14,14 +14,12 @@ struct MealsView: View {
 	@Environment(AuthStateManager.self) var authManager
 
 	private func date(for dayOffset: Int) -> Date {
-		Calendar.current.date(byAdding: .day, value: dayOffset, to: model.baseDate)
-			?? model.baseDate
+		let today = Calendar.current.startOfDay(for: Date())
+		return Calendar.current.date(byAdding: .day, value: dayOffset, to: today) ?? today
 	}
 
-	private func isToday(utcDate: Date) -> Bool {
-		let calendar = Calendar.current
-		let today = Date()
-		return calendar.isDate(utcDate, inSameDayAs: today)
+	private func isToday(_ date: Date) -> Bool {
+		Calendar.current.isDate(date, inSameDayAs: Date())
 	}
 
 	var body: some View {
@@ -46,7 +44,7 @@ struct MealsView: View {
 								// Past days (scrollable up)
 								ForEach(-7..<0, id: \.self) { dayOffset in
 									let rowDate = date(for: dayOffset)
-									let dateStr = MealsModel.utcDateString(for: rowDate)
+									let dateStr = MealsModel.calendarDateString(for: rowDate)
 									MealRowView(
 										date: rowDate,
 										text: Binding(
@@ -58,8 +56,8 @@ struct MealsView: View {
 								// Current day and next 6 days (the main 7-day view)
 								ForEach(0..<7, id: \.self) { dayOffset in
 									let rowDate = date(for: dayOffset)
-									let dateStr = MealsModel.utcDateString(for: rowDate)
-									let isThisToday = isToday(utcDate: rowDate)
+									let dateStr = MealsModel.calendarDateString(for: rowDate)
+									let isThisToday = isToday(rowDate)
 									MealRowView(
 										date: rowDate,
 										text: Binding(
@@ -72,7 +70,7 @@ struct MealsView: View {
 								// Future days (scrollable down)
 								ForEach(7..<10, id: \.self) { dayOffset in
 									let rowDate = date(for: dayOffset)
-									let dateStr = MealsModel.utcDateString(for: rowDate)
+									let dateStr = MealsModel.calendarDateString(for: rowDate)
 									MealRowView(
 										date: rowDate,
 										text: Binding(
@@ -119,7 +117,7 @@ struct MealRowView: View {
 	@FocusState private var isFocused: Bool
 
 	private var dateStr: String {
-		MealsModel.utcDateString(for: date)
+		MealsModel.calendarDateString(for: date)
 	}
 
 	private var isTodayDate: Bool {
