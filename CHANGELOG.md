@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.0] - 2026-04-06
+
+### Fixed
+- WebSocket connection delegate clearing
+- Meal plan date formatting
+
+### Changed
+- GroceriesView UI entirely, to look way better
+
+---
+
 ## [2.1.1] - 2026-04-03
 
 ### Added
