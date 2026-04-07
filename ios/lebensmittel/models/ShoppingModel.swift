@@ -65,32 +65,13 @@ class ShoppingModel {
 			purchasedBy: purchasedBy,
 			notes: notes
 		)
-		guard let url = URL(string: "https://ls.jsinha.com/api/receipts"),
-			let body = try? JSONEncoder().encode(payload)
-		else {
-			errorMessage = "Invalid URL or payload"
-			groceriesModel.isLoading = false
-			return
-		}
-		var request = URLRequest(url: url)
-		request.httpMethod = "POST"
-		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-		request.httpBody = body
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				let (_, response) = try await client.send(request)
-				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					await MainActor.run {
-						self.errorMessage = "Failed to create receipt"
-						self.groceriesModel.isLoading = false
-					}
-				} else {
-					// WebSocket should handle the update, fetching rn to be safe
-					self.fetchGroceries()
-				}
+				try await client.sendWithoutResponse(path: "/receipts", method: .POST, body: payload)
+				// WebSocket should handle the update, fetching rn to be safe
+				self.fetchGroceries()
 			} catch {
 				await MainActor.run {
 					self.errorMessage = error.localizedDescription

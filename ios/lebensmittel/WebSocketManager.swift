@@ -112,7 +112,7 @@ final class SocketService: WebSocketDelegate {
 				let token = try await AuthManager.shared.accessToken()
 				let activeGroupId = try? await AuthManager.shared.getActiveGroupId()
 
-				var urlComponents = URLComponents(string: "wss://ls.jsinha.com/ws")!
+				var urlComponents = URLComponents(url: AppConfig.webSocketURL, resolvingAgainstBaseURL: false)!
 				var queryItems = [URLQueryItem(name: "token", value: token)]
 				if let activeGroupId {
 					queryItems.append(URLQueryItem(name: "groups", value: activeGroupId))

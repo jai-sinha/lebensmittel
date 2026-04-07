@@ -102,20 +102,11 @@ class GroceriesModel {
 	func fetchGroceries() {
 		isLoading = true
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items") else {
-			errorMessage = "Invalid URL"
-			isLoading = false
-			return
-		}
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				var request = URLRequest(url: url)
-				request.httpMethod = "GET"
-				let (data, _) = try await client.send(request)
-				let response = try JSONDecoder().decode(GroceryItemsResponse.self, from: data)
+				let response: GroceryItemsResponse = try await client.send(path: "/grocery-items")
 
 				await MainActor.run {
 					self.groceryItems = response.groceryItems
@@ -132,27 +123,17 @@ class GroceriesModel {
 
 	func createGroceryItem(name: String, category: String) {
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items") else {
-			errorMessage = "Invalid URL"
-			return
-		}
 
 		let newItem = NewGroceryItem(name: name, category: category)
-		var request = URLRequest(url: url)
-		request.httpMethod = "POST"
-		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-		request.httpBody = try? JSONEncoder().encode(newItem)
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				let (_, response) = try await client.send(request)
-				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					await MainActor.run {
-						self.errorMessage = "Server returned status \(http.statusCode)"
-					}
-				}
+				try await client.sendWithoutResponse(
+					path: "/grocery-items",
+					method: .POST,
+					body: newItem
+				)
 			} catch {
 				await MainActor.run {
 					self.errorMessage = error.localizedDescription
@@ -169,12 +150,7 @@ class GroceriesModel {
 	// PATCH method to update either isNeeded or isShoppingChecked
 	func updateGroceryItem(item: GroceryItem, field: GroceryItemField) {
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items/\(item.id)") else {
-			errorMessage = "Invalid URL"
-			return
-		}
 
-		// Build payload for partial update
 		var updatePayload: [String: Bool] = [:]
 		switch field {
 		case .isNeeded(let value):
@@ -184,25 +160,15 @@ class GroceriesModel {
 			updatePayload["isShoppingChecked"] = value
 		}
 
-		guard let jsonBody = try? JSONSerialization.data(withJSONObject: updatePayload) else {
-			errorMessage = "Failed to encode update payload"
-			return
-		}
-		var request = URLRequest(url: url)
-		request.httpMethod = "PATCH"
-		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-		request.httpBody = jsonBody
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				let (_, response) = try await client.send(request)
-				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					await MainActor.run {
-						self.errorMessage = "Server returned status \(http.statusCode)"
-					}
-				}
+				try await client.sendWithoutResponse(
+					path: "/grocery-items/\(item.id)",
+					method: .PATCH,
+					body: updatePayload
+				)
 				// WebSocket will handle updating the UI via grocery_item_updated event
 			} catch {
 				await MainActor.run {
@@ -214,24 +180,15 @@ class GroceriesModel {
 
 	func deleteGroceryItem(item: GroceryItem) {
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/grocery-items/\(item.id)") else {
-			errorMessage = "Invalid URL"
-			return
-		}
 
-		var request = URLRequest(url: url)
-		request.httpMethod = "DELETE"
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				let (_, response) = try await client.send(request)
-				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					await MainActor.run {
-						self.errorMessage = "Server returned status \(http.statusCode)"
-					}
-				}
+				try await client.sendWithoutResponse(
+					path: "/grocery-items/\(item.id)",
+					method: .DELETE
+				)
 				// WebSocket will handle updating the UI via grocery_item_deleted event
 			} catch {
 				await MainActor.run {

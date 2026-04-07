@@ -44,16 +44,11 @@ class MealsModel {
 	// MARK: CRUD Operations
 
 	func fetchMealPlans() {
-		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans") else { return }
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				var request = URLRequest(url: url)
-				request.httpMethod = "GET"
-				let (data, _) = try await client.send(request)
-				let response = try JSONDecoder().decode(MealPlansResponse.self, from: data)
+				let response: MealPlansResponse = try await client.send(path: "/meal-plans")
 				await MainActor.run {
 					self.mealPlans.removeAll()
 					for mealPlan in response.mealPlans {
@@ -61,32 +56,20 @@ class MealsModel {
 					}
 				}
 			} catch {
-				self.errorMessage("Decoding error: \(error)")
+				print("Decoding error: \(error)")
 			}
 		}
 	}
 
 	func createMealPlan(for dateString: String, meal: String) {
-		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans") else { return }
-		var request = URLRequest(url: url)
-		request.httpMethod = "POST"
 		let newMealPlan = NewMealPlan(date: dateString, mealDescription: meal)
-		request.httpBody = try? JSONEncoder().encode(newMealPlan)
-		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				let (_, response) = try await client.send(request)
-				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					self.errorMessage("Server returned status \(http.statusCode)")
-					await MainActor.run {
-						self.fetchMealPlans()
-					}
-				}
+				try await client.sendVoid(path: "/meal-plans", method: .POST, body: newMealPlan)
 			} catch {
-				self.errorMessage("Create meal plan error: \(error)")
+				print("Create meal plan error: \(error)")
 				await MainActor.run {
 					self.fetchMealPlans()
 				}
@@ -98,26 +81,14 @@ class MealsModel {
 		guard let existingPlan = mealPlans[dateString] else { return }
 		if existingPlan.mealDescription == meal { return } // No change, skip update
 
-		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(existingPlan.id)") else { return }
-		var request = URLRequest(url: url)
-		request.httpMethod = "PATCH"
 		let updatePayload = ["mealDescription": meal]
-		request.httpBody = try? JSONSerialization.data(withJSONObject: updatePayload)
-		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				let (_, response) = try await client.send(request)
-				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					self.errorMessage("Server returned status \(http.statusCode)")
-					await MainActor.run {
-						self.fetchMealPlans()
-					}
-				}
+				try await client.sendVoid(path: "/meal-plans/\(existingPlan.id)", method: .PATCH, body: updatePayload)
 			} catch {
-				self.errorMessage("Update meal plan error: \(error)")
+				print("Update meal plan error: \(error)")
 				await MainActor.run {
 					self.fetchMealPlans()
 				}
@@ -127,25 +98,13 @@ class MealsModel {
 
 
 	func deleteMealPlan(mealId: String) {
-		guard let url = URL(string: "https://ls.jsinha.com/api/meal-plans/\(mealId)") else {
-			return
-		}
-		var request = URLRequest(url: url)
-		request.httpMethod = "DELETE"
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				let (_, response) = try await client.send(request)
-				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					self.errorMessage("Server returned status \(http.statusCode)")
-					await MainActor.run {
-						self.fetchMealPlans()
-					}
-				}
+				try await client.sendVoid(path: "/meal-plans/\(mealId)", method: .DELETE)
 			} catch {
-				self.errorMessage("Delete meal plan error: \(error)")
+				print("Delete meal plan error: \(error)")
 				await MainActor.run {
 					self.fetchMealPlans()
 				}
