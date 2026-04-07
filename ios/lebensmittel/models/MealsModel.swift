@@ -10,6 +10,7 @@ import Foundation
 @Observable
 class MealsModel {
 	var mealPlans: [String: MealPlan] = [:]  // Keyed by date string
+	var errorMessage: String? = nil
 
 	init() {}
 
@@ -60,7 +61,7 @@ class MealsModel {
 					}
 				}
 			} catch {
-				print("Decoding error: \(error)")
+				self.errorMessage("Decoding error: \(error)")
 			}
 		}
 	}
@@ -79,13 +80,13 @@ class MealsModel {
 			do {
 				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					print("Server returned status \(http.statusCode)")
+					self.errorMessage("Server returned status \(http.statusCode)")
 					await MainActor.run {
 						self.fetchMealPlans()
 					}
 				}
 			} catch {
-				print("Create meal plan error: \(error)")
+				self.errorMessage("Create meal plan error: \(error)")
 				await MainActor.run {
 					self.fetchMealPlans()
 				}
@@ -110,13 +111,13 @@ class MealsModel {
 			do {
 				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					print("Server returned status \(http.statusCode)")
+					self.errorMessage("Server returned status \(http.statusCode)")
 					await MainActor.run {
 						self.fetchMealPlans()
 					}
 				}
 			} catch {
-				print("Update meal plan error: \(error)")
+				self.errorMessage("Update meal plan error: \(error)")
 				await MainActor.run {
 					self.fetchMealPlans()
 				}
@@ -138,13 +139,13 @@ class MealsModel {
 			do {
 				let (_, response) = try await client.send(request)
 				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					print("Server returned status \(http.statusCode)")
+					self.errorMessage("Server returned status \(http.statusCode)")
 					await MainActor.run {
 						self.fetchMealPlans()
 					}
 				}
 			} catch {
-				print("Delete meal plan error: \(error)")
+				self.errorMessage("Delete meal plan error: \(error)")
 				await MainActor.run {
 					self.fetchMealPlans()
 				}
