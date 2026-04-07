@@ -40,20 +40,12 @@ class ReceiptsModel {
 	func fetchReceipts() {
 		isLoading = true
 		errorMessage = nil
-		guard let url = URL(string: "https://ls.jsinha.com/api/receipts") else {
-			errorMessage = "Invalid URL"
-			isLoading = false
-			return
-		}
 
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				var request = URLRequest(url: url)
-				request.httpMethod = "GET"
-				let (data, _) = try await client.send(request)
-				let response = try JSONDecoder().decode(ReceiptsResponse.self, from: data)
+				let response: ReceiptsResponse = try await client.send(path: "/receipts")
 				let sortedReceipts = response.receipts.sorted { $0.date < $1.date }
 				await MainActor.run {
 					self.receipts = sortedReceipts
@@ -69,11 +61,6 @@ class ReceiptsModel {
 	}
 
 	func updateReceipt(receipt: Receipt, price: Double, purchasedBy: String, notes: String) {
-		guard let url = URL(string: "https://ls.jsinha.com/api/receipts/\(receipt.id)") else {
-			self.errorMessage = "Invalid URL"
-			return
-		}
-
 		let updatedReceipt = Receipt(
 			id: receipt.id,
 			date: receipt.date,
@@ -83,35 +70,24 @@ class ReceiptsModel {
 			notes: notes
 		)
 
-		var request = URLRequest(url: url)
-		request.httpMethod = "PATCH"
-		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-		let updatePayload: [String: Any] = [
-			"totalAmount": price,
-			"purchasedBy": purchasedBy,
-			"notes": notes
-		]
-		do {
-			request.httpBody = try JSONSerialization.data(withJSONObject: updatePayload)
-		} catch {
-			self.errorMessage = "Failed to encode receipt"
-			return
-		}
+		let updatePayload = ReceiptUpdatePayload(
+			totalAmount: price,
+			purchasedBy: purchasedBy,
+			notes: notes
+		)
 
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				let (_, response) = try await client.send(request)
-				if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-					await MainActor.run {
-						if let idx = self.receipts.firstIndex(where: { $0.id == receipt.id }) {
-							self.receipts[idx] = updatedReceipt
-						}
-					}
-				} else {
-					await MainActor.run {
-						self.errorMessage = "Failed to update receipt"
+				try await client.sendWithoutResponse(
+					path: "/receipts/\(receipt.id)",
+					method: .PATCH,
+					body: updatePayload
+				)
+				await MainActor.run {
+					if let idx = self.receipts.firstIndex(where: { $0.id == receipt.id }) {
+						self.receipts[idx] = updatedReceipt
 					}
 				}
 			} catch {
@@ -123,25 +99,14 @@ class ReceiptsModel {
 	}
 
 	func deleteReceipt(receiptId: String) {
-		guard let url = URL(string: "https://ls.jsinha.com/api/receipts/\(receiptId)") else {
-			self.errorMessage = "Invalid URL"
-			return
-		}
-
-		var request = URLRequest(url: url)
-		request.httpMethod = "DELETE"
-
-		let client = NetworkClient()
+		let client = APIClient()
 
 		Task {
 			do {
-				let (_, response) = try await client.send(request)
-				if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-					await MainActor.run {
-						self.errorMessage = "Server returned status \(http.statusCode)"
-						self.fetchReceipts()
-					}
-				}
+				try await client.sendWithoutResponse(
+					path: "/receipts/\(receiptId)",
+					method: .DELETE
+				)
 			} catch {
 				await MainActor.run {
 					self.errorMessage = error.localizedDescription
@@ -197,4 +162,10 @@ class ReceiptsModel {
 				month: month, receipts: monthReceipts, userTotals: userTotals)
 		}
 	}
+}
+
+private struct ReceiptUpdatePayload: Encodable {
+	let totalAmount: Double
+	let purchasedBy: String
+	let notes: String?
 }
