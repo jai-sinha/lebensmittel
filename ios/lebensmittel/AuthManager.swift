@@ -7,40 +7,6 @@
 
 import Foundation
 
-enum APIError: LocalizedError {
-    case invalidURL
-    case invalidResponse
-    case unauthorized
-    case server(statusCode: Int, message: String?)
-    case transport(Error)
-    case encodingFailed
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "Invalid URL"
-        case .invalidResponse:
-            return "Invalid server response"
-        case .unauthorized:
-            return "Unauthorized"
-        case .server(let statusCode, let message):
-            return message ?? "Server returned status \(statusCode)"
-        case .transport(let error):
-            return error.localizedDescription
-        case .encodingFailed:
-            return "Failed to encode request body"
-        }
-    }
-}
-
-enum HTTPMethod: String {
-    case GET
-    case POST
-    case PATCH
-    case DELETE
-}
-
-
 // MARK: - Auth Storage (Actor)
 
 actor AuthStorage {
@@ -110,6 +76,46 @@ actor AuthStorage {
     }
 }
 
+// MARK: - Auth API
+
+struct AuthAPI {
+    private let client: APIClient
+
+    nonisolated init(client: APIClient) {
+        self.client = client
+    }
+
+    func register(_ request: RegisterRequest) async throws -> AuthResponse {
+        try await client.send(
+            path: "/register",
+            method: .POST,
+            body: request,
+            requiresAuth: false,
+            includeGroupHeader: false
+        )
+    }
+
+    func login(_ request: LoginRequest) async throws -> AuthResponse {
+        try await client.send(
+            path: "/login",
+            method: .POST,
+            body: request,
+            requiresAuth: false,
+            includeGroupHeader: false
+        )
+    }
+
+    func refresh(_ request: RefreshRequest) async throws -> AuthResponse {
+        try await client.send(
+            path: "/refresh",
+            method: .POST,
+            body: request,
+            requiresAuth: false,
+            includeGroupHeader: false
+        )
+    }
+}
+
 // MARK: - Auth Manager
 
 actor AuthManager {
@@ -145,19 +151,21 @@ actor AuthManager {
     private var refreshTask: Task<Tokens, Error>?
     private var activeGroupTask: Task<String, Error>?
 
+    private var apiClient: APIClient {
+        APIClient(authManager: self)
+    }
+
+    private var authAPI: AuthAPI {
+        AuthAPI(client: apiClient)
+    }
+
     // MARK: Public Methods
 
     func register(username: String, email: String, password: String, displayName: String) async throws -> (User, Tokens) {
         let request = RegisterRequest(username: username, password: password, displayName: displayName, email: email)
 
         do {
-            let authResponse: AuthResponse = try await APIClient(authManager: self).send(
-                path: "/register",
-                method: .POST,
-                body: request,
-                requiresAuth: false,
-                includeGroupHeader: false
-            )
+            let authResponse = try await authAPI.register(request)
             let tokens = Tokens(
                 accessToken: authResponse.accessToken,
                 refreshToken: authResponse.refreshToken,
@@ -184,13 +192,7 @@ actor AuthManager {
         let request = LoginRequest(username: username, password: password)
 
         do {
-            let authResponse: AuthResponse = try await APIClient(authManager: self).send(
-                path: "/login",
-                method: .POST,
-                body: request,
-                requiresAuth: false,
-                includeGroupHeader: false
-            )
+            let authResponse = try await authAPI.login(request)
             let tokens = Tokens(
                 accessToken: authResponse.accessToken,
                 refreshToken: authResponse.refreshToken,
@@ -241,13 +243,7 @@ actor AuthManager {
 
             let authResponse: AuthResponse
             do {
-                authResponse = try await APIClient(authManager: self).send(
-                    path: "/refresh",
-                    method: .POST,
-                    body: request,
-                    requiresAuth: false,
-                    includeGroupHeader: false
-                )
+                authResponse = try await authAPI.refresh(request)
             } catch {
                 // If refresh fails, clear tokens and force logout
                 try await self.storage.clearTokens()
@@ -289,23 +285,16 @@ actor AuthManager {
     /// Delete user account
     // Note: This will also invalidate tokens and log the user out
 	func deleteAccount() async throws {
-		let token = try await accessToken()
+		_ = try await accessToken()
 		guard let id = try await storage.loadUser()?.id else {
 			throw AuthError.invalidResponse
 		}
-		guard let url = URL(string: "\(baseURL)/users/\(id)") else {
-			throw AuthError.invalidResponse
-		}
 
-		var request = URLRequest(url: url)
-		request.httpMethod = "DELETE"
-		request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-		let (_, response) = try await URLSession.shared.data(for: request)
-
-		guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-			throw AuthError.invalidResponse
-		}
+		try await apiClient.sendWithoutResponse(
+			path: "/users/\(id)",
+			method: .DELETE,
+			includeGroupHeader: false
+		)
 
 		try await logout()
 	}
@@ -314,12 +303,12 @@ actor AuthManager {
 
     func getUserGroups() async throws -> [AuthGroup] {
         _ = try await accessToken()
-        return try await APIClient(authManager: self).send(path: "/users/me/groups")
+        return try await apiClient.send(path: "/users/me/groups")
     }
 
     func getUsersInGroup() async throws -> [GroupUser] {
 		let groupId = try await getActiveGroupId()
-		return try await APIClient(authManager: self).send(path: "/groups/\(groupId)/users")
+		return try await apiClient.send(path: "/groups/\(groupId)/users")
 	}
 
     func getActiveGroupId() async throws -> String {
@@ -333,7 +322,7 @@ actor AuthManager {
 
         let task = Task<String, Error> {
             _ = try await self.accessToken()
-            let result: [String: String] = try await APIClient(authManager: self).send(path: "/users/me/active-group")
+            let result: [String: String] = try await apiClient.send(path: "/users/me/active-group")
             guard let groupId = result["groupId"] else {
                 throw AuthError.invalidResponse
             }
@@ -360,12 +349,12 @@ actor AuthManager {
 
     func removeUserFromGroup(groupId: String, userId: String) async throws {
         _ = try await accessToken()
-        try await APIClient(authManager: self).sendWithoutResponse(path: "/groups/\(groupId)/users/\(userId)", method: .DELETE)
+        try await apiClient.sendWithoutResponse(path: "/groups/\(groupId)/users/\(userId)", method: .DELETE)
     }
 
     func getGroupInviteCode(groupId: String) async throws -> String {
     	_ = try await accessToken()
-		let result: [String: String] = try await APIClient(authManager: self).send(path: "/groups/\(groupId)/invite", method: .POST)
+		let result: [String: String] = try await apiClient.send(path: "/groups/\(groupId)/invite", method: .POST)
 		guard let inviteCode = result["code"] else {
 			throw AuthError.invalidResponse
 		}
@@ -376,7 +365,7 @@ actor AuthManager {
     func createGroup(groupName: String) async throws {
         _ = try await accessToken()
         let body = ["name": groupName]
-        let group: AuthGroup = try await APIClient(authManager: self).send(path: "/groups", method: .POST, body: body)
+        let group: AuthGroup = try await apiClient.send(path: "/groups", method: .POST, body: body)
         try await self.setActiveGroup(group.id)
     }
 
@@ -388,7 +377,7 @@ actor AuthManager {
             let groupId: String
         }
 
-        let result: JoinResponse = try await APIClient(authManager: self).send(path: "/groups/join", method: .POST, body: body)
+        let result: JoinResponse = try await apiClient.send(path: "/groups/join", method: .POST, body: body)
         try await self.setActiveGroup(result.groupId)
     }
 
@@ -399,7 +388,7 @@ actor AuthManager {
     func renameGroup(groupId: String, newName: String) async throws {
         _ = try await accessToken()
         let body = ["name": newName]
-        try await APIClient(authManager: self).sendWithoutResponse(path: "/groups/\(groupId)", method: .PATCH, body: body)
+        try await apiClient.sendWithoutResponse(path: "/groups/\(groupId)", method: .PATCH, body: body)
     }
 
     /// Logout (clear tokens and user data)
@@ -414,177 +403,3 @@ actor AuthManager {
         refreshTask = nil
     }
 }
-
-// MARK: - Network Client
-
-struct APIClient {
-    private let auth: AuthManager
-    private let session: URLSession
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
-
-    init(authManager: AuthManager, session: URLSession = .shared) {
-        self.auth = authManager
-        self.session = session
-    }
-
-    func send<Response: Decodable>(
-        path: String,
-        method: HTTPMethod = .GET,
-        body: (any Encodable)? = nil,
-        requiresAuth: Bool = true,
-        includeGroupHeader: Bool = true
-    ) async throws -> Response {
-        let request = try await makeRequest(
-            path: path,
-            method: method,
-            body: body,
-            requiresAuth: requiresAuth,
-            includeGroupHeader: includeGroupHeader
-        )
-        let (data, response) = try await perform(request)
-        return try decode(Response.self, from: data, response: response)
-    }
-
-    func sendWithoutResponse(
-        path: String,
-        method: HTTPMethod,
-        body: (any Encodable)? = nil,
-        requiresAuth: Bool = true,
-        includeGroupHeader: Bool = true
-    ) async throws {
-        let request = try await makeRequest(
-            path: path,
-            method: method,
-            body: body,
-            requiresAuth: requiresAuth,
-            includeGroupHeader: includeGroupHeader
-        )
-        let (_, response) = try await perform(request)
-        try validate(response: response)
-    }
-
-    private func makeRequest(
-        path: String,
-        method: HTTPMethod,
-        body: (any Encodable)?,
-        requiresAuth: Bool,
-        includeGroupHeader: Bool
-    ) async throws -> URLRequest {
-        let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let url = AppConfig.apiBaseURL.appendingPathComponent(trimmedPath)
-        var request = URLRequest(url: url)
-        request.httpMethod = method.rawValue
-
-        if let body {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try encode(body)
-        }
-
-        if requiresAuth {
-            let token = try await auth.accessToken()
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-
-        if includeGroupHeader, let groupId = try? await auth.getActiveGroupId(), !groupId.isEmpty {
-            request.setValue(groupId, forHTTPHeaderField: "X-Group-ID")
-        }
-
-        return request
-    }
-
-    private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        do {
-            let (data, response) = try await session.data(for: request)
-
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 401 {
-                _ = try await auth.refresh()
-
-                let retry = try await remakeRequestWithFreshAuth(from: request)
-                return try await session.data(for: retry)
-            }
-
-            return (data, response)
-        } catch let error as APIError {
-            throw error
-        } catch {
-            throw APIError.transport(error)
-        }
-    }
-
-    private func remakeRequestWithFreshAuth(from request: URLRequest) async throws -> URLRequest {
-        var retry = request
-        let newToken = try await auth.accessToken()
-        retry.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-
-        if let groupId = try? await auth.getActiveGroupId(), !groupId.isEmpty {
-            retry.setValue(groupId, forHTTPHeaderField: "X-Group-ID")
-        }
-
-        return retry
-    }
-
-    private func validate(response: URLResponse) throws {
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            }
-            throw APIError.server(statusCode: httpResponse.statusCode, message: nil)
-        }
-    }
-
-    private func decode<Response: Decodable>(
-        _ type: Response.Type,
-        from data: Data,
-        response: URLResponse
-    ) throws -> Response {
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-
-        if httpResponse.statusCode == 409 {
-            throw AuthManager.AuthError.usernameTaken
-        }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            let message = (try? decoder.decode([String: String].self, from: data))?["error"]
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            }
-            throw APIError.server(statusCode: httpResponse.statusCode, message: message)
-        }
-
-        do {
-            return try decoder.decode(Response.self, from: data)
-        } catch {
-            throw APIError.invalidResponse
-        }
-    }
-
-    private func encode(_ value: any Encodable) throws -> Data {
-        let wrapped = AnyEncodable(value)
-        do {
-            return try encoder.encode(wrapped)
-        } catch {
-            throw APIError.encodingFailed
-        }
-    }
-}
-
-private struct AnyEncodable: Encodable {
-    private let encodeImpl: (Encoder) throws -> Void
-
-    init(_ wrapped: any Encodable) {
-        self.encodeImpl = wrapped.encode(to:)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        try encodeImpl(encoder)
-    }
-}
-
-typealias NetworkClient = APIClient
