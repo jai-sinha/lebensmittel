@@ -2,7 +2,7 @@
 //  AppConfig.swift
 //  lebensmittel
 //
-//  Created by OpenAI on 04/07/26.
+//  Created by Jai Sinha on 04/07/26.
 //
 
 import Foundation

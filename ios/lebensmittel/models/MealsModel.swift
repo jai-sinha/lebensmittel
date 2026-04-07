@@ -67,7 +67,7 @@ class MealsModel {
 
 		Task {
 			do {
-				try await client.sendVoid(path: "/meal-plans", method: .POST, body: newMealPlan)
+				try await client.sendWithoutResponse(path: "/meal-plans", method: .POST, body: newMealPlan)
 			} catch {
 				print("Create meal plan error: \(error)")
 				await MainActor.run {
@@ -86,7 +86,7 @@ class MealsModel {
 
 		Task {
 			do {
-				try await client.sendVoid(path: "/meal-plans/\(existingPlan.id)", method: .PATCH, body: updatePayload)
+				try await client.sendWithoutResponse(path: "/meal-plans/\(existingPlan.id)", method: .PATCH, body: updatePayload)
 			} catch {
 				print("Update meal plan error: \(error)")
 				await MainActor.run {
@@ -102,7 +102,7 @@ class MealsModel {
 
 		Task {
 			do {
-				try await client.sendVoid(path: "/meal-plans/\(mealId)", method: .DELETE)
+				try await client.sendWithoutResponse(path: "/meal-plans/\(mealId)", method: .DELETE)
 			} catch {
 				print("Delete meal plan error: \(error)")
 				await MainActor.run {

@@ -65,7 +65,7 @@ class ShoppingModel {
 			purchasedBy: purchasedBy,
 			notes: notes
 		)
-		let client = APIClient()
+		let client = APIClient.shared
 
 		Task {
 			do {
