@@ -25,18 +25,9 @@ struct ReceiptsView: View {
 		NavigationStack {
 			VStack {
 				if let errorMessage = model.errorMessage {
-						ScrollView {
-							VStack(spacing: 12) {
-								Text("Error: \(errorMessage)")
-									.foregroundStyle(.red)
-								Text("Pull down to retry")
-									.font(.caption)
-									.foregroundStyle(.secondary)
-							}
-							.frame(maxWidth: .infinity)
-							.padding(.top, 100)
-						}
+						InlineErrorView(message: errorMessage)
 						.refreshable {
+							model.errorMessage = nil
 							model.fetchReceipts()
 						}
                 } else if !authManager.isAuthenticated {
@@ -68,6 +59,7 @@ struct ReceiptsView: View {
 						}
 					}
 					.refreshable {
+						model.errorMessage = nil
 						model.fetchReceipts()
 					}
 				}

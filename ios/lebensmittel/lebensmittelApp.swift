@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+@MainActor
 @Observable
 class AuthStateManager {
     var isAuthenticated = false
@@ -56,7 +57,7 @@ class AuthStateManager {
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                self.errorMessage = UserFacingError.message(for: error)
                 self.isAuthenticated = false
             }
         }
@@ -71,7 +72,7 @@ class AuthStateManager {
                 }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = error.localizedDescription
+                    self.errorMessage = UserFacingError.message(for: error)
                 }
             }
         }

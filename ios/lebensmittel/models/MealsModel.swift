@@ -7,6 +7,7 @@
 
 import Foundation
 
+@MainActor
 @Observable
 class MealsModel {
 	var mealPlans: [String: MealPlan] = [:]  // Keyed by date string
@@ -44,24 +45,24 @@ class MealsModel {
 	// MARK: CRUD Operations
 
 	func fetchMealPlans() {
+		errorMessage = nil
 		let client = APIClient()
 
 		Task {
 			do {
 				let response: MealPlansResponse = try await client.send(path: "/meal-plans")
-				await MainActor.run {
-					self.mealPlans.removeAll()
-					for mealPlan in response.mealPlans {
-						self.mealPlans[mealPlan.date] = mealPlan
-					}
+				self.mealPlans.removeAll()
+				for mealPlan in response.mealPlans {
+					self.mealPlans[mealPlan.date] = mealPlan
 				}
 			} catch {
-				print("Decoding error: \(error)")
+				self.errorMessage = UserFacingError.message(for: error)
 			}
 		}
 	}
 
 	func createMealPlan(for dateString: String, meal: String) {
+		errorMessage = nil
 		let newMealPlan = NewMealPlan(date: dateString, mealDescription: meal)
 		let client = APIClient()
 
@@ -69,10 +70,7 @@ class MealsModel {
 			do {
 				try await client.sendWithoutResponse(path: "/meal-plans", method: .POST, body: newMealPlan)
 			} catch {
-				print("Create meal plan error: \(error)")
-				await MainActor.run {
-					self.fetchMealPlans()
-				}
+				self.errorMessage = UserFacingError.message(for: error)
 			}
 		}
 	}
@@ -81,6 +79,7 @@ class MealsModel {
 		guard let existingPlan = mealPlans[dateString] else { return }
 		if existingPlan.mealDescription == meal { return } // No change, skip update
 
+		errorMessage = nil
 		let updatePayload = ["mealDescription": meal]
 		let client = APIClient()
 
@@ -88,26 +87,21 @@ class MealsModel {
 			do {
 				try await client.sendWithoutResponse(path: "/meal-plans/\(existingPlan.id)", method: .PATCH, body: updatePayload)
 			} catch {
-				print("Update meal plan error: \(error)")
-				await MainActor.run {
-					self.fetchMealPlans()
-				}
+				self.errorMessage = UserFacingError.message(for: error)
 			}
 		}
 	}
 
 
 	func deleteMealPlan(mealId: String) {
+		errorMessage = nil
 		let client = APIClient()
 
 		Task {
 			do {
 				try await client.sendWithoutResponse(path: "/meal-plans/\(mealId)", method: .DELETE)
 			} catch {
-				print("Delete meal plan error: \(error)")
-				await MainActor.run {
-					self.fetchMealPlans()
-				}
+				self.errorMessage = UserFacingError.message(for: error)
 			}
 		}
 	}

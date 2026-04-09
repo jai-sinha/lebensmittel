@@ -35,21 +35,11 @@ struct MealsView: View {
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
 						.background(Color(.systemBackground))
 				} else if let errorMessage = model.errorMessage {
-					ScrollView {
-						VStack(spacing: 12) {
-							Text("Error: \(errorMessage)")
-								.foregroundStyle(.red)
-							Text("Pull down to retry")
-								.font(.caption)
-								.foregroundStyle(.secondary)
+					InlineErrorView(message: errorMessage)
+						.refreshable {
+							model.errorMessage = nil
+							model.fetchMealPlans()
 						}
-						.frame(maxWidth: .infinity)
-						.padding(.top, 100)
-					}
-					.refreshable {
-						model.fetchMealPlans()
-					}
-					.background(Color(.systemBackground))
 				} else {
 					(colorScheme == .dark
 						? Color(.systemBackground) : Color(.secondarySystemBackground))
@@ -98,7 +88,10 @@ struct MealsView: View {
 							}
 							.padding(.horizontal)
 						}
-						.refreshable { model.fetchMealPlans() }
+						.refreshable {
+							model.errorMessage = nil
+							model.fetchMealPlans()
+						}
 						.onAppear {
 							proxy.scrollTo("today", anchor: .top)
 						}

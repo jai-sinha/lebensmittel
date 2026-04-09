@@ -7,6 +7,7 @@
 
 import Foundation
 
+@MainActor
 @Observable
 class ShoppingModel {
 	// Reference to shared GroceriesModel
@@ -70,13 +71,9 @@ class ShoppingModel {
 		Task {
 			do {
 				try await client.sendWithoutResponse(path: "/receipts", method: .POST, body: payload)
-				// WebSocket should handle the update, fetching rn to be safe
-				self.fetchGroceries()
 			} catch {
-				await MainActor.run {
-					self.errorMessage = error.localizedDescription
-					self.groceriesModel.isLoading = false
-				}
+				self.errorMessage = UserFacingError.message(for: error)
+				self.groceriesModel.isLoading = false
 			}
 		}
 	}
