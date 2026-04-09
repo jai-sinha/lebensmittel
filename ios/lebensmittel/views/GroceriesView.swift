@@ -186,9 +186,8 @@ struct GroceryItemCard: View {
 	@Environment(\.colorScheme) var colorScheme
 	let item: GroceryItem
 
-	@State private var offset: CGFloat = 0
-
-	private let deleteThreshold: CGFloat = -80
+	@State private var showDeleteConfirmation = false
+	@State private var isPressed = false
 
 	var body: some View {
 		HStack(spacing: 8) {
@@ -222,43 +221,30 @@ struct GroceryItemCard: View {
 					lineWidth: 1
 				)
 		)
+		.scaleEffect(isPressed ? 0.96 : 1.0)
+		.animation(.easeInOut(duration: 0.15), value: isPressed)
 		.contentShape(Rectangle())
 		.onTapGesture {
 			model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
 		}
-		.offset(x: offset)
-		.animation(.interactiveSpring(), value: offset)
-		.simultaneousGesture(
-			DragGesture(minimumDistance: 10, coordinateSpace: .local)
-				.onChanged { value in
-					offset = min(0, value.translation.width)
-				}
-				.onEnded { value in
-					if offset < deleteThreshold {
-						withAnimation(.easeOut(duration: 0.2)) {
-							offset = -300
-						}
-						Task { @MainActor in
-							try? await Task.sleep(for: .seconds(0.2))
-							model.deleteGroceryItem(item: item)
-						}
-					} else {
-						withAnimation(.spring()) {
-							offset = 0
-						}
-					}
-				}
-		)
-		.background(alignment: .trailing) {
-			RoundedRectangle(cornerRadius: 12)
-				.fill(Color.red.opacity(min(1, abs(offset) / abs(deleteThreshold))))
-				.overlay(alignment: .trailing) {
-					Image(systemName: "trash")
-						.foregroundStyle(.white)
-						.font(.body.weight(.semibold))
-						.padding(.trailing, 16)
-						.opacity(min(1, abs(offset) / abs(deleteThreshold)))
-				}
+		.onLongPressGesture(minimumDuration: 0.5, perform: {
+			let generator = UIImpactFeedbackGenerator(style: .heavy)
+			generator.impactOccurred()
+			isPressed = false
+			showDeleteConfirmation = true
+		}, onPressingChanged: { pressing in
+			isPressed = pressing
+			if pressing {
+				let generator = UIImpactFeedbackGenerator(style: .light)
+				generator.prepare()
+				generator.impactOccurred()
+			}
+		})
+		.confirmationDialog("Delete \"\(item.name)\"?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+			Button("Delete", role: .destructive) {
+				model.deleteGroceryItem(item: item)
+			}
+			Button("Cancel", role: .cancel) {}
 		}
 	}
 }
