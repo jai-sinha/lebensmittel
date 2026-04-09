@@ -28,6 +28,7 @@ enum ActiveAlert: Equatable {
     }
 }
 
+@MainActor
 @Observable
 class AuthMenuModel {
     var joinCode: String = ""
@@ -49,8 +50,8 @@ class AuthMenuModel {
                 NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
             } catch {
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
+                    errorMessage = UserFacingError.message(for: error)
+                    activeAlert = .error(errorMessage ?? "Something went wrong. Please try again.")
                 }
             }
         }
@@ -67,8 +68,8 @@ class AuthMenuModel {
                 }
             } catch {
                  await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
+                    errorMessage = UserFacingError.message(for: error)
+                    activeAlert = .error(errorMessage ?? "Something went wrong. Please try again.")
                 }
             }
         }
@@ -87,8 +88,8 @@ class AuthMenuModel {
                 NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
             } catch {
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
+                    errorMessage = UserFacingError.message(for: error)
+                    activeAlert = .error(errorMessage ?? "Something went wrong. Please try again.")
                 }
             }
         }
@@ -104,8 +105,8 @@ class AuthMenuModel {
                 }
             } catch {
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
+                    errorMessage = UserFacingError.message(for: error)
+                    activeAlert = .error(errorMessage ?? "Something went wrong. Please try again.")
                 }
             }
         }
@@ -128,8 +129,8 @@ class AuthMenuModel {
                 NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
             } catch {
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
+                    errorMessage = UserFacingError.message(for: error)
+                    activeAlert = .error(errorMessage ?? "Something went wrong. Please try again.")
                 }
             }
         }
@@ -153,8 +154,8 @@ class AuthMenuModel {
                 }
             } catch {
                 await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    activeAlert = .error(errorMessage ?? "Unknown error")
+                    errorMessage = UserFacingError.message(for: error)
+                    activeAlert = .error(errorMessage ?? "Something went wrong. Please try again.")
                 }
             }
         }
@@ -174,8 +175,8 @@ class AuthMenuModel {
 				}
 			} catch {
 				await MainActor.run {
-					errorMessage = error.localizedDescription
-					activeAlert = .error(errorMessage ?? "Unknown error")
+					errorMessage = UserFacingError.message(for: error)
+					activeAlert = .error(errorMessage ?? "Something went wrong. Please try again.")
 				}
 			}
 		}

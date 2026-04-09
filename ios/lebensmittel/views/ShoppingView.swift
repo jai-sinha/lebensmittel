@@ -31,26 +31,17 @@ struct ShoppingView: View {
 					if model.isLoading {
 					ProgressView("Loading shopping list...")
 				} else if let errorMessage = model.errorMessage {
-					ScrollView {
-						VStack(spacing: 12) {
-							Text("Error: \(errorMessage)")
-								.foregroundStyle(.red)
-							Text("Pull down to retry")
-								.font(.caption)
-								.foregroundStyle(.secondary)
+					InlineErrorView(message: errorMessage)
+						.refreshable {
+							model.errorMessage = nil
+							model.fetchGroceries()
 						}
-						.frame(maxWidth: .infinity)
-						.padding(.top, 100)
-					}
-					.refreshable {
-						model.errorMessage = nil
-						model.fetchGroceries()
-					}
 				} else {
 					List {
 						listContent
 					}
 					.refreshable {
+						model.errorMessage = nil
 						model.fetchGroceries()
 					}
 				}
@@ -172,11 +163,8 @@ struct ShoppingRow: View {
 struct CheckoutSheetView: View {
 	@Environment(AuthStateManager.self) var authManager
 
-	/// Called when the user taps Cancel
 	var onCancel: () -> Void
 
-	/// Called when the user submits a valid receipt. The view doesn't perform networking itself;
-	/// the parent should handle creating the receipt and dismissing the sheet.
 	var onSubmit: (_ price: Double, _ purchaser: String, _ notes: String) -> Void
 
 	@State private var cost: String = ""

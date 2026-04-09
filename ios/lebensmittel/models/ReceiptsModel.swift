@@ -7,6 +7,7 @@
 
 import Foundation
 
+@MainActor
 @Observable
 class ReceiptsModel {
 	var receipts: [Receipt] = []
@@ -53,7 +54,7 @@ class ReceiptsModel {
 				}
 			} catch {
 				await MainActor.run {
-					self.errorMessage = error.localizedDescription
+					self.errorMessage = UserFacingError.message(for: error)
 					self.isLoading = false
 				}
 			}
@@ -61,14 +62,7 @@ class ReceiptsModel {
 	}
 
 	func updateReceipt(receipt: Receipt, price: Double, purchasedBy: String, notes: String) {
-		let updatedReceipt = Receipt(
-			id: receipt.id,
-			date: receipt.date,
-			totalAmount: price,
-			purchasedBy: purchasedBy,
-			items: receipt.items,
-			notes: notes
-		)
+		errorMessage = nil
 
 		let updatePayload = ReceiptUpdatePayload(
 			totalAmount: price,
@@ -85,20 +79,16 @@ class ReceiptsModel {
 					method: .PATCH,
 					body: updatePayload
 				)
-				await MainActor.run {
-					if let idx = self.receipts.firstIndex(where: { $0.id == receipt.id }) {
-						self.receipts[idx] = updatedReceipt
-					}
-				}
 			} catch {
 				await MainActor.run {
-					self.errorMessage = error.localizedDescription
+					self.errorMessage = "Couldn't update that receipt. Please try again."
 				}
 			}
 		}
 	}
 
 	func deleteReceipt(receiptId: String) {
+		errorMessage = nil
 		let client = APIClient()
 
 		Task {
@@ -109,8 +99,7 @@ class ReceiptsModel {
 				)
 			} catch {
 				await MainActor.run {
-					self.errorMessage = error.localizedDescription
-					self.fetchReceipts()
+					self.errorMessage = "Couldn't delete that receipt. Please try again."
 				}
 			}
 		}

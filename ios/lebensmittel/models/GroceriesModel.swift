@@ -7,6 +7,7 @@
 
 import Foundation
 
+@MainActor
 @Observable
 class GroceriesModel {
 	var groceryItems: [GroceryItem] = []
@@ -59,37 +60,41 @@ class GroceriesModel {
 
 	func addItem() {
 		let trimmedName = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
-		if !trimmedName.isEmpty {
-			if let existingItem = groceryItems.first(where: {
-				$0.name.lowercased() == trimmedName.lowercased()
-			}) {
-				if !existingItem.isNeeded {
-					updateGroceryItem(item: existingItem, field: GroceryItemField.isNeeded(true))
-				}
-			} else {
-				createGroceryItem(name: trimmedName, category: searchCategory)
-				expandedCategories.insert(searchCategory)
-			}
-			newItemName = ""
-			isSearching = false
+		guard !trimmedName.isEmpty else { return }
+
+		if let existingItem = groceryItems.first(where: {
+			$0.name.lowercased() == trimmedName.lowercased()
+		}) {
+			guard !existingItem.isNeeded else { return }
+			updateGroceryItem(item: existingItem, field: GroceryItemField.isNeeded(true))
+			return
 		}
+
+		createGroceryItem(name: trimmedName, category: searchCategory)
+		expandedCategories.insert(searchCategory)
 	}
 
 	func selectExistingItem(_ item: GroceryItem) {
 		updateGroceryItem(item: item, field: GroceryItemField.isNeeded(!item.isNeeded))
-		newItemName = ""
-		isSearching = false
 	}
 
 	// MARK: UI Update Methods, used for WebSocket updates
 
 	func addItem(_ item: GroceryItem) {
 		groceryItems.append(item)
+		if item.name.caseInsensitiveCompare(newItemName.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame {
+			newItemName = ""
+			isSearching = false
+		}
 	}
 
 	func updateItem(_ updatedItem: GroceryItem) {
 		if let index = groceryItems.firstIndex(where: { $0.id == updatedItem.id }) {
 			groceryItems[index] = updatedItem
+		}
+		if updatedItem.name.caseInsensitiveCompare(newItemName.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame {
+			newItemName = ""
+			isSearching = false
 		}
 	}
 
@@ -114,7 +119,7 @@ class GroceriesModel {
 				}
 			} catch {
 				await MainActor.run {
-					self.errorMessage = error.localizedDescription
+					self.errorMessage = UserFacingError.message(for: error)
 					self.isLoading = false
 				}
 			}
@@ -136,7 +141,7 @@ class GroceriesModel {
 				)
 			} catch {
 				await MainActor.run {
-					self.errorMessage = error.localizedDescription
+					self.errorMessage = UserFacingError.message(for: error)
 				}
 			}
 		}
@@ -172,7 +177,7 @@ class GroceriesModel {
 				// WebSocket will handle updating the UI via grocery_item_updated event
 			} catch {
 				await MainActor.run {
-					self.errorMessage = error.localizedDescription
+					self.errorMessage = UserFacingError.message(for: error)
 				}
 			}
 		}
@@ -192,7 +197,7 @@ class GroceriesModel {
 				// WebSocket will handle updating the UI via grocery_item_deleted event
 			} catch {
 				await MainActor.run {
-					self.errorMessage = error.localizedDescription
+					self.errorMessage = UserFacingError.message(for: error)
 				}
 			}
 		}

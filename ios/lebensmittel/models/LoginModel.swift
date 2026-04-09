@@ -7,6 +7,7 @@
 
 import Foundation
 
+@MainActor
 @Observable
 class LoginModel {
     var username = ""
@@ -38,7 +39,7 @@ class LoginModel {
                 }
             } catch {
                 await MainActor.run {
-                    authManager.errorMessage = error.localizedDescription
+                    authManager.errorMessage = UserFacingError.message(for: error)
                     isLoading = false
                 }
             }
@@ -63,7 +64,7 @@ class LoginModel {
                 }
             } catch {
                 await MainActor.run {
-                    authManager.errorMessage = error.localizedDescription
+                    authManager.errorMessage = UserFacingError.message(for: error)
                     isLoading = false
                 }
             }
