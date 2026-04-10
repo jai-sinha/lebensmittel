@@ -10,6 +10,13 @@ import Foundation
 @MainActor
 @Observable
 class GroceriesModel {
+	enum GroceryItemField {
+		case isNeeded(Bool)
+		case isShoppingChecked(Bool)
+	}
+
+	private let service: GroceriesService
+
 	var groceryItems: [GroceryItem] = []
 	var isLoading = false
 	var errorMessage: String? = nil
@@ -20,6 +27,10 @@ class GroceriesModel {
 	var isSearching: Bool = false
 
 	let categories = ["Essentials", "Protein", "Veggies", "Carbs", "Household", "Other"]
+
+	init(service: GroceriesService = GroceriesService()) {
+		self.service = service
+	}
 
 	// MARK: Computed Properties and Helpers
 
@@ -107,14 +118,13 @@ class GroceriesModel {
 	func fetchGroceries() {
 		isLoading = true
 		errorMessage = nil
-		let client = APIClient()
 
 		Task {
 			do {
-				let response: GroceryItemsResponse = try await client.send(path: "/grocery-items")
+				let groceries = try await service.fetchGroceries()
 
 				await MainActor.run {
-					self.groceryItems = response.groceryItems
+					self.groceryItems = groceries
 					self.isLoading = false
 				}
 			} catch {
@@ -129,16 +139,9 @@ class GroceriesModel {
 	func createGroceryItem(name: String, category: String) {
 		errorMessage = nil
 
-		let newItem = NewGroceryItem(name: name, category: category)
-		let client = APIClient()
-
 		Task {
 			do {
-				try await client.sendWithoutResponse(
-					path: "/grocery-items",
-					method: .POST,
-					body: newItem
-				)
+				try await service.createGroceryItem(name: name, category: category)
 			} catch {
 				await MainActor.run {
 					self.errorMessage = UserFacingError.message(for: error)
@@ -147,33 +150,13 @@ class GroceriesModel {
 		}
 	}
 
-	enum GroceryItemField {
-		case isNeeded(Bool)
-		case isShoppingChecked(Bool)
-	}
-
 	// PATCH method to update either isNeeded or isShoppingChecked
 	func updateGroceryItem(item: GroceryItem, field: GroceryItemField) {
 		errorMessage = nil
 
-		var updatePayload: [String: Bool] = [:]
-		switch field {
-		case .isNeeded(let value):
-			updatePayload["isNeeded"] = value
-			updatePayload["isShoppingChecked"] = false
-		case .isShoppingChecked(let value):
-			updatePayload["isShoppingChecked"] = value
-		}
-
-		let client = APIClient()
-
 		Task {
 			do {
-				try await client.sendWithoutResponse(
-					path: "/grocery-items/\(item.id)",
-					method: .PATCH,
-					body: updatePayload
-				)
+				try await service.updateGroceryItem(id: item.id, field: field)
 				// WebSocket will handle updating the UI via grocery_item_updated event
 			} catch {
 				await MainActor.run {
@@ -186,14 +169,9 @@ class GroceriesModel {
 	func deleteGroceryItem(item: GroceryItem) {
 		errorMessage = nil
 
-		let client = APIClient()
-
 		Task {
 			do {
-				try await client.sendWithoutResponse(
-					path: "/grocery-items/\(item.id)",
-					method: .DELETE
-				)
+				try await service.deleteGroceryItem(id: item.id)
 				// WebSocket will handle updating the UI via grocery_item_deleted event
 			} catch {
 				await MainActor.run {

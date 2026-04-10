@@ -10,9 +10,15 @@ import Foundation
 @MainActor
 @Observable
 class ReceiptsModel {
+	private let service: ReceiptsService
+
 	var receipts: [Receipt] = []
 	var isLoading = false
 	var errorMessage: String? = nil
+
+	init(service: ReceiptsService = ReceiptsService()) {
+		self.service = service
+	}
 
 	var currentMonth: String {
 		let monthFormatter = DateFormatter()
@@ -42,14 +48,11 @@ class ReceiptsModel {
 		isLoading = true
 		errorMessage = nil
 
-		let client = APIClient()
-
 		Task {
 			do {
-				let response: ReceiptsResponse = try await client.send(path: "/receipts")
-				let sortedReceipts = response.receipts.sorted { $0.date < $1.date }
+				let receipts = try await service.fetchReceipts()
 				await MainActor.run {
-					self.receipts = sortedReceipts
+					self.receipts = receipts
 					self.isLoading = false
 				}
 			} catch {
@@ -64,24 +67,17 @@ class ReceiptsModel {
 	func updateReceipt(receipt: Receipt, price: Double, purchasedBy: String, notes: String) {
 		errorMessage = nil
 
-		let updatePayload = ReceiptUpdatePayload(
-			totalAmount: price,
-			purchasedBy: purchasedBy,
-			notes: notes
-		)
-
-		let client = APIClient()
-
 		Task {
 			do {
-				try await client.sendWithoutResponse(
-					path: "/receipts/\(receipt.id)",
-					method: .PATCH,
-					body: updatePayload
+				try await service.updateReceipt(
+					id: receipt.id,
+					price: price,
+					purchasedBy: purchasedBy,
+					notes: notes
 				)
 			} catch {
 				await MainActor.run {
-					self.errorMessage = "Couldn't update that receipt. Please try again."
+					self.errorMessage = UserFacingError.message(for: error)
 				}
 			}
 		}
@@ -89,17 +85,13 @@ class ReceiptsModel {
 
 	func deleteReceipt(receiptId: String) {
 		errorMessage = nil
-		let client = APIClient()
 
 		Task {
 			do {
-				try await client.sendWithoutResponse(
-					path: "/receipts/\(receiptId)",
-					method: .DELETE
-				)
+				try await service.deleteReceipt(id: receiptId)
 			} catch {
 				await MainActor.run {
-					self.errorMessage = "Couldn't delete that receipt. Please try again."
+					self.errorMessage = UserFacingError.message(for: error)
 				}
 			}
 		}
@@ -151,10 +143,4 @@ class ReceiptsModel {
 				month: month, receipts: monthReceipts, userTotals: userTotals)
 		}
 	}
-}
-
-private struct ReceiptUpdatePayload: Encodable {
-	let totalAmount: Double
-	let purchasedBy: String
-	let notes: String?
 }
