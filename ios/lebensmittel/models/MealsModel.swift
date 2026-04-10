@@ -10,10 +10,13 @@ import Foundation
 @MainActor
 @Observable
 class MealsModel {
+	private let service: MealsService
 	var mealPlans: [String: MealPlan] = [:]  // Keyed by date string
 	var errorMessage: String? = nil
 
-	init() {}
+	init(service: MealsService = MealsService()) {
+		self.service = service
+	}
 
 	func getMealPlan(for dateString: String) -> String {
 		return mealPlans[dateString]?.mealDescription ?? ""
@@ -46,13 +49,12 @@ class MealsModel {
 
 	func fetchMealPlans() {
 		errorMessage = nil
-		let client = APIClient()
 
 		Task {
 			do {
-				let response: MealPlansResponse = try await client.send(path: "/meal-plans")
+				let mealPlans = try await service.fetchMealPlans()
 				self.mealPlans.removeAll()
-				for mealPlan in response.mealPlans {
+				for mealPlan in mealPlans {
 					self.mealPlans[mealPlan.date] = mealPlan
 				}
 			} catch {
@@ -63,12 +65,10 @@ class MealsModel {
 
 	func createMealPlan(for dateString: String, meal: String) {
 		errorMessage = nil
-		let newMealPlan = NewMealPlan(date: dateString, mealDescription: meal)
-		let client = APIClient()
 
 		Task {
 			do {
-				try await client.sendWithoutResponse(path: "/meal-plans", method: .POST, body: newMealPlan)
+				try await service.createMealPlan(date: dateString, mealDescription: meal)
 			} catch {
 				self.errorMessage = UserFacingError.message(for: error)
 			}
@@ -80,12 +80,10 @@ class MealsModel {
 		if existingPlan.mealDescription == meal { return } // No change, skip update
 
 		errorMessage = nil
-		let updatePayload = ["mealDescription": meal]
-		let client = APIClient()
 
 		Task {
 			do {
-				try await client.sendWithoutResponse(path: "/meal-plans/\(existingPlan.id)", method: .PATCH, body: updatePayload)
+				try await service.updateMealPlan(id: existingPlan.id, mealDescription: meal)
 			} catch {
 				self.errorMessage = UserFacingError.message(for: error)
 			}
@@ -95,11 +93,10 @@ class MealsModel {
 
 	func deleteMealPlan(mealId: String) {
 		errorMessage = nil
-		let client = APIClient()
 
 		Task {
 			do {
-				try await client.sendWithoutResponse(path: "/meal-plans/\(mealId)", method: .DELETE)
+				try await service.deleteMealPlan(id: mealId)
 			} catch {
 				self.errorMessage = UserFacingError.message(for: error)
 			}

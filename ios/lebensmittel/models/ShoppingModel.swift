@@ -12,11 +12,13 @@ import Foundation
 class ShoppingModel {
 	// Reference to shared GroceriesModel
 	private var groceriesModel: GroceriesModel
+	private let service: ShoppingService
 
 	var errorMessage: String? = nil
 
-	init(groceriesModel: GroceriesModel) {
+	init(groceriesModel: GroceriesModel, service: ShoppingService = ShoppingService()) {
 		self.groceriesModel = groceriesModel
+		self.service = service
 	}
 
 	// Delegate isLoading to groceriesModel
@@ -60,17 +62,15 @@ class ShoppingModel {
 		let formatter = DateFormatter()
 		formatter.dateFormat = "yyyy-MM-dd"
 		let dateString = formatter.string(from: Date())
-		let payload = NewReceipt(
-			date: dateString,
-			totalAmount: price,
-			purchasedBy: purchasedBy,
-			notes: notes
-		)
-		let client = APIClient.shared
 
 		Task {
 			do {
-				try await client.sendWithoutResponse(path: "/receipts", method: .POST, body: payload)
+				try await service.createReceipt(
+					date: dateString,
+					price: price,
+					purchasedBy: purchasedBy,
+					notes: notes
+				)
 			} catch {
 				self.errorMessage = UserFacingError.message(for: error)
 				self.groceriesModel.isLoading = false
