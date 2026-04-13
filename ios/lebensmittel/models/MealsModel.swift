@@ -77,7 +77,7 @@ class MealsModel {
 
 	func updateMealPlan(for dateString: String, meal: String) {
 		guard let existingPlan = mealPlans[dateString] else { return }
-		if existingPlan.mealDescription == meal { return } // No change, skip update
+		if existingPlan.mealDescription == meal { return }  // No change, skip update
 
 		errorMessage = nil
 
@@ -89,7 +89,6 @@ class MealsModel {
 			}
 		}
 	}
-
 
 	func deleteMealPlan(mealId: String) {
 		errorMessage = nil

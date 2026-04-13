@@ -8,6 +8,6 @@
 import Foundation
 
 enum AppConfig {
-    static let apiBaseURL = URL(string: "https://ls.jsinha.com/api")!
-    static let webSocketURL = URL(string: "wss://ls.jsinha.com/ws")!
+	static let apiBaseURL = URL(string: "https://ls.jsinha.com/api")!
+	static let webSocketURL = URL(string: "wss://ls.jsinha.com/ws")!
 }

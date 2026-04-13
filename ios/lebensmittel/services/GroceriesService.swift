@@ -8,48 +8,48 @@
 import Foundation
 
 struct GroceriesService: GroceriesServicing {
-    private let client: APIClient
+	private let client: APIClient
 
-    init(client: APIClient = .shared) {
-        self.client = client
-    }
+	init(client: APIClient = .shared) {
+		self.client = client
+	}
 
-    func fetchGroceries() async throws -> [GroceryItem] {
-        let response: GroceryItemsResponse = try await client.send(path: "/grocery-items")
-        return response.groceryItems
-    }
+	func fetchGroceries() async throws -> [GroceryItem] {
+		let response: GroceryItemsResponse = try await client.send(path: "/grocery-items")
+		return response.groceryItems
+	}
 
-    func createGroceryItem(name: String, category: String) async throws {
-        let item = NewGroceryItem(name: name, category: category)
-        try await client.sendWithoutResponse(
-            path: "/grocery-items",
-            method: .POST,
-            body: item
-        )
-    }
+	func createGroceryItem(name: String, category: String) async throws {
+		let item = NewGroceryItem(name: name, category: category)
+		try await client.sendWithoutResponse(
+			path: "/grocery-items",
+			method: .POST,
+			body: item
+		)
+	}
 
-    func updateGroceryItem(id: String, field: GroceriesModel.GroceryItemField) async throws {
-        var payload: [String: Bool] = [:]
+	func updateGroceryItem(id: String, field: GroceriesModel.GroceryItemField) async throws {
+		var payload: [String: Bool] = [:]
 
-        switch field {
-        case .isNeeded(let value):
-            payload["isNeeded"] = value
-            payload["isShoppingChecked"] = false
-        case .isShoppingChecked(let value):
-            payload["isShoppingChecked"] = value
-        }
+		switch field {
+		case .isNeeded(let value):
+			payload["isNeeded"] = value
+			payload["isShoppingChecked"] = false
+		case .isShoppingChecked(let value):
+			payload["isShoppingChecked"] = value
+		}
 
-        try await client.sendWithoutResponse(
-            path: "/grocery-items/\(id)",
-            method: .PATCH,
-            body: payload
-        )
-    }
+		try await client.sendWithoutResponse(
+			path: "/grocery-items/\(id)",
+			method: .PATCH,
+			body: payload
+		)
+	}
 
-    func deleteGroceryItem(id: String) async throws {
-        try await client.sendWithoutResponse(
-            path: "/grocery-items/\(id)",
-            method: .DELETE
-        )
-    }
+	func deleteGroceryItem(id: String) async throws {
+		try await client.sendWithoutResponse(
+			path: "/grocery-items/\(id)",
+			method: .DELETE
+		)
+	}
 }

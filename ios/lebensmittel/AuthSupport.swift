@@ -11,303 +11,305 @@ import Security
 // MARK: - Models
 
 struct Tokens: Codable, Sendable {
-    let accessToken: String
-    let refreshToken: String
-    let expiresAt: Date?
+	let accessToken: String
+	let refreshToken: String
+	let expiresAt: Date?
 
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case refreshToken = "refresh_token"
-        case expiresAt = "expires_at"
-    }
+	enum CodingKeys: String, CodingKey {
+		case accessToken = "access_token"
+		case refreshToken = "refresh_token"
+		case expiresAt = "expires_at"
+	}
 
-    nonisolated init(accessToken: String, refreshToken: String, expiresAt: Date?) {
-        self.accessToken = accessToken
-        self.refreshToken = refreshToken
-        self.expiresAt = expiresAt
-    }
+	nonisolated init(accessToken: String, refreshToken: String, expiresAt: Date?) {
+		self.accessToken = accessToken
+		self.refreshToken = refreshToken
+		self.expiresAt = expiresAt
+	}
 
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.accessToken = try container.decode(String.self, forKey: .accessToken)
-        self.refreshToken = try container.decode(String.self, forKey: .refreshToken)
-        self.expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
-    }
+	nonisolated init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		self.accessToken = try container.decode(String.self, forKey: .accessToken)
+		self.refreshToken = try container.decode(String.self, forKey: .refreshToken)
+		self.expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
+	}
 
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(accessToken, forKey: .accessToken)
-        try container.encode(refreshToken, forKey: .refreshToken)
-        try container.encode(expiresAt, forKey: .expiresAt)
-    }
+	nonisolated func encode(to encoder: Encoder) throws {
+		var container = encoder.container(keyedBy: CodingKeys.self)
+		try container.encode(accessToken, forKey: .accessToken)
+		try container.encode(refreshToken, forKey: .refreshToken)
+		try container.encode(expiresAt, forKey: .expiresAt)
+	}
 }
 
 struct User: Codable, Sendable {
-    let id: String
-    let username: String
-    let displayName: String
+	let id: String
+	let username: String
+	let displayName: String
 
-    nonisolated init(id: String, username: String, displayName: String) {
-        self.id = id
-        self.username = username
-        self.displayName = displayName
-    }
+	nonisolated init(id: String, username: String, displayName: String) {
+		self.id = id
+		self.username = username
+		self.displayName = displayName
+	}
 
-    enum CodingKeys: String, CodingKey {
-        case id, username, displayName
-    }
+	enum CodingKeys: String, CodingKey {
+		case id, username, displayName
+	}
 
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decode(String.self, forKey: .id)
-        self.username = try container.decode(String.self, forKey: .username)
-        self.displayName = try container.decode(String.self, forKey: .displayName)
-    }
+	nonisolated init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		self.id = try container.decode(String.self, forKey: .id)
+		self.username = try container.decode(String.self, forKey: .username)
+		self.displayName = try container.decode(String.self, forKey: .displayName)
+	}
 
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(username, forKey: .username)
-        try container.encode(displayName, forKey: .displayName)
-    }
+	nonisolated func encode(to encoder: Encoder) throws {
+		var container = encoder.container(keyedBy: CodingKeys.self)
+		try container.encode(id, forKey: .id)
+		try container.encode(username, forKey: .username)
+		try container.encode(displayName, forKey: .displayName)
+	}
 }
 
 struct GroupUser: Codable, Sendable, Identifiable {
-    let id: String
-    let displayName: String
+	let id: String
+	let displayName: String
 
-    nonisolated init(id: String, displayName: String) {
-        self.id = id
-        self.displayName = displayName
-    }
+	nonisolated init(id: String, displayName: String) {
+		self.id = id
+		self.displayName = displayName
+	}
 
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decode(String.self, forKey: .id)
-        self.displayName = try container.decode(String.self, forKey: .displayName)
-    }
+	nonisolated init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		self.id = try container.decode(String.self, forKey: .id)
+		self.displayName = try container.decode(String.self, forKey: .displayName)
+	}
 
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(displayName, forKey: .displayName)
-    }
+	nonisolated func encode(to encoder: Encoder) throws {
+		var container = encoder.container(keyedBy: CodingKeys.self)
+		try container.encode(id, forKey: .id)
+		try container.encode(displayName, forKey: .displayName)
+	}
 
-    enum CodingKeys: String, CodingKey {
-        case id, displayName
-    }
+	enum CodingKeys: String, CodingKey {
+		case id, displayName
+	}
 }
 
 struct LoginRequest: Codable, Sendable {
-    let username: String
-    let password: String
+	let username: String
+	let password: String
 
-    nonisolated init(username: String, password: String) {
-        self.username = username
-        self.password = password
-    }
+	nonisolated init(username: String, password: String) {
+		self.username = username
+		self.password = password
+	}
 
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.username = try container.decode(String.self, forKey: .username)
-        self.password = try container.decode(String.self, forKey: .password)
-    }
+	nonisolated init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		self.username = try container.decode(String.self, forKey: .username)
+		self.password = try container.decode(String.self, forKey: .password)
+	}
 
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(username, forKey: .username)
-        try container.encode(password, forKey: .password)
-    }
+	nonisolated func encode(to encoder: Encoder) throws {
+		var container = encoder.container(keyedBy: CodingKeys.self)
+		try container.encode(username, forKey: .username)
+		try container.encode(password, forKey: .password)
+	}
 
-    enum CodingKeys: String, CodingKey {
-        case username, password
-    }
+	enum CodingKeys: String, CodingKey {
+		case username, password
+	}
 }
 
 struct RegisterRequest: Codable, Sendable {
-    let username: String
-    let password: String
-    let displayName: String
-    let email: String
+	let username: String
+	let password: String
+	let displayName: String
+	let email: String
 
-    nonisolated init(username: String, password: String, displayName: String, email: String) {
-        self.username = username
-        self.password = password
-        self.displayName = displayName
-        self.email = email
-    }
+	nonisolated init(username: String, password: String, displayName: String, email: String) {
+		self.username = username
+		self.password = password
+		self.displayName = displayName
+		self.email = email
+	}
 
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.username = try container.decode(String.self, forKey: .username)
-        self.password = try container.decode(String.self, forKey: .password)
-        self.displayName = try container.decode(String.self, forKey: .displayName)
-        self.email = try container.decode(String.self, forKey: .email)
-    }
+	nonisolated init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		self.username = try container.decode(String.self, forKey: .username)
+		self.password = try container.decode(String.self, forKey: .password)
+		self.displayName = try container.decode(String.self, forKey: .displayName)
+		self.email = try container.decode(String.self, forKey: .email)
+	}
 
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(username, forKey: .username)
-        try container.encode(password, forKey: .password)
-        try container.encode(displayName, forKey: .displayName)
-        try container.encode(email, forKey: .email)
-    }
+	nonisolated func encode(to encoder: Encoder) throws {
+		var container = encoder.container(keyedBy: CodingKeys.self)
+		try container.encode(username, forKey: .username)
+		try container.encode(password, forKey: .password)
+		try container.encode(displayName, forKey: .displayName)
+		try container.encode(email, forKey: .email)
+	}
 
-    enum CodingKeys: String, CodingKey {
-        case username, password, displayName, email
-    }
+	enum CodingKeys: String, CodingKey {
+		case username, password, displayName, email
+	}
 }
 
 struct RefreshRequest: Codable, Sendable {
-    let refreshToken: String
+	let refreshToken: String
 
-    enum CodingKeys: String, CodingKey {
-        case refreshToken = "refresh_token"
-    }
+	enum CodingKeys: String, CodingKey {
+		case refreshToken = "refresh_token"
+	}
 
-    nonisolated init(refreshToken: String) {
-        self.refreshToken = refreshToken
-    }
+	nonisolated init(refreshToken: String) {
+		self.refreshToken = refreshToken
+	}
 
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.refreshToken = try container.decode(String.self, forKey: .refreshToken)
-    }
+	nonisolated init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		self.refreshToken = try container.decode(String.self, forKey: .refreshToken)
+	}
 
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(refreshToken, forKey: .refreshToken)
-    }
+	nonisolated func encode(to encoder: Encoder) throws {
+		var container = encoder.container(keyedBy: CodingKeys.self)
+		try container.encode(refreshToken, forKey: .refreshToken)
+	}
 }
 
 struct AuthResponse: Codable, Sendable {
-    let accessToken: String
-    let refreshToken: String
-    let expiresAt: Date?
-    let user: User?
+	let accessToken: String
+	let refreshToken: String
+	let expiresAt: Date?
+	let user: User?
 
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case refreshToken = "refresh_token"
-        case expiresAt = "expires_at"
-        case user
-    }
+	enum CodingKeys: String, CodingKey {
+		case accessToken = "access_token"
+		case refreshToken = "refresh_token"
+		case expiresAt = "expires_at"
+		case user
+	}
 
-    nonisolated init(accessToken: String, refreshToken: String, expiresAt: Date?, user: User?) {
-        self.accessToken = accessToken
-        self.refreshToken = refreshToken
-        self.expiresAt = expiresAt
-        self.user = user
-    }
+	nonisolated init(accessToken: String, refreshToken: String, expiresAt: Date?, user: User?) {
+		self.accessToken = accessToken
+		self.refreshToken = refreshToken
+		self.expiresAt = expiresAt
+		self.user = user
+	}
 
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.accessToken = try container.decode(String.self, forKey: .accessToken)
-        self.refreshToken = try container.decode(String.self, forKey: .refreshToken)
-        self.expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
-        self.user = try container.decodeIfPresent(User.self, forKey: .user)
-    }
+	nonisolated init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		self.accessToken = try container.decode(String.self, forKey: .accessToken)
+		self.refreshToken = try container.decode(String.self, forKey: .refreshToken)
+		self.expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
+		self.user = try container.decodeIfPresent(User.self, forKey: .user)
+	}
 
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(accessToken, forKey: .accessToken)
-        try container.encode(refreshToken, forKey: .refreshToken)
-        try container.encode(expiresAt, forKey: .expiresAt)
-        try container.encode(user, forKey: .user)
-    }
+	nonisolated func encode(to encoder: Encoder) throws {
+		var container = encoder.container(keyedBy: CodingKeys.self)
+		try container.encode(accessToken, forKey: .accessToken)
+		try container.encode(refreshToken, forKey: .refreshToken)
+		try container.encode(expiresAt, forKey: .expiresAt)
+		try container.encode(user, forKey: .user)
+	}
 }
 
 // MARK: - Keychain Service
 
 struct KeychainService: Sendable {
-    enum KeychainError: Error {
-        case osStatus(OSStatus)
-        case encodingFailed
-        case decodingFailed
-        case itemNotFound
-    }
+	enum KeychainError: Error {
+		case osStatus(OSStatus)
+		case encodingFailed
+		case decodingFailed
+		case itemNotFound
+	}
 
-    private let serviceName = "com.lebensmittel.auth"
+	private let serviceName = "com.lebensmittel.auth"
 
-    nonisolated init() {}
+	nonisolated init() {}
 
-    nonisolated func save<T: Codable>(_ value: T, forKey key: String) throws {
-        let data = try JSONEncoder().encode(value)
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: serviceName,
-            kSecAttrAccount: key,
-            kSecValueData: data,
-            kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        ]
+	nonisolated func save<T: Codable>(_ value: T, forKey key: String) throws {
+		let data = try JSONEncoder().encode(value)
+		let query: [CFString: Any] = [
+			kSecClass: kSecClassGenericPassword,
+			kSecAttrService: serviceName,
+			kSecAttrAccount: key,
+			kSecValueData: data,
+			kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+		]
 
-        // Try to delete existing item first
-        SecItemDelete(query as CFDictionary)
+		// Try to delete existing item first
+		SecItemDelete(query as CFDictionary)
 
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw KeychainError.osStatus(status)
-        }
-    }
+		let status = SecItemAdd(query as CFDictionary, nil)
+		guard status == errSecSuccess else {
+			throw KeychainError.osStatus(status)
+		}
+	}
 
-    nonisolated func read<T: Codable>(_ type: T.Type, forKey key: String) throws -> T? {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: serviceName,
-            kSecAttrAccount: key,
-            kSecReturnData: kCFBooleanTrue!,
-            kSecMatchLimit: kSecMatchLimitOne
-        ]
+	nonisolated func read<T: Codable>(_ type: T.Type, forKey key: String) throws -> T? {
+		let query: [CFString: Any] = [
+			kSecClass: kSecClassGenericPassword,
+			kSecAttrService: serviceName,
+			kSecAttrAccount: key,
+			kSecReturnData: kCFBooleanTrue!,
+			kSecMatchLimit: kSecMatchLimitOne,
+		]
 
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+		var result: AnyObject?
+		let status = SecItemCopyMatching(query as CFDictionary, &result)
 
-        if status == errSecItemNotFound {
-            return nil
-        }
+		if status == errSecItemNotFound {
+			return nil
+		}
 
-        guard status == errSecSuccess, let data = result as? Data else {
-            throw KeychainError.osStatus(status)
-        }
+		guard status == errSecSuccess, let data = result as? Data else {
+			throw KeychainError.osStatus(status)
+		}
 
-        return try JSONDecoder().decode(T.self, from: data)
-    }
+		return try JSONDecoder().decode(T.self, from: data)
+	}
 
-    nonisolated func delete(forKey key: String) throws {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: serviceName,
-            kSecAttrAccount: key
-        ]
+	nonisolated func delete(forKey key: String) throws {
+		let query: [CFString: Any] = [
+			kSecClass: kSecClassGenericPassword,
+			kSecAttrService: serviceName,
+			kSecAttrAccount: key,
+		]
 
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw KeychainError.osStatus(status)
-        }
-    }
+		let status = SecItemDelete(query as CFDictionary)
+		guard status == errSecSuccess || status == errSecItemNotFound else {
+			throw KeychainError.osStatus(status)
+		}
+	}
 }
 
 // MARK: - JWT Utilities
 
 struct TokenUtils: Sendable {
-    nonisolated static func jwtExpiry(_ jwt: String) -> Int? {
-        let parts = jwt.split(separator: ".")
-        guard parts.count >= 2 else { return nil }
+	nonisolated static func jwtExpiry(_ jwt: String) -> Int? {
+		let parts = jwt.split(separator: ".")
+		guard parts.count >= 2 else { return nil }
 
-        var payload = String(parts[1])
-        payload = payload.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
-        while payload.count % 4 != 0 { payload += "=" }
+		var payload = String(parts[1])
+		payload = payload.replacingOccurrences(of: "-", with: "+").replacingOccurrences(
+			of: "_", with: "/")
+		while payload.count % 4 != 0 { payload += "=" }
 
-        guard let data = Data(base64Encoded: payload),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let exp = obj["exp"] as? Int else {
-            return nil
-        }
-        return exp
-    }
+		guard let data = Data(base64Encoded: payload),
+			let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+			let exp = obj["exp"] as? Int
+		else {
+			return nil
+		}
+		return exp
+	}
 
-    nonisolated static func isTokenExpired(_ token: String, bufferSeconds: Int = 60) -> Bool {
-        guard let exp = TokenUtils.jwtExpiry(token) else { return true }
-        return Date() > Date(timeIntervalSince1970: TimeInterval(exp - bufferSeconds))
-    }
+	nonisolated static func isTokenExpired(_ token: String, bufferSeconds: Int = 60) -> Bool {
+		guard let exp = TokenUtils.jwtExpiry(token) else { return true }
+		return Date() > Date(timeIntervalSince1970: TimeInterval(exp - bufferSeconds))
+	}
 }

@@ -8,38 +8,38 @@
 import Foundation
 
 struct MealsService: MealsServicing {
-    private let client: APIClient
+	private let client: APIClient
 
-    init(client: APIClient = .shared) {
-        self.client = client
-    }
+	init(client: APIClient = .shared) {
+		self.client = client
+	}
 
-    func fetchMealPlans() async throws -> [MealPlan] {
-        let response: MealPlansResponse = try await client.send(path: "/meal-plans")
-        return response.mealPlans
-    }
+	func fetchMealPlans() async throws -> [MealPlan] {
+		let response: MealPlansResponse = try await client.send(path: "/meal-plans")
+		return response.mealPlans
+	}
 
-    func createMealPlan(date: String, mealDescription: String) async throws {
-        let payload = NewMealPlan(date: date, mealDescription: mealDescription)
-        try await client.sendWithoutResponse(
-            path: "/meal-plans",
-            method: .POST,
-            body: payload
-        )
-    }
+	func createMealPlan(date: String, mealDescription: String) async throws {
+		let payload = NewMealPlan(date: date, mealDescription: mealDescription)
+		try await client.sendWithoutResponse(
+			path: "/meal-plans",
+			method: .POST,
+			body: payload
+		)
+	}
 
-    func updateMealPlan(id: String, mealDescription: String) async throws {
-        try await client.sendWithoutResponse(
-            path: "/meal-plans/\(id)",
-            method: .PATCH,
-            body: ["mealDescription": mealDescription]
-        )
-    }
+	func updateMealPlan(id: String, mealDescription: String) async throws {
+		try await client.sendWithoutResponse(
+			path: "/meal-plans/\(id)",
+			method: .PATCH,
+			body: ["mealDescription": mealDescription]
+		)
+	}
 
-    func deleteMealPlan(id: String) async throws {
-        try await client.sendWithoutResponse(
-            path: "/meal-plans/\(id)",
-            method: .DELETE
-        )
-    }
+	func deleteMealPlan(id: String) async throws {
+		try await client.sendWithoutResponse(
+			path: "/meal-plans/\(id)",
+			method: .DELETE
+		)
+	}
 }
