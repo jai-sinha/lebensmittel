@@ -7,42 +7,34 @@
 
 import Foundation
 
-// MARK: - Auth Storage (Actor)
+// MARK: - Auth Storage
 
 actor AuthStorage {
 	private let keychain = KeychainService()
 	private let tokensKey = "tokens"
 	private let userKey = "user"
-	private let activeGroupKey = "activeGroupId"
+
 	private var cachedTokens: Tokens?
 	private var cachedUser: User?
-	private var cachedActiveGroupId: String?
 
 	func loadTokens() throws -> Tokens? {
-		if let cached = cachedTokens {
-			return cached
+		if let cachedTokens {
+			return cachedTokens
 		}
+
 		let tokens = try keychain.read(Tokens.self, forKey: tokensKey)
 		cachedTokens = tokens
 		return tokens
 	}
 
 	func loadUser() throws -> User? {
-		if let cached = cachedUser {
-			return cached
+		if let cachedUser {
+			return cachedUser
 		}
+
 		let user = try keychain.read(User.self, forKey: userKey)
 		cachedUser = user
 		return user
-	}
-
-	func loadActiveGroupId() throws -> String? {
-		if let cached = cachedActiveGroupId {
-			return cached
-		}
-		let groupId = try keychain.read(String.self, forKey: activeGroupKey)
-		cachedActiveGroupId = groupId
-		return groupId
 	}
 
 	func saveTokens(_ tokens: Tokens) throws {
@@ -55,11 +47,6 @@ actor AuthStorage {
 		try keychain.save(user, forKey: userKey)
 	}
 
-	func saveActiveGroupId(_ id: String) throws {
-		cachedActiveGroupId = id
-		try keychain.save(id, forKey: activeGroupKey)
-	}
-
 	func clearTokens() throws {
 		cachedTokens = nil
 		try keychain.delete(forKey: tokensKey)
@@ -68,11 +55,6 @@ actor AuthStorage {
 	func clearUser() throws {
 		cachedUser = nil
 		try keychain.delete(forKey: userKey)
-	}
-
-	func clearActiveGroupId() throws {
-		cachedActiveGroupId = nil
-		try keychain.delete(forKey: activeGroupKey)
 	}
 }
 
@@ -149,23 +131,24 @@ actor AuthManager {
 
 	private let storage = AuthStorage()
 	private var refreshTask: Task<Tokens, Error>?
-	private var activeGroupTask: Task<String, Error>?
 
 	private var apiClient: APIClient {
-		APIClient(authManager: self)
+		APIClient(authService: self)
 	}
 
 	private var authAPI: AuthAPI {
 		AuthAPI(client: apiClient)
 	}
 
-	// MARK: Public Methods
-
 	func register(username: String, email: String, password: String, displayName: String)
 		async throws -> (User, Tokens)
 	{
 		let request = RegisterRequest(
-			username: username, password: password, displayName: displayName, email: email)
+			username: username,
+			password: password,
+			displayName: displayName,
+			email: email
+		)
 
 		do {
 			let authResponse = try await authAPI.register(request)
@@ -175,15 +158,14 @@ actor AuthManager {
 				expiresAt: authResponse.expiresAt
 			)
 
-			if let user = authResponse.user {
-				try await storage.saveUser(user)
-				try await storage.saveTokens(tokens)
-				try await storage.clearActiveGroupId()
-				activeGroupTask = nil
-				return (user, tokens)
+			guard let user = authResponse.user else {
+				throw AuthError.invalidResponse
 			}
 
-			throw AuthError.invalidResponse
+			try await storage.saveUser(user)
+			try await storage.saveTokens(tokens)
+			await GroupService.shared.clearActiveGroup()
+			return (user, tokens)
 		} catch let error as AuthError {
 			throw error
 		} catch {
@@ -202,15 +184,14 @@ actor AuthManager {
 				expiresAt: authResponse.expiresAt
 			)
 
-			if let user = authResponse.user {
-				try await storage.saveUser(user)
-				try await storage.saveTokens(tokens)
-				try await storage.clearActiveGroupId()
-				activeGroupTask = nil
-				return (user, tokens)
+			guard let user = authResponse.user else {
+				throw AuthError.invalidResponse
 			}
 
-			throw AuthError.invalidResponse
+			try await storage.saveUser(user)
+			try await storage.saveTokens(tokens)
+			await GroupService.shared.clearActiveGroup()
+			return (user, tokens)
 		} catch let error as AuthError {
 			throw error
 		} catch {
@@ -218,7 +199,6 @@ actor AuthManager {
 		}
 	}
 
-	/// Get a valid access token, refreshing if necessary
 	func accessToken() async throws -> String {
 		if let tokens = try await storage.loadTokens(),
 			!TokenUtils.isTokenExpired(tokens.accessToken)
@@ -230,10 +210,9 @@ actor AuthManager {
 		return newTokens.accessToken
 	}
 
-	/// Refresh access token using refresh token (single-flight)
 	func refresh() async throws -> Tokens {
-		if let task = refreshTask {
-			return try await task.value
+		if let refreshTask {
+			return try await refreshTask.value
 		}
 
 		let task = Task<Tokens, Error> {
@@ -251,13 +230,12 @@ actor AuthManager {
 			do {
 				authResponse = try await authAPI.refresh(request)
 			} catch {
-				// If refresh fails, clear all persisted auth state and force logout
 				try await self.storage.clearTokens()
 				try await self.storage.clearUser()
-				try await self.storage.clearActiveGroupId()
-				self.activeGroupTask = nil
+				await GroupService.shared.clearActiveGroup()
 				throw AuthError.refreshFailed
 			}
+
 			let newTokens = Tokens(
 				accessToken: authResponse.accessToken,
 				refreshToken: authResponse.refreshToken,
@@ -265,6 +243,11 @@ actor AuthManager {
 			)
 
 			try await self.storage.saveTokens(newTokens)
+
+			if let user = authResponse.user {
+				try await self.storage.saveUser(user)
+			}
+
 			return newTokens
 		}
 
@@ -272,31 +255,32 @@ actor AuthManager {
 		return try await task.value
 	}
 
-	/// Check if user is currently authenticated
-	func isAuthenticated() async throws -> Bool {
-		if let tokens = try await storage.loadTokens(),
-			!TokenUtils.isTokenExpired(tokens.accessToken)
-		{
-			return true
+	func ensureAuthenticated() async throws -> User {
+		_ = try await accessToken()
+
+		guard let user = try await storage.loadUser() else {
+			throw AuthError.notAuthenticated
 		}
-		// Access token expired — try refreshing with the refresh token
+
+		return user
+	}
+
+	func isAuthenticated() async throws -> Bool {
 		do {
-			_ = try await refresh()
+			_ = try await ensureAuthenticated()
 			return true
 		} catch {
 			return false
 		}
 	}
 
-	/// Get current user
 	func getCurrentUser() async throws -> User? {
-		return try await storage.loadUser()
+		try await storage.loadUser()
 	}
 
-	/// Delete user account
-	// Note: This will also invalidate tokens and log the user out
 	func deleteAccount() async throws {
 		_ = try await accessToken()
+
 		guard let id = try await storage.loadUser()?.id else {
 			throw AuthError.invalidResponse
 		}
@@ -310,110 +294,11 @@ actor AuthManager {
 		try await logout()
 	}
 
-	// MARK: - Group Management
-
-	func getUserGroups() async throws -> [AuthGroup] {
-		let groups: [AuthGroup] = try await apiClient.send(
-			path: "/users/me/groups",
-			includeGroupHeader: false
-		)
-		return groups
-	}
-
-	func getUsersInGroup() async throws -> [GroupUser] {
-		let groupId = try await getActiveGroupId()
-		return try await apiClient.send(path: "/groups/\(groupId)/users")
-	}
-
-	func getActiveGroupId() async throws -> String {
-		if let localId = try await storage.loadActiveGroupId() {
-			return localId
-		}
-
-		if let task = activeGroupTask {
-			return try await task.value
-		}
-
-		let task = Task<String, Error> {
-			_ = try await self.accessToken()
-			let result: [String: String] = try await apiClient.send(
-				path: "/users/me/active-group",
-				includeGroupHeader: false
-			)
-			guard let groupId = result["groupId"] else {
-				throw AuthError.invalidResponse
-			}
-
-			try await self.storage.saveActiveGroupId(groupId)
-			return groupId
-		}
-
-		activeGroupTask = task
-
-		do {
-			let result = try await task.value
-			activeGroupTask = nil
-			return result
-		} catch {
-			activeGroupTask = nil
-			throw error
-		}
-	}
-
-	func setActiveGroup(_ groupId: String) async throws {
-		try await storage.saveActiveGroupId(groupId)
-	}
-
-	func removeUserFromGroup(groupId: String, userId: String) async throws {
-		try await apiClient.sendWithoutResponse(
-			path: "/groups/\(groupId)/users/\(userId)", method: .DELETE)
-	}
-
-	func getGroupInviteCode(groupId: String) async throws -> String {
-		let result: [String: String] = try await apiClient.send(
-			path: "/groups/\(groupId)/invite", method: .POST)
-		guard let inviteCode = result["code"] else {
-			throw AuthError.invalidResponse
-		}
-
-		return inviteCode
-	}
-
-	func createGroup(groupName: String) async throws {
-		let body = ["name": groupName]
-		let group: AuthGroup = try await apiClient.send(path: "/groups", method: .POST, body: body)
-		try await self.setActiveGroup(group.id)
-	}
-
-	func joinGroup(code: String) async throws {
-		let body = ["code": code]
-
-		struct JoinResponse: Decodable {
-			let groupId: String
-		}
-
-		let result: JoinResponse = try await apiClient.send(
-			path: "/groups/join", method: .POST, body: body)
-		try await self.setActiveGroup(result.groupId)
-	}
-
-	func leaveGroup(groupId: String) async throws {
-		try await removeUserFromGroup(groupId: groupId, userId: "me")
-	}
-
-	func renameGroup(groupId: String, newName: String) async throws {
-		let body = ["name": newName]
-		try await apiClient.sendWithoutResponse(
-			path: "/groups/\(groupId)", method: .PATCH, body: body)
-	}
-
-	/// Logout (clear tokens and user data)
 	func logout() async throws {
 		try await storage.clearTokens()
 		try await storage.clearUser()
-		try await storage.clearActiveGroupId()
+		await GroupService.shared.clearActiveGroup()
 		refreshTask = nil
-		activeGroupTask = nil
 	}
 
 	private func clearRefreshTask() {

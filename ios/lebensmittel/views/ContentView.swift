@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-	@Environment(AuthStateManager.self) var authManager
+	@Environment(SessionManager.self) var sessionManager
 
 	var body: some View {
 		TabView {

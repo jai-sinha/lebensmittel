@@ -23,17 +23,17 @@ class LoginModel {
 		return emailPred.evaluate(with: email)
 	}
 
-	func login(authManager: AuthStateManager, onSuccess: (() -> Void)? = nil) {
+	func login(sessionManager: SessionManager, onSuccess: (() -> Void)? = nil) {
 		isLoading = true
 
 		Task {
 			do {
-				let _ = try await AuthManager.shared.login(
+				_ = try await AuthManager.shared.login(
 					username: username,
 					password: password
 				)
 
-				await authManager.refreshState()
+				try await sessionManager.hydrateSession()
 
 				await MainActor.run {
 					isLoading = false
@@ -41,26 +41,26 @@ class LoginModel {
 				}
 			} catch {
 				await MainActor.run {
-					authManager.errorMessage = UserFacingError.message(for: error)
+					sessionManager.errorMessage = UserFacingError.message(for: error)
 					isLoading = false
 				}
 			}
 		}
 	}
 
-	func register(authManager: AuthStateManager, onSuccess: (() -> Void)? = nil) {
+	func register(sessionManager: SessionManager, onSuccess: (() -> Void)? = nil) {
 		isLoading = true
 
 		Task {
 			do {
-				let _ = try await AuthManager.shared.register(
+				_ = try await AuthManager.shared.register(
 					username: username,
 					email: email,
 					password: password,
 					displayName: displayName
 				)
 
-				await authManager.refreshState()
+				try await sessionManager.hydrateSession()
 
 				await MainActor.run {
 					isLoading = false
@@ -68,7 +68,7 @@ class LoginModel {
 				}
 			} catch {
 				await MainActor.run {
-					authManager.errorMessage = UserFacingError.message(for: error)
+					sessionManager.errorMessage = UserFacingError.message(for: error)
 					isLoading = false
 				}
 			}
