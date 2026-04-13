@@ -11,6 +11,7 @@ struct GroceriesView: View {
 	@Environment(GroceriesModel.self) var model
 	@Environment(AuthStateManager.self) var authManager
 	@Environment(\.colorScheme) var colorScheme
+	@FocusState private var isAddItemFieldFocused: Bool
 
 	var body: some View {
 		NavigationStack {
@@ -25,9 +26,12 @@ struct GroceriesView: View {
 						}
 				} else {
 					if !authManager.isAuthenticated {
-						GuestSignInPrompt(message: "Sign in and join a household group to manage your shared grocery list.")
-							.frame(maxWidth: .infinity, maxHeight: .infinity)
-							.background(Color(.systemBackground))
+						GuestSignInPrompt(
+							message:
+								"Sign in and join a household group to manage your shared grocery list."
+						)
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.background(Color(.systemBackground))
 					} else if authManager.currentUserGroups.isEmpty {
 						Text("Please create or join a group to start adding groceries.")
 							.foregroundStyle(.secondary)
@@ -73,7 +77,7 @@ struct GroceriesView: View {
 
 						// Show search results above the search bar
 						SearchResultsDropdown()
-						AddItemSection()
+						AddItemSection(isAddItemFieldFocused: $isAddItemFieldFocused)
 							.frame(maxWidth: .infinity, alignment: .center)
 							.fixedSize(horizontal: false, vertical: true)
 							.padding(.horizontal, 12)
@@ -84,6 +88,18 @@ struct GroceriesView: View {
 			}
 			.background(
 				colorScheme == .dark ? Color(.systemBackground) : Color(.secondarySystemBackground)
+			)
+			.contentShape(Rectangle())
+			.onTapGesture {
+				isAddItemFieldFocused = false
+			}
+			.gesture(
+				DragGesture(minimumDistance: 12)
+					.onEnded { value in
+						if value.translation.height > 20 {
+							isAddItemFieldFocused = false
+						}
+					}
 			)
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Groceries")
@@ -164,6 +180,7 @@ struct GroceriesGridView: View {
 				.padding(12)
 			}
 		}
+		.scrollDismissesKeyboard(.interactively)
 		// Reset scroll position when the category changes
 		.id(model.selectedCategory)
 	}
@@ -217,20 +234,27 @@ struct GroceryItemCard: View {
 		.onTapGesture {
 			model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
 		}
-		.onLongPressGesture(minimumDuration: 0.5, perform: {
-			let generator = UIImpactFeedbackGenerator(style: .heavy)
-			generator.impactOccurred()
-			isPressed = false
-			showDeleteConfirmation = true
-		}, onPressingChanged: { pressing in
-			isPressed = pressing
-			if pressing {
-				let generator = UIImpactFeedbackGenerator(style: .light)
-				generator.prepare()
+		.onLongPressGesture(
+			minimumDuration: 0.25,
+			perform: {
+				let generator = UIImpactFeedbackGenerator(style: .heavy)
 				generator.impactOccurred()
+				isPressed = false
+				showDeleteConfirmation = true
+			},
+			onPressingChanged: { pressing in
+				isPressed = pressing
+				if pressing {
+					let generator = UIImpactFeedbackGenerator(style: .light)
+					generator.prepare()
+					generator.impactOccurred()
+				}
 			}
-		})
-		.confirmationDialog("Delete \"\(item.name)\"?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+		)
+		.confirmationDialog(
+			"Delete \"\(item.name)\"?", isPresented: $showDeleteConfirmation,
+			titleVisibility: .visible
+		) {
 			Button("Delete", role: .destructive) {
 				model.deleteGroceryItem(item: item)
 			}
@@ -284,10 +308,11 @@ struct SearchResultsDropdown: View {
 	}
 }
 
-// MARK: - Add Item Section (untouched)
+// MARK: - Add Item Section
 
 struct AddItemSection: View {
 	@Environment(GroceriesModel.self) var model
+	@FocusState.Binding var isAddItemFieldFocused: Bool
 
 	var body: some View {
 		VStack(spacing: 2) {
@@ -321,15 +346,16 @@ struct AddItemSection: View {
 						set: { model.newItemName = $0 }
 					)
 				)
+				.focused($isAddItemFieldFocused)
 				.textFieldStyle(RoundedBorderTextFieldStyle())
-				.onChange(of: model.newItemName) {
-					model.isSearching = !model.newItemName.isEmpty
-				}
+
 				.onSubmit {
 					model.addItem()
+					isAddItemFieldFocused = false
 				}
 				Button(model.exactMatch != nil ? "Select" : "Add") {
 					model.addItem()
+					isAddItemFieldFocused = false
 				}
 				.disabled(model.newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 			}

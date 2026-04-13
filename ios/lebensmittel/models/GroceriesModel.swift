@@ -24,7 +24,9 @@ class GroceriesModel {
 	var searchCategory: String = "Other"
 	var selectedCategory: String = "Essentials"
 	var expandedCategories: Set<String> = []
-	var isSearching: Bool = false
+	var isSearching: Bool {
+		!newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+	}
 
 	let categories = ["Essentials", "Protein", "Veggies", "Carbs", "Household", "Other"]
 
@@ -93,9 +95,10 @@ class GroceriesModel {
 
 	func addItem(_ item: GroceryItem) {
 		groceryItems.append(item)
-		if item.name.caseInsensitiveCompare(newItemName.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame {
+		if item.name.caseInsensitiveCompare(
+			newItemName.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+		{
 			newItemName = ""
-			isSearching = false
 		}
 	}
 
@@ -103,9 +106,10 @@ class GroceriesModel {
 		if let index = groceryItems.firstIndex(where: { $0.id == updatedItem.id }) {
 			groceryItems[index] = updatedItem
 		}
-		if updatedItem.name.caseInsensitiveCompare(newItemName.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame {
+		if updatedItem.name.caseInsensitiveCompare(
+			newItemName.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+		{
 			newItemName = ""
-			isSearching = false
 		}
 	}
 
