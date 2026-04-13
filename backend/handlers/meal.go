@@ -102,8 +102,6 @@ func UpdateMealPlan(c *gin.Context) {
 		data["date"] = date
 	}
 
-	// TODO: Verify item belongs to user's group
-
 	meal, err := database.UpdateMealPlan(c.Request.Context(), mealID, data)
 	if err != nil {
 		if meal == nil {
@@ -128,8 +126,6 @@ func DeleteMealPlan(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// TODO: Verify item belongs to user's group
 
 	if err := database.DeleteMealPlan(c.Request.Context(), mealID); err != nil {
 		if err.Error() == "meal plan not found" {

@@ -97,8 +97,6 @@ func UpdateGroceryItem(c *gin.Context) {
 		return
 	}
 
-	// TODO: Verify item belongs to user's group
-
 	item, err := database.UpdateGroceryItem(c.Request.Context(), itemID, data)
 	if err != nil {
 		if item == nil {
@@ -123,8 +121,6 @@ func DeleteGroceryItem(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// TODO: Verify item belongs to user's group
 
 	if err := database.DeleteGroceryItem(c.Request.Context(), itemID); err != nil {
 		if err.Error() == "grocery item not found" {

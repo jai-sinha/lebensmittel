@@ -107,7 +107,7 @@ func GenerateExampleData(ctx context.Context, userID, groupID string) error {
 	}
 	notes := "Example receipt"
 	receipt := models.NewReceipt(now, 42.67, user.DisplayName, receiptItems, &notes, groupID, userID)
-	if err := database.CreateReceipt(ctx, receipt); err != nil {
+	if _, err := database.CreateReceipt(ctx, receipt); err != nil {
 		return fmt.Errorf("failed to create receipt: %w", err)
 	}
 
