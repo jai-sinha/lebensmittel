@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct ReceiptsService {
+struct ReceiptsService: ReceiptsServicing {
     private let client: APIClient
 
     init(client: APIClient = .shared) {

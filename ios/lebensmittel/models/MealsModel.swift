@@ -10,11 +10,11 @@ import Foundation
 @MainActor
 @Observable
 class MealsModel {
-	private let service: MealsService
+	private let service: any MealsServicing
 	var mealPlans: [String: MealPlan] = [:]  // Keyed by date string
 	var errorMessage: String? = nil
 
-	init(service: MealsService = MealsService()) {
+	init(service: any MealsServicing = MealsService()) {
 		self.service = service
 	}
 
