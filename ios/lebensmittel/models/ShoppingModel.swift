@@ -57,7 +57,6 @@ class ShoppingModel {
 	// MARK: CRUD Operation (just createReceipt)
 
 	func createReceipt(price: Double, purchasedBy: String, notes: String) {
-		groceriesModel.isLoading = true
 		errorMessage = nil
 		let formatter = DateFormatter()
 		formatter.dateFormat = "yyyy-MM-dd"
@@ -73,7 +72,6 @@ class ShoppingModel {
 				)
 			} catch {
 				self.errorMessage = UserFacingError.message(for: error)
-				self.groceriesModel.isLoading = false
 			}
 		}
 	}

@@ -112,7 +112,8 @@ final class SocketService: WebSocketDelegate {
 				let token = try await AuthManager.shared.accessToken()
 				let activeGroupId = try? await AuthManager.shared.getActiveGroupId()
 
-				var urlComponents = URLComponents(url: AppConfig.webSocketURL, resolvingAgainstBaseURL: false)!
+				var urlComponents = URLComponents(
+					url: AppConfig.webSocketURL, resolvingAgainstBaseURL: false)!
 				var queryItems = [URLQueryItem(name: "token", value: token)]
 				if let activeGroupId {
 					queryItems.append(URLQueryItem(name: "groups", value: activeGroupId))
@@ -262,6 +263,14 @@ final class SocketService: WebSocketDelegate {
 			decode(payload, as: GroceryItem.self) { item in
 				if Self.verbose { print("grocery updated:", item) }
 				self.groceriesModel.updateItem(item)
+			}
+
+		case "grocery_items_updated":
+			decode(payload, as: [GroceryItem].self) { items in
+				if Self.verbose { print("groceries updated:", items) }
+				for item in items {
+					self.groceriesModel.updateItem(item)
+				}
 			}
 
 		case "grocery_item_deleted":
