@@ -19,30 +19,33 @@ struct ReceiptsView: View {
 	@State private var editNotes: String = ""
 	@State private var editError: String = ""
 
-	@Environment(AuthStateManager.self) var authManager
+	@Environment(SessionManager.self) var sessionManager
 
 	var body: some View {
 		NavigationStack {
 			VStack {
 				if let errorMessage = model.errorMessage {
-						InlineErrorView(message: errorMessage)
+					InlineErrorView(message: errorMessage)
 						.refreshable {
 							model.errorMessage = nil
 							model.fetchReceipts()
 						}
-                } else if !authManager.isAuthenticated {
-					GuestSignInPrompt(message: "Sign in and join a household group to create receipts and track spending.")
-						.frame(maxWidth: .infinity, maxHeight: .infinity)
-						.background(Color(.systemBackground))
-				} else if authManager.currentUserGroups.isEmpty {
+				} else if !sessionManager.isAuthenticated {
+					GuestSignInPrompt(
+						message:
+							"Sign in and join a household group to create receipts and track spending."
+					)
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
+					.background(Color(.systemBackground))
+				} else if sessionManager.currentUserGroups.isEmpty {
 					Text("Please create or join a group to start meal planning.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
 						.background(Color(.systemBackground))
 				} else if model.receipts.isEmpty {
-                    Text("No receipts yet. Create one from the Shopping tab to get started!")
-                        .foregroundStyle(.secondary)
-                } else {
+					Text("No receipts yet. Create one from the Shopping tab to get started!")
+						.foregroundStyle(.secondary)
+				} else {
 					List {
 						ForEach(model.groupReceiptsByMonthWithPersonTotals()) { group in
 							MonthGroup(
@@ -101,7 +104,7 @@ struct MonthGroup: View {
 	@Binding var editError: String
 
 	@Environment(ReceiptsModel.self) var model
-	@Environment(AuthStateManager.self) var authManager
+	@Environment(SessionManager.self) var sessionManager
 
 	var body: some View {
 		DisclosureGroup(
@@ -130,7 +133,7 @@ struct MonthGroup: View {
 				}
 				// Monthly person totals
 				VStack(alignment: .leading) {
-					ForEach(authManager.currentGroupUsers, id: \.id) { user in
+					ForEach(sessionManager.currentGroupUsers, id: \.id) { user in
 						HStack {
 							Text("\(user.displayName)'s Total:")
 								.font(.subheadline)
@@ -255,7 +258,7 @@ struct EditReceiptSheet: View {
 	@Binding var showEditSheet: Bool
 
 	@Environment(ReceiptsModel.self) var model
-	@Environment(AuthStateManager.self) var authManager
+	@Environment(SessionManager.self) var sessionManager
 
 	var body: some View {
 		VStack(spacing: 25) {
@@ -274,7 +277,7 @@ struct EditReceiptSheet: View {
 				Text("Purchased by")
 					.font(.headline)
 				Picker("Purchased by", selection: $editPurchaser) {
-					ForEach(authManager.currentGroupUsers, id: \.id) { user in
+					ForEach(sessionManager.currentGroupUsers, id: \.id) { user in
 						Text(user.displayName).tag(user.displayName)
 					}
 				}

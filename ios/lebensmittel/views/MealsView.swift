@@ -11,7 +11,7 @@ struct MealsView: View {
 	@Environment(MealsModel.self) var model
 	@Environment(\.colorScheme) var colorScheme
 	@State private var mealTexts: [String: String] = [:]
-	@Environment(AuthStateManager.self) var authManager
+	@Environment(SessionManager.self) var sessionManager
 	@FocusState private var focusedMealDate: String?
 
 	private func date(for dayOffset: Int) -> Date {
@@ -30,13 +30,13 @@ struct MealsView: View {
 	var body: some View {
 		NavigationStack {
 			ZStack {
-				if !authManager.isAuthenticated {
+				if !sessionManager.isAuthenticated {
 					GuestSignInPrompt(
 						message: "Sign in and join a household group to start meal planning."
 					)
 					.frame(maxWidth: .infinity, maxHeight: .infinity)
 					.background(Color(.systemBackground))
-				} else if authManager.currentUserGroups.isEmpty {
+				} else if sessionManager.currentUserGroups.isEmpty {
 					Text("Please create or join a group to start meal planning.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -110,12 +110,12 @@ final class SocketService: WebSocketDelegate {
 		Task {
 			do {
 				let token = try await AuthManager.shared.accessToken()
-				let activeGroupId = try? await AuthManager.shared.getActiveGroupId()
+				let activeGroupId = try? await GroupService.shared.getActiveGroupId()
 
 				var urlComponents = URLComponents(
 					url: AppConfig.webSocketURL, resolvingAgainstBaseURL: false)!
 				var queryItems = [URLQueryItem(name: "token", value: token)]
-				if let activeGroupId {
+				if let activeGroupId, !activeGroupId.isEmpty {
 					queryItems.append(URLQueryItem(name: "groups", value: activeGroupId))
 				}
 				urlComponents.queryItems = queryItems

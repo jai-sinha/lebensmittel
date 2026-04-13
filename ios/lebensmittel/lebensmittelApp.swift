@@ -7,106 +7,9 @@
 
 import SwiftUI
 
-@MainActor
-@Observable
-class AuthStateManager {
-	var isAuthenticated = false
-	var isGuest = false
-	var currentUser: User?
-	var currentUserGroups: [AuthGroup] = []
-	var currentUserActiveGroupId: String?
-	var currentGroupUsers: [GroupUser] = []
-	var isCheckingAuth = true
-	var errorMessage: String?
-
-	func checkAuthentication() {
-		Task {
-			await refreshState()
-			await MainActor.run {
-				self.isCheckingAuth = false
-			}
-		}
-	}
-
-	func refreshState() async {
-
-		do {
-			let isAuth = try await AuthManager.shared.isAuthenticated()
-
-			if isAuth {
-				let user = try await AuthManager.shared.getCurrentUser()
-				let userGroups = try await AuthManager.shared.getUserGroups()
-				let userActiveGroupId = try await AuthManager.shared.getActiveGroupId()
-				let groupUsers = try await AuthManager.shared.getUsersInGroup()
-
-				await MainActor.run {
-					self.isAuthenticated = true
-					self.currentUser = user
-					self.currentUserGroups = userGroups
-					self.currentUserActiveGroupId = userActiveGroupId
-					self.currentGroupUsers = groupUsers
-					self.errorMessage = nil
-				}
-			} else {
-				await MainActor.run {
-					self.isAuthenticated = false
-					self.currentUser = nil
-					self.currentUserGroups = []
-					self.currentUserActiveGroupId = nil
-					self.currentGroupUsers = []
-				}
-			}
-		} catch {
-			await MainActor.run {
-				self.errorMessage = UserFacingError.message(for: error)
-				self.isAuthenticated = false
-			}
-		}
-	}
-
-	func logout() {
-		Task {
-			do {
-				try await AuthManager.shared.logout()
-				await MainActor.run {
-					self.clearLocalState()
-				}
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-				}
-			}
-		}
-	}
-
-	/// Clears only the observable UI state. Use this when the underlying
-	/// keychain/storage has already been wiped (e.g. after deleteAccount,
-	/// which calls logout() internally before returning).
-	func clearLocalState() {
-		isAuthenticated = false
-		isGuest = false
-		currentUser = nil
-		currentUserGroups = []
-		currentUserActiveGroupId = nil
-		currentGroupUsers = []
-		errorMessage = nil
-	}
-
-	/// Skips sign-in and enters the app in a read-only guest state.
-	func continueAsGuest() {
-		isGuest = true
-	}
-
-	/// Called when a guest taps "Sign In" from within the app; returns
-	/// them to GuestHomeView so they can authenticate properly.
-	func exitGuestMode() {
-		isGuest = false
-	}
-}
-
 @main
 struct lebensmittelApp: App {
-	@State private var authManager = AuthStateManager()
+	@State private var sessionManager = SessionManager()
 	@State private var groceriesModel: GroceriesModel
 	@State private var mealsModel: MealsModel
 	@State private var receiptsModel: ReceiptsModel
@@ -123,8 +26,9 @@ struct lebensmittelApp: App {
 		_mealsModel = State(initialValue: MealsModel(service: mealsService))
 		_receiptsModel = State(initialValue: ReceiptsModel(service: receiptsService))
 		_shoppingModel = State(
-			initialValue: ShoppingModel(groceriesModel: groceries, service: shoppingService))
-		_authManager = State(initialValue: AuthStateManager())
+			initialValue: ShoppingModel(groceriesModel: groceries, service: shoppingService)
+		)
+		_sessionManager = State(initialValue: SessionManager())
 	}
 
 	private func startSession() {
@@ -148,47 +52,56 @@ struct lebensmittelApp: App {
 	var body: some Scene {
 		WindowGroup {
 			Group {
-				if authManager.isCheckingAuth {
+				if sessionManager.isCheckingAuth {
 					ProgressView("Loading...")
-				} else if authManager.isAuthenticated {
+				} else if sessionManager.isAuthenticated {
 					ContentView()
 						.environment(groceriesModel)
 						.environment(mealsModel)
 						.environment(receiptsModel)
 						.environment(shoppingModel)
-						.environment(authManager)
+						.environment(sessionManager)
 						.onAppear {
 							startSession()
 						}
 						.onReceive(
 							NotificationCenter.default.publisher(
-								for: UIApplication.willEnterForegroundNotification)
+								for: UIApplication.willEnterForegroundNotification
+							)
 						) { _ in
-							SocketService.shared.ensureConnected()
-							refreshData()
+							Task {
+								do {
+									_ = try await AuthManager.shared.ensureAuthenticated()
+									SocketService.shared.ensureConnected()
+									refreshData()
+								} catch {
+									await MainActor.run {
+										sessionManager.clearLocalState()
+									}
+								}
+							}
 						}
 						.onReceive(
 							NotificationCenter.default.publisher(
-								for: Notification.Name("GroupChanged"))
+								for: Notification.Name("GroupChanged")
+							)
 						) { _ in
 							SocketService.shared.restart()
 							refreshData()
 						}
-				} else if authManager.isGuest {
-					// Guest mode: show the full tab UI but with no data loaded.
-					// Each feature view shows an inline sign-in prompt instead of content.
+				} else if sessionManager.isGuest {
 					ContentView()
 						.environment(groceriesModel)
 						.environment(mealsModel)
 						.environment(receiptsModel)
 						.environment(shoppingModel)
-						.environment(authManager)
+						.environment(sessionManager)
 				} else {
-					GuestHomeView(authManager: authManager)
+					GuestHomeView(sessionManager: sessionManager)
 				}
 			}
 			.onAppear {
-				authManager.checkAuthentication()
+				sessionManager.checkAuthentication()
 			}
 		}
 	}

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct GroceriesView: View {
 	@Environment(GroceriesModel.self) var model
-	@Environment(AuthStateManager.self) var authManager
+	@Environment(SessionManager.self) var sessionManager
 	@Environment(\.colorScheme) var colorScheme
 	@FocusState private var isAddItemFieldFocused: Bool
 
@@ -25,14 +25,14 @@ struct GroceriesView: View {
 							model.fetchGroceries()
 						}
 				} else {
-					if !authManager.isAuthenticated {
+					if !sessionManager.isAuthenticated {
 						GuestSignInPrompt(
 							message:
 								"Sign in and join a household group to manage your shared grocery list."
 						)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
 						.background(Color(.systemBackground))
-					} else if authManager.currentUserGroups.isEmpty {
+					} else if sessionManager.currentUserGroups.isEmpty {
 						Text("Please create or join a group to start adding groceries.")
 							.foregroundStyle(.secondary)
 							.frame(maxWidth: .infinity, maxHeight: .infinity)

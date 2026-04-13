@@ -44,12 +44,18 @@ struct APIClient {
 	static let shared = APIClient()
 
 	private let auth: AuthManager
+	private let groupService: GroupService
 	private let session: URLSession
 	private let encoder = JSONEncoder()
 	private let decoder = JSONDecoder()
 
-	nonisolated init(authManager: AuthManager = .shared, session: URLSession = .shared) {
-		self.auth = authManager
+	nonisolated init(
+		authService: AuthManager = .shared,
+		groupService: GroupService = .shared,
+		session: URLSession = .shared
+	) {
+		self.auth = authService
+		self.groupService = groupService
 		self.session = session
 	}
 
@@ -111,7 +117,10 @@ struct APIClient {
 			request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 		}
 
-		if includeGroupHeader, let groupId = try? await auth.getActiveGroupId(), !groupId.isEmpty {
+		if includeGroupHeader,
+			let groupId = try await groupService.getActiveGroupId(),
+			!groupId.isEmpty
+		{
 			request.setValue(groupId, forHTTPHeaderField: "X-Group-ID")
 		}
 
@@ -155,7 +164,9 @@ struct APIClient {
 		}
 
 		if request.value(forHTTPHeaderField: "X-Group-ID") != nil {
-			if let groupId = try? await auth.getActiveGroupId(), !groupId.isEmpty {
+			if let groupId = try await groupService.getActiveGroupId(),
+				!groupId.isEmpty
+			{
 				retry.setValue(groupId, forHTTPHeaderField: "X-Group-ID")
 			} else {
 				retry.setValue(nil, forHTTPHeaderField: "X-Group-ID")

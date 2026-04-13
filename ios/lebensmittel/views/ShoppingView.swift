@@ -10,7 +10,7 @@ import SwiftUI
 /// Main shopping list view, including the checkout sheet.
 struct ShoppingView: View {
 	@Environment(ShoppingModel.self) var model
-	@Environment(AuthStateManager.self) var authManager
+	@Environment(SessionManager.self) var sessionManager
 	@Environment(\.colorScheme) var colorScheme
 	// Checkout dialog state
 	@State private var showCheckoutSheet = false
@@ -18,46 +18,49 @@ struct ShoppingView: View {
 	var body: some View {
 		NavigationStack {
 			VStack {
-				if !authManager.isAuthenticated {
-					GuestSignInPrompt(message: "Sign in and join a household group to see your shared shopping list.")
-						.frame(maxWidth: .infinity, maxHeight: .infinity)
-						.background(Color(.systemBackground))
-				} else if authManager.currentUserGroups.isEmpty {
+				if !sessionManager.isAuthenticated {
+					GuestSignInPrompt(
+						message:
+							"Sign in and join a household group to see your shared shopping list."
+					)
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
+					.background(Color(.systemBackground))
+				} else if sessionManager.currentUserGroups.isEmpty {
 					Text("Please create or join a group to see your shopping list.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
 						.background(Color(.systemBackground))
 				} else {
 					if model.isLoading {
-					ProgressView("Loading shopping list...")
-				} else if let errorMessage = model.errorMessage {
-					InlineErrorView(message: errorMessage)
+						ProgressView("Loading shopping list...")
+					} else if let errorMessage = model.errorMessage {
+						InlineErrorView(message: errorMessage)
+							.refreshable {
+								model.errorMessage = nil
+								model.fetchGroceries()
+							}
+					} else {
+						List {
+							listContent
+						}
 						.refreshable {
 							model.errorMessage = nil
 							model.fetchGroceries()
 						}
-				} else {
-					List {
-						listContent
 					}
-					.refreshable {
-						model.errorMessage = nil
-						model.fetchGroceries()
+					Spacer()
+					// Checkout button
+					Button {
+						showCheckoutSheet = true
+					} label: {
+						Text("Checkout")
+							.frame(maxWidth: .infinity)
+							.padding()
+							.background(Color.blue)
+							.foregroundStyle(.white)
+							.clipShape(.rect(cornerRadius: 10))
 					}
-				}
-				Spacer()
-				// Checkout button
-				Button {
-					showCheckoutSheet = true
-				} label: {
-					Text("Checkout")
-						.frame(maxWidth: .infinity)
-						.padding()
-						.background(Color.blue)
-						.foregroundStyle(.white)
-						.clipShape(.rect(cornerRadius: 10))
-				}
-				.padding([.horizontal, .bottom])
+					.padding([.horizontal, .bottom])
 				}
 			}
 			.navigationBarTitleDisplayMode(.inline)
@@ -161,7 +164,7 @@ struct ShoppingRow: View {
 }
 
 struct CheckoutSheetView: View {
-	@Environment(AuthStateManager.self) var authManager
+	@Environment(SessionManager.self) var sessionManager
 
 	var onCancel: () -> Void
 
@@ -173,7 +176,7 @@ struct CheckoutSheetView: View {
 	@State private var error: String = ""
 
 	var purchaserOptions: [String] {
-		authManager.currentGroupUsers.map { $0.displayName }
+		sessionManager.currentGroupUsers.map { $0.displayName }
 	}
 
 	var body: some View {
