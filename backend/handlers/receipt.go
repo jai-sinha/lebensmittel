@@ -84,13 +84,17 @@ func CreateReceipt(c *gin.Context) {
 		UserID:      userID,
 	}
 
-	if err := database.CreateReceipt(c.Request.Context(), newReceipt); err != nil {
+	updatedItems, err := database.CreateReceipt(c.Request.Context(), newReceipt)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Emit websocket event
+	// Emit websocket events
 	websocket.EmitEvent("receipt_created", newReceipt, groupID)
+	if len(updatedItems) > 0 {
+		websocket.EmitEvent("grocery_items_updated", updatedItems, groupID)
+	}
 
 	c.JSON(http.StatusCreated, newReceipt)
 }
@@ -123,8 +127,6 @@ func UpdateReceipt(c *gin.Context) {
 		}
 	}
 
-	// TODO: Verify item belongs to user's group
-
 	receipt, err := database.UpdateReceipt(c.Request.Context(), receiptID, data)
 	if err != nil {
 		if receipt == nil {
@@ -149,8 +151,6 @@ func DeleteReceipt(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// TODO: Verify item belongs to user's group
 
 	if err := database.DeleteReceipt(c.Request.Context(), receiptID); err != nil {
 		if err.Error() == "receipt not found" {
