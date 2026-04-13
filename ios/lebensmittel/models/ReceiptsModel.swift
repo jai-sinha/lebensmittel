@@ -10,13 +10,13 @@ import Foundation
 @MainActor
 @Observable
 class ReceiptsModel {
-	private let service: ReceiptsService
+	private let service: any ReceiptsServicing
 
 	var receipts: [Receipt] = []
 	var isLoading = false
 	var errorMessage: String? = nil
 
-	init(service: ReceiptsService = ReceiptsService()) {
+	init(service: any ReceiptsServicing = ReceiptsService()) {
 		self.service = service
 	}
 

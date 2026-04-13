@@ -15,7 +15,7 @@ class GroceriesModel {
 		case isShoppingChecked(Bool)
 	}
 
-	private let service: GroceriesService
+	private let service: any GroceriesServicing
 
 	var groceryItems: [GroceryItem] = []
 	var isLoading = false
@@ -28,7 +28,7 @@ class GroceriesModel {
 
 	let categories = ["Essentials", "Protein", "Veggies", "Carbs", "Household", "Other"]
 
-	init(service: GroceriesService = GroceriesService()) {
+	init(service: any GroceriesServicing = GroceriesService()) {
 		self.service = service
 	}
 

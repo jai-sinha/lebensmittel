@@ -112,11 +112,16 @@ struct lebensmittelApp: App {
     @State private var shoppingModel: ShoppingModel
 
     init() {
-        let groceries = GroceriesModel()
+        let groceriesService = GroceriesService()
+        let mealsService = MealsService()
+        let receiptsService = ReceiptsService()
+        let shoppingService = ShoppingService()
+
+        let groceries = GroceriesModel(service: groceriesService)
         _groceriesModel = State(initialValue: groceries)
-        _mealsModel = State(initialValue: MealsModel())
-        _receiptsModel = State(initialValue: ReceiptsModel())
-        _shoppingModel = State(initialValue: ShoppingModel(groceriesModel: groceries))
+        _mealsModel = State(initialValue: MealsModel(service: mealsService))
+        _receiptsModel = State(initialValue: ReceiptsModel(service: receiptsService))
+        _shoppingModel = State(initialValue: ShoppingModel(groceriesModel: groceries, service: shoppingService))
         _authManager = State(initialValue: AuthStateManager())
     }
 

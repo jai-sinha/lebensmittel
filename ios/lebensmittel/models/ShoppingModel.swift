@@ -12,11 +12,11 @@ import Foundation
 class ShoppingModel {
 	// Reference to shared GroceriesModel
 	private var groceriesModel: GroceriesModel
-	private let service: ShoppingService
+	private let service: any ShoppingServicing
 
 	var errorMessage: String? = nil
 
-	init(groceriesModel: GroceriesModel, service: ShoppingService = ShoppingService()) {
+	init(groceriesModel: GroceriesModel, service: any ShoppingServicing = ShoppingService()) {
 		self.groceriesModel = groceriesModel
 		self.service = service
 	}

@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct GroceriesService {
+struct GroceriesService: GroceriesServicing {
     private let client: APIClient
 
     init(client: APIClient = .shared) {
