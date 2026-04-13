@@ -8,24 +8,24 @@
 import SwiftUI
 
 struct InlineErrorView: View {
-    let message: String
+	let message: String
 
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                Text("Error: \(message)")
-                    .foregroundStyle(.red)
-                Text("Pull down to retry")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 100)
-        }
-        .background(Color(.systemBackground))
-    }
+	var body: some View {
+		ScrollView {
+			VStack(spacing: 12) {
+				Text("Error: \(message)")
+					.foregroundStyle(.red)
+				Text("Pull down to retry")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+			}
+			.frame(maxWidth: .infinity)
+			.padding(.top, 100)
+		}
+		.background(Color(.systemBackground))
+	}
 }
 
 #Preview {
-    InlineErrorView(message: "Something went wrong. Please try again.")
+	InlineErrorView(message: "Something went wrong. Please try again.")
 }
