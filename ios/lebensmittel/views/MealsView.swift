@@ -12,10 +12,15 @@ struct MealsView: View {
 	@Environment(\.colorScheme) var colorScheme
 	@State private var mealTexts: [String: String] = [:]
 	@Environment(AuthStateManager.self) var authManager
+	@FocusState private var focusedMealDate: String?
 
 	private func date(for dayOffset: Int) -> Date {
 		let today = Calendar.current.startOfDay(for: Date())
 		return Calendar.current.date(byAdding: .day, value: dayOffset, to: today) ?? today
+	}
+
+	private func mealDateString(for dayOffset: Int) -> String {
+		MealsModel.calendarDateString(for: date(for: dayOffset))
 	}
 
 	private func isToday(_ date: Date) -> Bool {
@@ -26,9 +31,11 @@ struct MealsView: View {
 		NavigationStack {
 			ZStack {
 				if !authManager.isAuthenticated {
-					GuestSignInPrompt(message: "Sign in and join a household group to start meal planning.")
-						.frame(maxWidth: .infinity, maxHeight: .infinity)
-						.background(Color(.systemBackground))
+					GuestSignInPrompt(
+						message: "Sign in and join a household group to start meal planning."
+					)
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
+					.background(Color(.systemBackground))
 				} else if authManager.currentUserGroups.isEmpty {
 					Text("Please create or join a group to start meal planning.")
 						.foregroundStyle(.secondary)
@@ -47,47 +54,15 @@ struct MealsView: View {
 					ScrollViewReader { proxy in
 						ScrollView {
 							VStack(spacing: -4) {
-								// Past days (scrollable up)
-								ForEach(-7..<0, id: \.self) { dayOffset in
+								ForEach(-7..<10, id: \.self) { dayOffset in
 									let rowDate = date(for: dayOffset)
-									let dateStr = MealsModel.calendarDateString(for: rowDate)
-									MealRowView(
-										date: rowDate,
-										text: Binding(
-											get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
-											set: { mealTexts[dateStr] = $0 }
-										)
-									)
-								}
-								// Current day and next 6 days (the main 7-day view)
-								ForEach(0..<7, id: \.self) { dayOffset in
-									let rowDate = date(for: dayOffset)
-									let dateStr = MealsModel.calendarDateString(for: rowDate)
-									let isThisToday = isToday(rowDate)
-									MealRowView(
-										date: rowDate,
-										text: Binding(
-											get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
-											set: { mealTexts[dateStr] = $0 }
-										)
-									)
-									.id(isThisToday ? "today" : "day_\(dayOffset)")
-								}
-								// Future days (scrollable down)
-								ForEach(7..<10, id: \.self) { dayOffset in
-									let rowDate = date(for: dayOffset)
-									let dateStr = MealsModel.calendarDateString(for: rowDate)
-									MealRowView(
-										date: rowDate,
-										text: Binding(
-											get: { mealTexts[dateStr] ?? model.getMealPlan(for: dateStr) },
-											set: { mealTexts[dateStr] = $0 }
-										)
-									)
+									mealRow(for: rowDate, dateStr: mealDateString(for: dayOffset))
+										.id(isToday(rowDate) ? "today" : "day_\(dayOffset)")
 								}
 							}
 							.padding(.horizontal)
 						}
+						.scrollDismissesKeyboard(.interactively)
 						.refreshable {
 							model.errorMessage = nil
 							model.fetchMealPlans()
@@ -106,6 +81,18 @@ struct MealsView: View {
 					}
 				}
 			}
+			.contentShape(Rectangle())
+			.onTapGesture {
+				focusedMealDate = nil
+			}
+			.gesture(
+				DragGesture(minimumDistance: 12)
+					.onEnded { value in
+						if value.translation.height > 20 {
+							focusedMealDate = nil
+						}
+					}
+			)
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Meal Planning")
 			.toolbar {
@@ -116,14 +103,28 @@ struct MealsView: View {
 
 		}
 	}
+
+	@ViewBuilder
+	private func mealRow(for rowDate: Date, dateStr: String) -> some View {
+		MealRowView(
+			date: rowDate,
+			text: Binding(
+				get: {
+					mealTexts[dateStr] ?? model.getMealPlan(for: dateStr)
+				},
+				set: { mealTexts[dateStr] = $0 }
+			),
+			focusedMealDate: $focusedMealDate
+		)
+	}
 }
 
 struct MealRowView: View {
 	let date: Date
 	@Binding var text: String
+	@FocusState.Binding var focusedMealDate: String?
 
 	@Environment(MealsModel.self) var model
-	@FocusState private var isFocused: Bool
 
 	private var dateStr: String {
 		MealsModel.calendarDateString(for: date)
@@ -162,9 +163,9 @@ struct MealRowView: View {
 			.textFieldStyle(RoundedBorderTextFieldStyle())
 			.foregroundStyle(.primary)
 			.submitLabel(.done)
-			.focused($isFocused)
-			.onChange(of: isFocused) {
-				if !isFocused {
+			.focused($focusedMealDate, equals: dateStr)
+			.onChange(of: focusedMealDate) {
+				if focusedMealDate != dateStr {
 					handleSubmit()
 				}
 			}
@@ -180,7 +181,7 @@ struct MealRowView: View {
 			if let mealId = model.mealPlanId(for: dateStr) {
 				model.deleteMealPlan(mealId: mealId)
 			}
-		} else if let _ = model.mealPlanId(for: dateStr) {
+		} else if model.mealPlanId(for: dateStr) != nil {
 			model.updateMealPlan(for: dateStr, meal: trimmed)
 		} else {
 			model.createMealPlan(for: dateStr, meal: trimmed)
