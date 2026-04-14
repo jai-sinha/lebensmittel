@@ -5,11 +5,26 @@ All notable changes to this project will be documented in this file, to the best
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+A/F/C/R
+
 ---
+
+## [2.2.2] - 2026-04-14
+
+### Added
+- Services and ServiceProtocols for proper iOS MVVM arch w/dependency injection
+
+### Fixed
+- Receipt creation bug
+- Auth recursion bug
+
+### Changed
+- Made TextFields in Grocery and Meal Views dismissable
+- Split auth, session, and group management into three distinct pieces
 
 ## [2.2.1] - 2026-04-09
 
-## Changed
+### Changed
 - Reorganized iOS networking and auth code
 - Grocery item deletion to long press from swipe
 
