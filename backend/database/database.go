@@ -150,26 +150,12 @@ func GetAllMealPlans(ctx context.Context, groupID string) ([]models.MealPlan, er
 }
 
 func CreateMealPlan(ctx context.Context, meal *models.MealPlan) error {
-	tx, err := db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	// Delete any existing meal for this date
-	_, err = tx.Exec(ctx, "DELETE FROM meal_plans WHERE date = $1 AND group_id = $2", meal.Date, meal.GroupID)
-	if err != nil {
-		return fmt.Errorf("failed to delete existing meal plan: %w", err)
-	}
-
-	// Insert new meal plan
 	query := `INSERT INTO meal_plans (id, date, meal_description, group_id, user_id) VALUES ($1, $2, $3, $4, $5)`
-	_, err = tx.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription, meal.GroupID, meal.UserID)
+	_, err := db.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription, meal.GroupID, meal.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to create meal plan: %w", err)
 	}
-
-	return tx.Commit(ctx)
+	return nil
 }
 
 func UpdateMealPlan(ctx context.Context, id string, updates map[string]any) (*models.MealPlan, error) {
