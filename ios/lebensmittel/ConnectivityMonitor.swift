@@ -2,7 +2,7 @@
 //  ConnectivityMonitor.swift
 //  lebensmittel
 //
-//  Created by Jai Sinha on 10/15/25.
+//  Created by Jai Sinha on 3/25/26.
 //
 
 import Foundation
@@ -14,27 +14,27 @@ import Network
 @Observable
 @MainActor
 final class ConnectivityMonitor {
-    static let shared = ConnectivityMonitor()
+	static let shared = ConnectivityMonitor()
 
-    /// True when the device has a usable network path.
-    private(set) var isOnline: Bool = true
+	/// True when the device has a usable network path.
+	private(set) var isOnline: Bool = true
 
-    private let monitor = NWPathMonitor()
-    private let monitorQueue = DispatchQueue(label: "com.lebensmittel.connectivity", qos: .utility)
+	private let monitor = NWPathMonitor()
+	private let monitorQueue = DispatchQueue(label: "com.lebensmittel.connectivity", qos: .utility)
 
-    private init() {
-        monitor.pathUpdateHandler = { [weak self] path in
-            let satisfied = path.status == .satisfied
-            Task { @MainActor [weak self] in
-                self?.isOnline = satisfied
-            }
-        }
-        monitor.start(queue: monitorQueue)
-        // Seed initial state from the current path (available after start).
-        isOnline = monitor.currentPath.status == .satisfied
-    }
+	private init() {
+		monitor.pathUpdateHandler = { [weak self] path in
+			let satisfied = path.status == .satisfied
+			Task { @MainActor [weak self] in
+				self?.isOnline = satisfied
+			}
+		}
+		monitor.start(queue: monitorQueue)
+		// Seed initial state from the current path (available after start).
+		isOnline = monitor.currentPath.status == .satisfied
+	}
 
-    deinit {
-        monitor.cancel()
-    }
+	deinit {
+		monitor.cancel()
+	}
 }
