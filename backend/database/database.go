@@ -235,7 +235,11 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 	}
 	defer tx.Rollback(ctx)
 
-	// Get items that are needed and checked for the receipt
+	if len(receipt.ItemsList) == 0 {
+		return nil, fmt.Errorf("receipt items are required")
+	}
+
+	// Get items that are needed and checked for the receipt.
 	itemsQuery := `SELECT id, name, category, is_needed, is_shopping_checked, group_id, user_id
 		FROM grocery_items
 		WHERE is_needed = true AND is_shopping_checked = true AND group_id = $1`
@@ -245,7 +249,11 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 	}
 	defer rows.Close()
 
-	var itemNames []string
+	explicitItemSet := map[string]struct{}{}
+	for _, name := range receipt.ItemsList {
+		explicitItemSet[name] = struct{}{}
+	}
+
 	updatedItems := []models.GroceryItem{}
 	for rows.Next() {
 		var item models.GroceryItem
@@ -253,7 +261,11 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan grocery item for receipt: %w", err)
 		}
-		itemNames = append(itemNames, item.Name)
+
+		if _, ok := explicitItemSet[item.Name]; !ok {
+			continue
+		}
+
 		item.IsNeeded = false
 		item.IsShoppingChecked = false
 		updatedItems = append(updatedItems, item)
@@ -262,19 +274,22 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 		return nil, fmt.Errorf("failed iterating grocery items for receipt: %w", err)
 	}
 
-	// Update the receipt with the items
-	if len(itemNames) > 0 {
-		receipt.SetItems(itemNames)
+	if err := receipt.SetItems(receipt.ItemsList); err != nil {
+		return nil, fmt.Errorf("failed to set explicit receipt items: %w", err)
+	}
 
-		// Update grocery items - set is_needed and is_shopping_checked to false
+	itemIDs := make([]string, 0, len(updatedItems))
+	for _, item := range updatedItems {
+		itemIDs = append(itemIDs, item.ID)
+	}
+
+	if len(itemIDs) > 0 {
 		updateQuery := `UPDATE grocery_items SET is_needed = false, is_shopping_checked = false
-						WHERE is_needed = true AND is_shopping_checked = true AND group_id = $1`
-		_, err = tx.Exec(ctx, updateQuery, receipt.GroupID)
+						WHERE id = ANY($1) AND group_id = $2`
+		_, err = tx.Exec(ctx, updateQuery, itemIDs, receipt.GroupID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update grocery items: %w", err)
+			return nil, fmt.Errorf("failed to update explicit grocery items: %w", err)
 		}
-	} else if receipt.Items == "" && len(receipt.ItemsList) > 0 {
-		receipt.SetItems(receipt.ItemsList)
 	}
 
 	query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
