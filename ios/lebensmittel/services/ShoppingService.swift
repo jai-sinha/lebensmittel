@@ -18,6 +18,7 @@ struct ShoppingService: ShoppingServicing {
 		date: String,
 		price: Double,
 		purchasedBy: String,
+		items: [String],
 		notes: String
 	) async throws {
 		try await client.sendWithoutResponse(
@@ -27,6 +28,7 @@ struct ShoppingService: ShoppingServicing {
 				date: date,
 				totalAmount: price,
 				purchasedBy: purchasedBy,
+				items: items,
 				notes: notes
 			)
 		)

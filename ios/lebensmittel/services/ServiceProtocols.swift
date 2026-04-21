@@ -37,6 +37,7 @@ protocol ShoppingServicing {
 		date: String,
 		price: Double,
 		purchasedBy: String,
+		items: [String],
 		notes: String
 	) async throws
 }

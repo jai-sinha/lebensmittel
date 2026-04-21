@@ -61,6 +61,7 @@ class ShoppingModel {
 		let formatter = DateFormatter()
 		formatter.dateFormat = "yyyy-MM-dd"
 		let dateString = formatter.string(from: Date())
+		let itemNames = checkedItems.map(\.name)
 
 		Task {
 			do {
@@ -68,6 +69,7 @@ class ShoppingModel {
 					date: dateString,
 					price: price,
 					purchasedBy: purchasedBy,
+					items: itemNames,
 					notes: notes
 				)
 			} catch {

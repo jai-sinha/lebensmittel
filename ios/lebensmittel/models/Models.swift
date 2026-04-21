@@ -22,6 +22,7 @@ struct NewReceipt: Codable {
 	var date: String
 	var totalAmount: Double
 	var purchasedBy: String
+	var items: [String]
 	var notes: String?
 }
 
