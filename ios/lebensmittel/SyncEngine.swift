@@ -30,7 +30,9 @@ final class SyncEngine {
 	static var verbose = false
 
 	private var modelContext: ModelContext?
-	private let client: APIClient
+	private var groceriesService: (any GroceriesServicing)?
+	private var mealsService: (any MealsServicing)?
+	private var receiptsService: (any ReceiptsServicing)?
 	private var isSyncing = false
 
 	private struct ReceiptCreatePayload: Codable {
@@ -45,8 +47,16 @@ final class SyncEngine {
 
 	// MARK: - Configuration
 
-	func configure(modelContext: ModelContext) {
+	func configure(
+		modelContext: ModelContext,
+		groceriesService: any GroceriesServicing,
+		mealsService: any MealsServicing,
+		receiptsService: any ReceiptsServicing
+	) {
 		self.modelContext = modelContext
+		self.groceriesService = groceriesService
+		self.mealsService = mealsService
+		self.receiptsService = receiptsService
 		log("Configured")
 	}
 
@@ -136,6 +146,7 @@ final class SyncEngine {
 		let serverID: String
 		switch op.entityType {
 		case .grocery:
+			guard let groceriesService else { throw SyncError.notConfigured }
 			let payload: NewGroceryItem
 			if let local = findLocalGroceryItem(byLocalID: op.localID) {
 				payload = NewGroceryItem(
@@ -148,15 +159,15 @@ final class SyncEngine {
 				payload = try JSONDecoder().decode(NewGroceryItem.self, from: op.payload)
 			}
 
-			let created: GroceryItem = try await networkClient.send(
-				path: "/grocery-items",
-				method: .POST,
-				body: payload
+			let created = try await groceriesService.createGroceryItem(
+				name: payload.name,
+				category: payload.category
 			)
 			serverID = created.id
 			findLocalGroceryItem(byLocalID: op.localID)?.applyServerValues(created)
 
 		case .meal:
+			guard let mealsService else { throw SyncError.notConfigured }
 			let payload: NewMealPlan
 			if let local = findLocalMealPlan(byLocalID: op.localID) {
 				payload = NewMealPlan(date: local.date, mealDescription: local.mealDescription)
@@ -164,20 +175,24 @@ final class SyncEngine {
 				payload = try JSONDecoder().decode(NewMealPlan.self, from: op.payload)
 			}
 
-			let created: MealPlan = try await networkClient.send(
-				path: "/meal-plans",
-				method: .POST,
-				body: payload
+			let created = try await mealsService.createMealPlan(
+				date: payload.date,
+				mealDescription: payload.mealDescription
 			)
 			serverID = created.id
 			findLocalMealPlan(byLocalID: op.localID)?.applyServerValues(created)
 
 		case .receipt:
+			guard let receiptsService else { throw SyncError.notConfigured }
 			let payload = try JSONDecoder().decode(ReceiptCreatePayload.self, from: op.payload)
-			let created: Receipt = try await networkClient.send(
-				path: "/receipts",
-				method: .POST,
-				body: payload
+			let created = try await receiptsService.createReceipt(
+				NewReceipt(
+					date: payload.date,
+					totalAmount: payload.totalAmount,
+					purchasedBy: payload.purchasedBy,
+					items: payload.items,
+					notes: payload.notes
+				)
 			)
 			serverID = created.id
 			findLocalReceipt(byLocalID: op.localID)?.applyServerValues(created)
@@ -195,25 +210,36 @@ final class SyncEngine {
 		let currentData: Data?
 		switch op.entityType {
 		case .grocery:
-			let response: GroceryItemsResponse = try await networkClient.send(
-				path: "/grocery-items")
-			guard let item = response.groceryItems.first(where: { $0.id == serverID }) else {
+			guard let groceriesService else { throw SyncError.notConfigured }
+			guard
+				let item = try await groceriesService.fetchGroceries().first(where: {
+					$0.id == serverID
+				})
+			else {
 				currentData = nil
 				break
 			}
 			currentData = try JSONEncoder().encode(item)
 
 		case .meal:
-			let response: MealPlansResponse = try await networkClient.send(path: "/meal-plans")
-			guard let plan = response.mealPlans.first(where: { $0.id == serverID }) else {
+			guard let mealsService else { throw SyncError.notConfigured }
+			guard
+				let plan = try await mealsService.fetchMealPlans().first(where: {
+					$0.id == serverID
+				})
+			else {
 				currentData = nil
 				break
 			}
 			currentData = try JSONEncoder().encode(plan)
 
 		case .receipt:
-			let response: ReceiptsResponse = try await networkClient.send(path: "/receipts")
-			guard let receipt = response.receipts.first(where: { $0.id == serverID }) else {
+			guard let receiptsService else { throw SyncError.notConfigured }
+			guard
+				let receipt = try await receiptsService.fetchReceipts().first(where: {
+					$0.id == serverID
+				})
+			else {
 				currentData = nil
 				break
 			}
@@ -243,27 +269,30 @@ final class SyncEngine {
 
 		switch op.entityType {
 		case .grocery:
+			guard let groceriesService else { throw SyncError.notConfigured }
 			let payload = try JSONDecoder().decode(GroceryPatchPayload.self, from: op.payload)
-			try await networkClient.sendWithoutResponse(
-				path: "/grocery-items/\(serverID)",
-				method: .PATCH,
-				body: payload
+			try await groceriesService.updateGroceryItem(
+				id: serverID,
+				isNeeded: payload.isNeeded,
+				isShoppingChecked: payload.isShoppingChecked
 			)
 
 		case .meal:
+			guard let mealsService else { throw SyncError.notConfigured }
 			let payload = try JSONDecoder().decode(MealPatchPayload.self, from: op.payload)
-			try await networkClient.sendWithoutResponse(
-				path: "/meal-plans/\(serverID)",
-				method: .PATCH,
-				body: payload
+			try await mealsService.updateMealPlan(
+				id: serverID,
+				mealDescription: payload.mealDescription
 			)
 
 		case .receipt:
+			guard let receiptsService else { throw SyncError.notConfigured }
 			let payload = try JSONDecoder().decode(ReceiptPatchPayload.self, from: op.payload)
-			try await networkClient.sendWithoutResponse(
-				path: "/receipts/\(serverID)",
-				method: .PATCH,
-				body: payload
+			try await receiptsService.updateReceipt(
+				id: serverID,
+				price: payload.totalAmount,
+				purchasedBy: payload.purchasedBy,
+				notes: payload.notes ?? ""
 			)
 		}
 
@@ -280,20 +309,17 @@ final class SyncEngine {
 			return
 		}
 
-		let path: String
 		switch op.entityType {
 		case .grocery:
-			path = "/grocery-items/\(serverID)"
+			guard let groceriesService else { throw SyncError.notConfigured }
+			try await groceriesService.deleteGroceryItem(id: serverID)
 		case .meal:
-			path = "/meal-plans/\(serverID)"
+			guard let mealsService else { throw SyncError.notConfigured }
+			try await mealsService.deleteMealPlan(id: serverID)
 		case .receipt:
-			path = "/receipts/\(serverID)"
+			guard let receiptsService else { throw SyncError.notConfigured }
+			try await receiptsService.deleteReceipt(id: serverID)
 		}
-
-		try await networkClient.sendWithoutResponse(
-			path: path,
-			method: .DELETE
-		)
 
 		deleteLocalEntity(entityType: op.entityType, localID: op.localID)
 		try? context.save()
@@ -900,10 +926,12 @@ final class SyncEngine {
 
 enum SyncError: LocalizedError {
 	case missingServerID
+	case notConfigured
 
 	var errorDescription: String? {
 		switch self {
 		case .missingServerID: "Update operation missing server ID"
+		case .notConfigured: "Sync engine is not configured"
 		}
 	}
 }

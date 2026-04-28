@@ -63,9 +63,7 @@ struct lebensmittelApp: App {
 			receiptsModel: receiptsModel,
 			shoppingModel: shoppingModel
 		)
-		groceriesModel.fetchGroceries()
-		mealsModel.fetchMealPlans()
-		receiptsModel.fetchReceipts()
+		refreshData()
 	}
 
 	private func refreshData() {
@@ -115,8 +113,8 @@ struct lebensmittelApp: App {
 							)
 						) { _ in
 							SyncEngine.shared.clearLocalData()
-							SocketService.shared.restart()
 							refreshData()
+							SocketService.shared.restart()
 						}
 				} else if sessionManager.isGuest {
 					ContentView()

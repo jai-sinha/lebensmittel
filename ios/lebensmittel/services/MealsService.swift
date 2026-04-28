@@ -19,9 +19,9 @@ struct MealsService: MealsServicing {
 		return response.mealPlans
 	}
 
-	func createMealPlan(date: String, mealDescription: String) async throws {
+	func createMealPlan(date: String, mealDescription: String) async throws -> MealPlan {
 		let payload = NewMealPlan(date: date, mealDescription: mealDescription)
-		try await client.sendWithoutResponse(
+		return try await client.send(
 			path: "/meal-plans",
 			method: .POST,
 			body: payload

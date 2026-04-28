@@ -28,13 +28,7 @@ protocol MealsServicing {
 
 protocol ReceiptsServicing {
 	func fetchReceipts() async throws -> [Receipt]
-	func createReceipt(
-		date: String,
-		price: Double,
-		purchasedBy: String,
-		items: [String],
-		notes: String
-	) async throws -> Receipt
+	func createReceipt(_ receipt: NewReceipt) async throws -> Receipt
 	func updateReceipt(
 		id: String,
 		price: Double,
