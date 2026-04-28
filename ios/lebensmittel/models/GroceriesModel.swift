@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 
 @MainActor
 @Observable
@@ -16,6 +17,7 @@ class GroceriesModel {
 	}
 
 	private let service: any GroceriesServicing
+	private let syncEngine: SyncEngine
 
 	var groceryItems: [GroceryItem] = []
 	var isLoading = false
@@ -30,8 +32,12 @@ class GroceriesModel {
 
 	let categories = ["Essentials", "Protein", "Veggies", "Carbs", "Household", "Other"]
 
-	init(service: any GroceriesServicing = GroceriesService()) {
+	init(
+		service: any GroceriesServicing = GroceriesService(),
+		syncEngine: SyncEngine = .shared
+	) {
 		self.service = service
+		self.syncEngine = syncEngine
 	}
 
 	// MARK: Computed Properties and Helpers
@@ -123,17 +129,27 @@ class GroceriesModel {
 		isLoading = true
 		errorMessage = nil
 
+		if !ConnectivityMonitor.shared.isOnline {
+			groceryItems = syncEngine.loadAllGroceryItems()
+			isLoading = false
+			return
+		}
+
 		Task {
 			do {
 				let groceries = try await service.fetchGroceries()
+				let merged = await MainActor.run {
+					syncEngine.mergeGroceries(groceries)
+				}
 
 				await MainActor.run {
-					self.groceryItems = groceries
+					self.groceryItems = merged
 					self.isLoading = false
 				}
 			} catch {
 				await MainActor.run {
 					self.errorMessage = UserFacingError.message(for: error)
+					self.groceryItems = self.syncEngine.loadAllGroceryItems()
 					self.isLoading = false
 				}
 			}
@@ -143,14 +159,13 @@ class GroceriesModel {
 	func createGroceryItem(name: String, category: String) {
 		errorMessage = nil
 
-		Task {
-			do {
-				try await service.createGroceryItem(name: name, category: category)
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-				}
-			}
+		let created = syncEngine.enqueueGroceryCreate(name: name, category: category)
+		groceryItems.append(created)
+
+		if created.name.caseInsensitiveCompare(
+			newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
+		) == .orderedSame {
+			newItemName = ""
 		}
 	}
 
@@ -158,30 +173,32 @@ class GroceriesModel {
 	func updateGroceryItem(item: GroceryItem, field: GroceryItemField) {
 		errorMessage = nil
 
-		Task {
-			do {
-				try await service.updateGroceryItem(id: item.id, field: field)
-				// WebSocket will handle updating the UI via grocery_item_updated event
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-				}
-			}
+		let updatedValues: (isNeeded: Bool, isShoppingChecked: Bool)
+		switch field {
+		case .isNeeded(let isNeeded):
+			updatedValues = (isNeeded, isNeeded ? false : item.isShoppingChecked)
+		case .isShoppingChecked(let isShoppingChecked):
+			updatedValues = (item.isNeeded, isShoppingChecked)
 		}
+
+		guard
+			let updated = syncEngine.enqueueGroceryUpdate(
+				itemID: item.id,
+				isNeeded: updatedValues.isNeeded,
+				isShoppingChecked: updatedValues.isShoppingChecked,
+				snapshot: item
+			)
+		else {
+			errorMessage = "Unable to update grocery item."
+			return
+		}
+
+		updateItem(updated)
 	}
 
 	func deleteGroceryItem(item: GroceryItem) {
 		errorMessage = nil
-
-		Task {
-			do {
-				try await service.deleteGroceryItem(id: item.id)
-				// WebSocket will handle updating the UI via grocery_item_deleted event
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-				}
-			}
-		}
+		syncEngine.enqueueGroceryDelete(itemID: item.id)
+		removeItem(withId: item.id)
 	}
 }

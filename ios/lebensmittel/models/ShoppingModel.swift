@@ -12,13 +12,11 @@ import Foundation
 class ShoppingModel {
 	// Reference to shared GroceriesModel
 	private var groceriesModel: GroceriesModel
-	private let service: any ShoppingServicing
 
 	var errorMessage: String? = nil
 
-	init(groceriesModel: GroceriesModel, service: any ShoppingServicing = ShoppingService()) {
+	init(groceriesModel: GroceriesModel) {
 		self.groceriesModel = groceriesModel
-		self.service = service
 	}
 
 	// Delegate isLoading to groceriesModel
@@ -61,20 +59,20 @@ class ShoppingModel {
 		let formatter = DateFormatter()
 		formatter.dateFormat = "yyyy-MM-dd"
 		let dateString = formatter.string(from: Date())
-		let itemNames = checkedItems.map(\.name)
 
-		Task {
-			do {
-				try await service.createReceipt(
-					date: dateString,
-					price: price,
-					purchasedBy: purchasedBy,
-					items: itemNames,
-					notes: notes
-				)
-			} catch {
-				self.errorMessage = UserFacingError.message(for: error)
-			}
+		let optimisticReceipt = SyncEngine.shared.enqueueReceiptCreate(
+			date: dateString,
+			totalAmount: price,
+			purchasedBy: purchasedBy,
+			notes: notes,
+			checkedItems: checkedItems
+		)
+
+		groceriesModel.groceryItems = SyncEngine.shared.loadAllGroceryItems()
+		if let receiptsModel = SocketService.shared.receiptsModel {
+			receiptsModel.receipts = SyncEngine.shared.loadAllReceipts()
+		} else {
+			_ = optimisticReceipt
 		}
 	}
 }

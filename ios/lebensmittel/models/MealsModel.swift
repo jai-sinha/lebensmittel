@@ -50,11 +50,21 @@ class MealsModel {
 	func fetchMealPlans() {
 		errorMessage = nil
 
+		if !ConnectivityMonitor.shared.isOnline {
+			let localPlans = SyncEngine.shared.loadAllMealPlans()
+			self.mealPlans.removeAll()
+			for mealPlan in localPlans {
+				self.mealPlans[mealPlan.date] = mealPlan
+			}
+			return
+		}
+
 		Task {
 			do {
 				let mealPlans = try await service.fetchMealPlans()
+				let mergedPlans = SyncEngine.shared.mergeMealPlans(mealPlans)
 				self.mealPlans.removeAll()
-				for mealPlan in mealPlans {
+				for mealPlan in mergedPlans {
 					self.mealPlans[mealPlan.date] = mealPlan
 				}
 			} catch {
@@ -66,13 +76,11 @@ class MealsModel {
 	func createMealPlan(for dateString: String, meal: String) {
 		errorMessage = nil
 
-		Task {
-			do {
-				try await service.createMealPlan(date: dateString, mealDescription: meal)
-			} catch {
-				self.errorMessage = UserFacingError.message(for: error)
-			}
-		}
+		let createdPlan = SyncEngine.shared.enqueueMealCreate(
+			date: dateString,
+			mealDescription: meal
+		)
+		mealPlans[createdPlan.date] = createdPlan
 	}
 
 	func updateMealPlan(for dateString: String, meal: String) {
@@ -81,25 +89,20 @@ class MealsModel {
 
 		errorMessage = nil
 
-		Task {
-			do {
-				try await service.updateMealPlan(id: existingPlan.id, mealDescription: meal)
-			} catch {
-				self.errorMessage = UserFacingError.message(for: error)
-			}
+		if let updatedPlan = SyncEngine.shared.enqueueMealUpdate(
+			mealID: existingPlan.id,
+			mealDescription: meal,
+			snapshot: existingPlan
+		) {
+			mealPlans[updatedPlan.date] = updatedPlan
 		}
 	}
 
 	func deleteMealPlan(mealId: String) {
 		errorMessage = nil
 
-		Task {
-			do {
-				try await service.deleteMealPlan(id: mealId)
-			} catch {
-				self.errorMessage = UserFacingError.message(for: error)
-			}
-		}
+		SyncEngine.shared.enqueueMealDelete(mealID: mealId)
+		removeMealPlan(withId: mealId)
 	}
 
 	/// Returns a "yyyy-MM-dd" string representing the user's local calendar date for the given Date.

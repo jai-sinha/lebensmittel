@@ -19,6 +19,14 @@ struct ReceiptsService: ReceiptsServicing {
 		return response.receipts.sorted { $0.date < $1.date }
 	}
 
+	func createReceipt(_ receipt: NewReceipt) async throws -> Receipt {
+		try await client.send(
+			path: "/receipts",
+			method: .POST,
+			body: receipt
+		)
+	}
+
 	func updateReceipt(
 		id: String,
 		price: Double,
@@ -37,6 +45,13 @@ struct ReceiptsService: ReceiptsServicing {
 	}
 
 	func deleteReceipt(id: String) async throws {
+		try await client.sendWithoutResponse(
+			path: "/receipts/\(id)",
+			method: .DELETE
+		)
+	}
+
+	func deleteReceiptSync(id: String) async throws {
 		try await client.sendWithoutResponse(
 			path: "/receipts/\(id)",
 			method: .DELETE

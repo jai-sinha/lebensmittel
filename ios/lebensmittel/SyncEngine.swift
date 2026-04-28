@@ -30,10 +30,10 @@ final class SyncEngine {
 	static var verbose = false
 
 	private var modelContext: ModelContext?
-	private let networkClient = APIClient()
+	private let client: APIClient
 	private var isSyncing = false
 
-	private struct ReceiptCreatePayload: Encodable {
+	private struct ReceiptCreatePayload: Codable {
 		let date: String
 		let totalAmount: Double
 		let purchasedBy: String

@@ -5,10 +5,13 @@
 //  Created by Jai Sinha on 10/15/25.
 //
 
+import SwiftData
 import SwiftUI
 
 @main
 struct lebensmittelApp: App {
+	private let modelContainer: ModelContainer
+
 	@State private var sessionManager = SessionManager()
 	@State private var groceriesModel: GroceriesModel
 	@State private var mealsModel: MealsModel
@@ -16,22 +19,44 @@ struct lebensmittelApp: App {
 	@State private var shoppingModel: ShoppingModel
 
 	init() {
-		let groceriesService = GroceriesService()
-		let mealsService = MealsService()
-		let receiptsService = ReceiptsService()
-		let shoppingService = ShoppingService()
+		do {
+			modelContainer = try ModelContainer(
+				for:
+					LocalGroceryItem.self,
+				LocalMealPlan.self,
+				LocalReceipt.self,
+				SyncOperation.self
+			)
+		} catch {
+			fatalError("Failed to create SwiftData ModelContainer: \(error)")
+		}
+
+		let apiClient = APIClient.shared
+		let groceriesService = GroceriesService(client: apiClient)
+		let mealsService = MealsService(client: apiClient)
+		let receiptsService = ReceiptsService(client: apiClient)
 
 		let groceries = GroceriesModel(service: groceriesService)
+		let meals = MealsModel(service: mealsService)
+		let receipts = ReceiptsModel(service: receiptsService)
+		let shopping = ShoppingModel(groceriesModel: groceries)
+
 		_groceriesModel = State(initialValue: groceries)
-		_mealsModel = State(initialValue: MealsModel(service: mealsService))
-		_receiptsModel = State(initialValue: ReceiptsModel(service: receiptsService))
-		_shoppingModel = State(
-			initialValue: ShoppingModel(groceriesModel: groceries, service: shoppingService)
-		)
+		_mealsModel = State(initialValue: meals)
+		_receiptsModel = State(initialValue: receipts)
+		_shoppingModel = State(initialValue: shopping)
 		_sessionManager = State(initialValue: SessionManager())
+
+		SyncEngine.shared.configure(
+			modelContext: ModelContext(modelContainer),
+			groceriesService: groceriesService,
+			mealsService: mealsService,
+			receiptsService: receiptsService
+		)
 	}
 
 	private func startSession() {
+		SyncEngine.shared.syncIfNeeded()
 		SocketService.shared.start(
 			with: groceriesModel,
 			mealsModel: mealsModel,
@@ -44,6 +69,7 @@ struct lebensmittelApp: App {
 	}
 
 	private func refreshData() {
+		SyncEngine.shared.syncIfNeeded()
 		groceriesModel.fetchGroceries()
 		mealsModel.fetchMealPlans()
 		receiptsModel.fetchReceipts()
@@ -72,10 +98,12 @@ struct lebensmittelApp: App {
 							Task {
 								do {
 									_ = try await AuthManager.shared.ensureAuthenticated()
+									SyncEngine.shared.syncIfNeeded()
 									SocketService.shared.ensureConnected()
 									refreshData()
 								} catch {
 									await MainActor.run {
+										SyncEngine.shared.clearLocalData()
 										sessionManager.clearLocalState()
 									}
 								}
@@ -86,6 +114,7 @@ struct lebensmittelApp: App {
 								for: Notification.Name("GroupChanged")
 							)
 						) { _ in
+							SyncEngine.shared.clearLocalData()
 							SocketService.shared.restart()
 							refreshData()
 						}
@@ -104,5 +133,6 @@ struct lebensmittelApp: App {
 				sessionManager.checkAuthentication()
 			}
 		}
+		.modelContainer(modelContainer)
 	}
 }

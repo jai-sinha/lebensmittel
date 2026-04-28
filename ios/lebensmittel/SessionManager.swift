@@ -96,6 +96,7 @@ final class SessionManager {
 	}
 
 	func clearLocalState() {
+		SyncEngine.shared.clearLocalData()
 		isAuthenticated = false
 		isGuest = false
 		currentUser = nil
