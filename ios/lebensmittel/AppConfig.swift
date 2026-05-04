@@ -8,6 +8,15 @@
 import Foundation
 
 enum AppConfig {
-	static let apiBaseURL = URL(string: "https://ls.jsinha.com/api")!
-	static let webSocketURL = URL(string: "wss://ls.jsinha.com/ws")!
+	private static func requiredValue(forKey key: String) -> String {
+		guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String, !value.isEmpty
+		else {
+			fatalError("Missing Info.plist key: \(key)")
+		}
+
+		return value
+	}
+
+	static let apiBaseURL = URL(string: requiredValue(forKey: "API_BASE_URL"))!
+	static let webSocketURL = URL(string: requiredValue(forKey: "WEB_SOCKET_URL"))!
 }

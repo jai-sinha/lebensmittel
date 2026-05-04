@@ -1,0 +1,5 @@
+#include "Prod.xcconfig"
+
+API_SCHEME = http
+API_HOST = 192.168.2.101:8000
+WEB_SOCKET_SCHEME = ws
