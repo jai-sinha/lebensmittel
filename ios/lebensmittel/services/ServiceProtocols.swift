@@ -45,5 +45,5 @@ protocol ShoppingServicing {
 		purchasedBy: String,
 		items: [String],
 		notes: String
-	) async throws -> Receipt
+	) async throws
 }

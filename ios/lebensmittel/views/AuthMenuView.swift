@@ -28,6 +28,7 @@ struct AuthMenuView: View {
 				LoginView(sessionManager: sessionManager)
 			}
 		} else {
+			let isOffline = !ConnectivityMonitor.shared.isOnline
 			Menu {
 				// MARK: - User Info
 				if let user = sessionManager.currentUser {
@@ -52,7 +53,7 @@ struct AuthMenuView: View {
 				Section("Groups") {
 					if !groups.isEmpty {
 						if isOffline {
-							Text("Group switching is unavailable while offline.")
+							Text("Group actions are unavailable while offline.")
 								.foregroundStyle(.secondary)
 						}
 
@@ -60,7 +61,7 @@ struct AuthMenuView: View {
 							GroupRow(
 								group: group,
 								isActive: group.id == activeGroupId,
-								isSwitchingDisabled: isOffline,
+								isDisabled: isOffline,
 								onSwitch: {
 									model.switchGroup(
 										to: group.id, sessionManager: sessionManager)
@@ -90,6 +91,7 @@ struct AuthMenuView: View {
 					} label: {
 						Label("Join Group", systemImage: "person.badge.plus")
 					}
+					.disabled(isOffline)
 				}
 				Section {
 					Button {
@@ -97,6 +99,7 @@ struct AuthMenuView: View {
 					} label: {
 						Label("Create Group", systemImage: "plus.circle")
 					}
+					.disabled(isOffline)
 				}
 			} label: {
 				Image(systemName: "person.circle")
@@ -194,7 +197,7 @@ struct AuthMenuView: View {
 struct GroupRow: View {
 	let group: AuthGroup
 	let isActive: Bool
-	let isSwitchingDisabled: Bool
+	let isDisabled: Bool
 	let onSwitch: () -> Void
 	let onRename: () -> Void
 	let onLeave: () -> Void
@@ -206,7 +209,7 @@ struct GroupRow: View {
 				Button("Switch to this group") {
 					onSwitch()
 				}
-				.disabled(isSwitchingDisabled)
+				.disabled(isDisabled)
 			}
 
 			Button("Get group invite code") {
@@ -229,5 +232,6 @@ struct GroupRow: View {
 				Label(group.name, systemImage: "circle")
 			}
 		}
+		.disabled(isDisabled)
 	}
 }

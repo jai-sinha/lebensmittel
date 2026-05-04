@@ -64,6 +64,10 @@ struct AnyCodable: Codable {
 
 @MainActor
 final class SocketService: WebSocketDelegate {
+	enum ConnectionBannerState: Equatable {
+		case connected
+		case reconnecting
+	}
 	static let shared = SocketService()
 
 	// Toggle this to true if you need verbose socket logs for debugging
@@ -72,6 +76,7 @@ final class SocketService: WebSocketDelegate {
 	private var socket: WebSocket?
 	private var isConnected = false
 	var isConnectedForSync: Bool { isConnected }
+	var bannerState: ConnectionBannerState { isConnected ? .connected : .reconnecting }
 	private var reconnectTask: Task<Void, Never>?
 	private let reconnectDelay: TimeInterval = 3.0
 

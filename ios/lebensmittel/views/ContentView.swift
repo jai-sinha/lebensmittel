@@ -13,14 +13,23 @@ struct ContentView: View {
 	var body: some View {
 		VStack(spacing: 0) {
 			if !ConnectivityMonitor.shared.isOnline {
-				Text("You're offline. Changes will sync when you're back online.")
-					.font(.footnote)
-					.fontWeight(.medium)
-					.foregroundStyle(.white)
-					.frame(maxWidth: .infinity)
-					.padding(.horizontal, 16)
-					.padding(.vertical, 10)
-					.background(Color.orange)
+				StatusBannerView(
+					systemImage: StatusBannerKind.offline.systemImage,
+					message: StatusBannerKind.offline.message,
+					backgroundColor: StatusBannerKind.offline.backgroundColor
+				)
+			} else if SocketService.shared.bannerState == .reconnecting {
+				StatusBannerView(
+					systemImage: StatusBannerKind.reconnecting.systemImage,
+					message: StatusBannerKind.reconnecting.message,
+					backgroundColor: StatusBannerKind.reconnecting.backgroundColor
+				)
+			} else if SyncEngine.shared.bannerState == .syncing {
+				StatusBannerView(
+					systemImage: StatusBannerKind.syncing.systemImage,
+					message: StatusBannerKind.syncing.message,
+					backgroundColor: StatusBannerKind.syncing.backgroundColor
+				)
 			}
 
 			TabView {

@@ -42,11 +42,7 @@ class AuthMenuModel {
 	// MARK: - Actions
 
 	func switchGroup(to groupId: String, sessionManager: SessionManager) {
-		guard ConnectivityMonitor.shared.isOnline else {
-			errorMessage = "Group switching is unavailable while offline."
-			activeAlert = .error(errorMessage ?? "Something went wrong. Please try again.")
-			return
-		}
+		guard ConnectivityMonitor.shared.isOnline else { return }
 
 		Task {
 			do {
@@ -64,6 +60,7 @@ class AuthMenuModel {
 	}
 
 	func renameGroup(group: AuthGroup, newName: String, sessionManager: SessionManager) {
+		guard ConnectivityMonitor.shared.isOnline else { return }
 		Task {
 			do {
 				try await GroupService.shared.renameGroup(groupId: group.id, newName: newName)
@@ -82,7 +79,7 @@ class AuthMenuModel {
 	}
 
 	func joinGroup(sessionManager: SessionManager) {
-		guard !joinCode.isEmpty else { return }
+		guard ConnectivityMonitor.shared.isOnline, !joinCode.isEmpty else { return }
 
 		Task {
 			do {
@@ -103,6 +100,7 @@ class AuthMenuModel {
 	}
 
 	func getGroupInviteCode(_ group: AuthGroup) {
+		guard ConnectivityMonitor.shared.isOnline else { return }
 		Task {
 			do {
 				let code = try await GroupService.shared.getGroupInviteCode(groupId: group.id)
@@ -125,7 +123,7 @@ class AuthMenuModel {
 	}
 
 	func createGroup(sessionManager: SessionManager) {
-		guard !createdGroupName.isEmpty else { return }
+		guard ConnectivityMonitor.shared.isOnline, !createdGroupName.isEmpty else { return }
 
 		Task {
 			do {
@@ -146,6 +144,7 @@ class AuthMenuModel {
 	}
 
 	func leaveGroup(_ group: AuthGroup, sessionManager: SessionManager) {
+		guard ConnectivityMonitor.shared.isOnline else { return }
 		Task {
 			do {
 				let didLeaveActive = sessionManager.currentUserActiveGroupId == group.id

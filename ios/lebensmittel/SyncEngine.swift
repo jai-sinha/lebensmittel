@@ -23,6 +23,10 @@ extension Notification.Name {
 
 @MainActor
 final class SyncEngine {
+	enum SyncBannerState: Equatable {
+		case idle
+		case syncing
+	}
 
 	static let shared = SyncEngine()
 
@@ -34,6 +38,7 @@ final class SyncEngine {
 	private var mealsService: (any MealsServicing)?
 	private var receiptsService: (any ReceiptsServicing)?
 	private var isSyncing = false
+	var bannerState: SyncBannerState { isSyncing ? .syncing : .idle }
 
 	private struct ReceiptCreatePayload: Codable {
 		let date: String
