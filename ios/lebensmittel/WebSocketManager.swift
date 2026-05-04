@@ -71,6 +71,7 @@ final class SocketService: WebSocketDelegate {
 
 	private var socket: WebSocket?
 	private var isConnected = false
+	var isConnectedForSync: Bool { isConnected }
 	private var reconnectTask: Task<Void, Never>?
 	private let reconnectDelay: TimeInterval = 3.0
 
@@ -177,6 +178,7 @@ final class SocketService: WebSocketDelegate {
 				isConnected = true
 				reconnectTask?.cancel()
 				reconnectTask = nil
+				SyncEngine.shared.syncIfNeeded()
 				if Self.verbose { print("WebSocket connected:", headers) }
 			}
 

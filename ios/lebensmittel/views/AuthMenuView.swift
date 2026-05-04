@@ -12,6 +12,10 @@ struct AuthMenuView: View {
 	@State private var model = AuthMenuModel()
 	@State private var showLoginSheet = false
 
+	private var isOffline: Bool {
+		!ConnectivityMonitor.shared.isOnline
+	}
+
 	var body: some View {
 		if !sessionManager.isAuthenticated {
 			Button {
@@ -47,10 +51,16 @@ struct AuthMenuView: View {
 
 				Section("Groups") {
 					if !groups.isEmpty {
+						if isOffline {
+							Text("Group switching is unavailable while offline.")
+								.foregroundStyle(.secondary)
+						}
+
 						ForEach(groups) { group in
 							GroupRow(
 								group: group,
 								isActive: group.id == activeGroupId,
+								isSwitchingDisabled: isOffline,
 								onSwitch: {
 									model.switchGroup(
 										to: group.id, sessionManager: sessionManager)
@@ -184,6 +194,7 @@ struct AuthMenuView: View {
 struct GroupRow: View {
 	let group: AuthGroup
 	let isActive: Bool
+	let isSwitchingDisabled: Bool
 	let onSwitch: () -> Void
 	let onRename: () -> Void
 	let onLeave: () -> Void
@@ -195,6 +206,7 @@ struct GroupRow: View {
 				Button("Switch to this group") {
 					onSwitch()
 				}
+				.disabled(isSwitchingDisabled)
 			}
 
 			Button("Get group invite code") {

@@ -42,6 +42,12 @@ class AuthMenuModel {
 	// MARK: - Actions
 
 	func switchGroup(to groupId: String, sessionManager: SessionManager) {
+		guard ConnectivityMonitor.shared.isOnline else {
+			errorMessage = "Group switching is unavailable while offline."
+			activeAlert = .error(errorMessage ?? "Something went wrong. Please try again.")
+			return
+		}
+
 		Task {
 			do {
 				try await GroupService.shared.setActiveGroup(groupId)

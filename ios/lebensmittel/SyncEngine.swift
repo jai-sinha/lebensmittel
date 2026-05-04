@@ -71,6 +71,10 @@ final class SyncEngine {
 			log("Offline, skipping")
 			return
 		}
+		guard SocketService.shared.isConnectedForSync else {
+			log("Socket disconnected, skipping")
+			return
+		}
 		Task {
 			await drainQueue()
 		}
@@ -835,7 +839,7 @@ final class SyncEngine {
 	/// Saves to SwiftData and immediately attempts a sync if online.
 	private func persist() {
 		try? modelContext?.save()
-		if ConnectivityMonitor.shared.isOnline { syncIfNeeded() }
+		syncIfNeeded()
 	}
 
 	// MARK: - Payloads

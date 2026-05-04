@@ -11,21 +11,34 @@ struct ContentView: View {
 	@Environment(SessionManager.self) var sessionManager
 
 	var body: some View {
-		TabView {
-			Tab("Groceries", systemImage: "list.bullet") {
-				GroceriesView()
+		VStack(spacing: 0) {
+			if !ConnectivityMonitor.shared.isOnline {
+				Text("You're offline. Changes will sync when you're back online.")
+					.font(.footnote)
+					.fontWeight(.medium)
+					.foregroundStyle(.white)
+					.frame(maxWidth: .infinity)
+					.padding(.horizontal, 16)
+					.padding(.vertical, 10)
+					.background(Color.orange)
 			}
 
-			Tab("Meals", systemImage: "calendar") {
-				MealsView()
-			}
+			TabView {
+				Tab("Groceries", systemImage: "list.bullet") {
+					GroceriesView()
+				}
 
-			Tab("Shopping", systemImage: "cart") {
-				ShoppingView()
-			}
+				Tab("Meals", systemImage: "calendar") {
+					MealsView()
+				}
 
-			Tab("Receipts", systemImage: "receipt") {
-				ReceiptsView()
+				Tab("Shopping", systemImage: "cart") {
+					ShoppingView()
+				}
+
+				Tab("Receipts", systemImage: "receipt") {
+					ReceiptsView()
+				}
 			}
 		}
 	}
