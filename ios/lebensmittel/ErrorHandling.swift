@@ -74,7 +74,7 @@ enum UserFacingError {
 }
 
 enum DebugLogger {
-	static var isEnabled = true
+	static let isEnabled = true
 
 	static func log(_ message: @autoclosure () -> String) {
 		guard isEnabled else { return }

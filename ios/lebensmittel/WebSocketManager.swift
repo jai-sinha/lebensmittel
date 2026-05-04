@@ -71,7 +71,7 @@ final class SocketService: WebSocketDelegate {
 	static let shared = SocketService()
 
 	// Toggle this to true if you need verbose socket logs for debugging
-	static var verbose = false
+	@MainActor static var verbose = false
 
 	private var socket: WebSocket?
 	private var isConnected = false

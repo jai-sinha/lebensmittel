@@ -31,7 +31,7 @@ final class SyncEngine {
 	static let shared = SyncEngine()
 
 	/// Set to true to enable verbose logging — mirrors SocketService.verbose.
-	static var verbose = false
+	@MainActor static var verbose = false
 
 	private var modelContext: ModelContext?
 	private var groceriesService: (any GroceriesServicing)?
@@ -525,13 +525,16 @@ final class SyncEngine {
 		)
 		context.insert(local)
 
-		// Reset grocery flags locally. syncStatus is left unchanged — no separate
-		// PATCH is needed because the receipt-create payload carries the items list
-		// and the server resets the flags atomically in the same transaction.
+		// Reset grocery flags locally. No separate PATCH is enqueued because the
+		// receipt-create payload carries the items list and the server resets the
+		// flags atomically in the same transaction.
 		for item in checkedItems {
 			findLocalGroceryItem(byModelID: item.id).map {
 				$0.isNeeded = false
 				$0.isShoppingChecked = false
+				if $0.syncStatus == .synced {
+					$0.syncStatus = .pendingUpdate
+				}
 			}
 		}
 

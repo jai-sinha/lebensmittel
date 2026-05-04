@@ -96,16 +96,23 @@ struct lebensmittelApp: App {
 							Task {
 								do {
 									_ = try await AuthManager.shared.ensureAuthenticated()
-									SyncEngine.shared.syncIfNeeded()
 									SocketService.shared.ensureConnected()
 									refreshData()
 								} catch {
 									await MainActor.run {
-										SyncEngine.shared.clearLocalData()
 										sessionManager.clearLocalState()
 									}
 								}
 							}
+						}
+						.onReceive(
+							NotificationCenter.default.publisher(for: .syncEngineDidFinish)
+						) { _ in
+							refreshData()
+						}
+						.onChange(of: ConnectivityMonitor.shared.isOnline) { _, isOnline in
+							guard isOnline else { return }
+							SocketService.shared.ensureConnected()
 						}
 						.onReceive(
 							NotificationCenter.default.publisher(

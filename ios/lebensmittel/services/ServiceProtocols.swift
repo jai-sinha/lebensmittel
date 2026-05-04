@@ -7,7 +7,7 @@
 //
 import Foundation
 
-protocol GroceriesServicing {
+protocol GroceriesServicing: Sendable {
 	func fetchGroceries() async throws -> [GroceryItem]
 	func createGroceryItem(name: String, category: String) async throws -> GroceryItem
 	func updateGroceryItem(id: String, field: GroceriesModel.GroceryItemField) async throws
@@ -19,14 +19,14 @@ protocol GroceriesServicing {
 	func deleteGroceryItem(id: String) async throws
 }
 
-protocol MealsServicing {
+protocol MealsServicing: Sendable {
 	func fetchMealPlans() async throws -> [MealPlan]
 	func createMealPlan(date: String, mealDescription: String) async throws -> MealPlan
 	func updateMealPlan(id: String, mealDescription: String) async throws
 	func deleteMealPlan(id: String) async throws
 }
 
-protocol ReceiptsServicing {
+protocol ReceiptsServicing: Sendable {
 	func fetchReceipts() async throws -> [Receipt]
 	func createReceipt(_ receipt: NewReceipt) async throws -> Receipt
 	func updateReceipt(
@@ -38,7 +38,7 @@ protocol ReceiptsServicing {
 	func deleteReceipt(id: String) async throws
 }
 
-protocol ShoppingServicing {
+protocol ShoppingServicing: Sendable {
 	func createReceipt(
 		date: String,
 		price: Double,

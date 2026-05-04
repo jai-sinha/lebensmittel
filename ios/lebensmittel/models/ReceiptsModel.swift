@@ -54,6 +54,8 @@ class ReceiptsModel {
 			return
 		}
 
+		let service = service
+
 		Task {
 			do {
 				let fetchedReceipts = try await service.fetchReceipts()
