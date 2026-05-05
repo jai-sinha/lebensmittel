@@ -236,7 +236,22 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 	defer tx.Rollback(ctx)
 
 	if len(receipt.ItemsList) == 0 {
-		return nil, fmt.Errorf("receipt items are required")
+		// No items provided, skip grocery item updates
+		if err := receipt.SetItems(receipt.ItemsList); err != nil {
+			return nil, fmt.Errorf("failed to set receipt items: %w", err)
+		}
+
+		query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+		_, err = tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID, receipt.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create receipt: %w", err)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+
+		return []models.GroceryItem{}, nil
 	}
 
 	// Get items that are needed and checked for the receipt.

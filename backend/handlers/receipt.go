@@ -45,14 +45,19 @@ func GetReceipts(c *gin.Context) {
 func CreateReceipt(c *gin.Context) {
 	var data struct {
 		Date        string   `json:"date" binding:"required"`
-		TotalAmount float64  `json:"totalAmount" binding:"required"`
+		TotalAmount *float64 `json:"totalAmount" binding:"required"`
 		PurchasedBy string   `json:"purchasedBy" binding:"required"`
 		Notes       *string  `json:"notes"`
-		Items       []string `json:"items" binding:"required,min=1"`
+		Items       []string `json:"items"`
 	}
 
 	if err := c.ShouldBindJSON(&data); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "date, totalAmount, purchasedBy, and at least one item are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date, totalAmount, and purchasedBy are required"})
+		return
+	}
+
+	if data.TotalAmount == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "totalAmount is required"})
 		return
 	}
 
@@ -78,7 +83,7 @@ func CreateReceipt(c *gin.Context) {
 	newReceipt := &models.Receipt{
 		ID:          uuid.New().String(),
 		Date:        date,
-		TotalAmount: data.TotalAmount,
+		TotalAmount: *data.TotalAmount,
 		PurchasedBy: data.PurchasedBy,
 		ItemsList:   data.Items,
 		Notes:       data.Notes,
