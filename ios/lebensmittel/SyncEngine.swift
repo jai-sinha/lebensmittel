@@ -308,25 +308,8 @@ final class SyncEngine {
 	}
 
 	func enqueueGroceryDelete(itemID: String) {
-		guard let local = findLocalGroceryItem(byModelID: itemID),
-			let context = modelContext
-		else { return }
-
-		if local.syncStatus == .pendingCreate {
-			cancelOps(for: local.localID)
-			context.delete(local)
-		} else {
-			local.syncStatus = .pendingDelete
-			context.insert(
-				SyncOperation(
-					entityType: .grocery,
-					operationType: .delete,
-					payload: Data(),
-					localID: local.localID,
-					serverID: local.serverID
-				))
-		}
-		persist()
+		guard let local = findLocalGroceryItem(byModelID: itemID) else { return }
+		enqueueDelete(for: local, entityType: .grocery)
 	}
 
 	// MARK: - Enqueue: Meals
@@ -369,25 +352,8 @@ final class SyncEngine {
 	}
 
 	func enqueueMealDelete(mealID: String) {
-		guard let local = findLocalMealPlan(byModelID: mealID),
-			let context = modelContext
-		else { return }
-
-		if local.syncStatus == .pendingCreate {
-			cancelOps(for: local.localID)
-			context.delete(local)
-		} else {
-			local.syncStatus = .pendingDelete
-			context.insert(
-				SyncOperation(
-					entityType: .meal,
-					operationType: .delete,
-					payload: Data(),
-					localID: local.localID,
-					serverID: local.serverID
-				))
-		}
-		persist()
+		guard let local = findLocalMealPlan(byModelID: mealID) else { return }
+		enqueueDelete(for: local, entityType: .meal)
 	}
 
 	// MARK: - Enqueue: Receipts
@@ -421,16 +387,22 @@ final class SyncEngine {
 		)
 		context.insert(local)
 
-		// Reset grocery flags locally. No separate PATCH is enqueued because the
-		// receipt-create payload carries the items list and the server resets the
-		// flags atomically in the same transaction.
+		// Reset grocery flags locally and queue follow-up updates for already-synced
+		// groceries. The server applies these resets when the receipt is created,
+		// but websocket ordering is not guaranteed, so we still need queued PATCHes
+		// to clear the local pending state deterministically after reconnect.
 		for item in checkedItems {
-			findLocalGroceryItem(byModelID: item.id).map {
-				$0.isNeeded = false
-				$0.isShoppingChecked = false
-				if $0.syncStatus == .synced {
-					$0.syncStatus = .pendingUpdate
-				}
+			guard let grocery = findLocalGroceryItem(byModelID: item.id) else { continue }
+			grocery.isNeeded = false
+			grocery.isShoppingChecked = false
+			if grocery.syncStatus == .synced {
+				grocery.syncStatus = .pendingUpdate
+				upsertUpdateOp(
+					for: grocery.localID,
+					serverID: grocery.serverID,
+					entityType: .grocery,
+					payloadDict: ["isNeeded": false, "isShoppingChecked": false]
+				)
 			}
 		}
 
@@ -486,104 +458,95 @@ final class SyncEngine {
 	}
 
 	func enqueueReceiptDelete(receiptID: String) {
-		guard let local = findLocalReceipt(byModelID: receiptID),
-			let context = modelContext
-		else { return }
-
-		if local.syncStatus == .pendingCreate {
-			cancelOps(for: local.localID)
-			context.delete(local)
-		} else {
-			local.syncStatus = .pendingDelete
-			context.insert(
-				SyncOperation(
-					entityType: .receipt,
-					operationType: .delete,
-					payload: Data(),
-					localID: local.localID,
-					serverID: local.serverID
-				))
-		}
-		persist()
+		guard let local = findLocalReceipt(byModelID: receiptID) else { return }
+		enqueueDelete(for: local, entityType: .receipt)
 	}
 
 	// MARK: - Merge (online fetch → upsert into SwiftData → return refreshed array)
 
 	@discardableResult
 	func mergeGroceries(_ serverItems: [GroceryItem]) -> [GroceryItem] {
-		guard let context = modelContext else { return serverItems }
-		for item in serverItems {
-			if let local = findLocalGroceryItem(byServerID: item.id) {
-				if local.syncStatus == .synced { local.applyServerValues(item) }
-				// else: pending local change — skip; server wins after next sync
-			} else {
-				context.insert(
-					LocalGroceryItem(
-						serverID: item.id, syncStatus: .synced,
-						name: item.name, category: item.category,
-						isNeeded: item.isNeeded, isShoppingChecked: item.isShoppingChecked
-					))
-			}
-		}
-		try? context.save()
-		return loadAllGroceryItems()
+		mergeServerItems(
+			serverItems,
+			findLocal: { self.findLocalGroceryItem(byServerID: $0.id) },
+			insertLocal: { item in
+				LocalGroceryItem(
+					serverID: item.id,
+					syncStatus: .synced,
+					name: item.name,
+					category: item.category,
+					isNeeded: item.isNeeded,
+					isShoppingChecked: item.isShoppingChecked
+				)
+			},
+			applyServerValues: { local, item in local.applyServerValues(item) },
+			serverID: { $0.serverID },
+			syncStatus: { $0.syncStatus },
+			loadMerged: loadAllGroceryItems
+		)
 	}
 
 	@discardableResult
 	func mergeMealPlans(_ serverPlans: [MealPlan]) -> [MealPlan] {
-		guard let context = modelContext else { return serverPlans }
-		for plan in serverPlans {
-			if let local = findLocalMealPlan(byServerID: plan.id) {
-				if local.syncStatus == .synced { local.applyServerValues(plan) }
-			} else {
-				context.insert(
-					LocalMealPlan(
-						serverID: plan.id, syncStatus: .synced,
-						date: plan.date, mealDescription: plan.mealDescription
-					))
-			}
-		}
-		try? context.save()
-		return loadAllMealPlans()
+		mergeServerItems(
+			serverPlans,
+			findLocal: { self.findLocalMealPlan(byServerID: $0.id) },
+			insertLocal: { plan in
+				LocalMealPlan(
+					serverID: plan.id,
+					syncStatus: .synced,
+					date: plan.date,
+					mealDescription: plan.mealDescription
+				)
+			},
+			applyServerValues: { local, plan in local.applyServerValues(plan) },
+			serverID: { $0.serverID },
+			syncStatus: { $0.syncStatus },
+			loadMerged: loadAllMealPlans
+		)
 	}
 
 	@discardableResult
 	func mergeReceipts(_ serverReceipts: [Receipt]) -> [Receipt] {
-		guard let context = modelContext else { return serverReceipts }
-		for receipt in serverReceipts {
-			if let local = findLocalReceipt(byServerID: receipt.id) {
-				if local.syncStatus == .synced { local.applyServerValues(receipt) }
-			} else {
-				context.insert(
-					LocalReceipt(
-						serverID: receipt.id, syncStatus: .synced,
-						date: receipt.date, totalAmount: receipt.totalAmount,
-						purchasedBy: receipt.purchasedBy, items: receipt.items, notes: receipt.notes
-					))
-			}
-		}
-		try? context.save()
-		return loadAllReceipts()
+		mergeServerItems(
+			serverReceipts,
+			findLocal: { self.findLocalReceipt(byServerID: $0.id) },
+			insertLocal: { receipt in
+				LocalReceipt(
+					serverID: receipt.id,
+					syncStatus: .synced,
+					date: receipt.date,
+					totalAmount: receipt.totalAmount,
+					purchasedBy: receipt.purchasedBy,
+					items: receipt.items,
+					notes: receipt.notes
+				)
+			},
+			applyServerValues: { local, receipt in local.applyServerValues(receipt) },
+			serverID: { $0.serverID },
+			syncStatus: { $0.syncStatus },
+			loadMerged: loadAllReceipts
+		)
 	}
 
 	// MARK: - Load All (offline read path)
 
 	func loadAllGroceryItems() -> [GroceryItem] {
-		guard let context = modelContext else { return [] }
-		let all = (try? context.fetch(FetchDescriptor<LocalGroceryItem>())) ?? []
-		return all.filter { $0.syncStatus != .pendingDelete }.map { $0.toGroceryItem() }
+		loadAll(LocalGroceryItem.self)
+			.filter { $0.syncStatus != .pendingDelete }
+			.map { $0.toGroceryItem() }
 	}
 
 	func loadAllMealPlans() -> [MealPlan] {
-		guard let context = modelContext else { return [] }
-		let all = (try? context.fetch(FetchDescriptor<LocalMealPlan>())) ?? []
-		return all.filter { $0.syncStatus != .pendingDelete }.map { $0.toMealPlan() }
+		loadAll(LocalMealPlan.self)
+			.filter { $0.syncStatus != .pendingDelete }
+			.map { $0.toMealPlan() }
 	}
 
 	func loadAllReceipts() -> [Receipt] {
-		guard let context = modelContext else { return [] }
-		let all = (try? context.fetch(FetchDescriptor<LocalReceipt>())) ?? []
-		return all.filter { $0.syncStatus != .pendingDelete }.map { $0.toReceipt() }
+		loadAll(LocalReceipt.self)
+			.filter { $0.syncStatus != .pendingDelete }
+			.map { $0.toReceipt() }
 	}
 
 	// MARK: - WebSocket Filter
@@ -609,6 +572,40 @@ final class SyncEngine {
 	}
 
 	// MARK: - Private Helpers
+
+	private func mergeServerItems<Server, Local: PersistentModel, Output>(
+		_ serverItems: [Server],
+		findLocal: (Server) -> Local?,
+		insertLocal: (Server) -> Local,
+		applyServerValues: (Local, Server) -> Void,
+		serverID: (Local) -> String?,
+		syncStatus: (Local) -> SyncStatus,
+		loadMerged: () -> [Output]
+	) -> [Output] where Server: Identifiable, Server.ID == String {
+		guard let context = modelContext else { return serverItems as? [Output] ?? [] }
+		let serverIDs = Set(serverItems.map(\.id))
+
+		for item in serverItems {
+			if let local = findLocal(item) {
+				if syncStatus(local) == .synced {
+					applyServerValues(local, item)
+				}
+			} else {
+				context.insert(insertLocal(item))
+			}
+		}
+
+		for local in loadAll(Local.self) {
+			guard let id = serverID(local) else { continue }
+			guard syncStatus(local) == .synced else { continue }
+			if !serverIDs.contains(id) {
+				context.delete(local)
+			}
+		}
+
+		try? context.save()
+		return loadMerged()
+	}
 
 	/// Inserts a local entity and its create SyncOperation, then persists and flushes.
 	private func insertCreate<T: Encodable>(
@@ -683,6 +680,67 @@ final class SyncEngine {
 		persist()
 	}
 
+	private func enqueueDelete(for local: LocalGroceryItem, entityType: SyncEntityType) {
+		enqueueDelete(
+			localID: local.localID,
+			serverID: local.serverID,
+			syncStatus: local.syncStatus,
+			deleteLocal: { context in context.delete(local) },
+			markPendingDelete: { local.syncStatus = .pendingDelete },
+			entityType: entityType
+		)
+	}
+
+	private func enqueueDelete(for local: LocalMealPlan, entityType: SyncEntityType) {
+		enqueueDelete(
+			localID: local.localID,
+			serverID: local.serverID,
+			syncStatus: local.syncStatus,
+			deleteLocal: { context in context.delete(local) },
+			markPendingDelete: { local.syncStatus = .pendingDelete },
+			entityType: entityType
+		)
+	}
+
+	private func enqueueDelete(for local: LocalReceipt, entityType: SyncEntityType) {
+		enqueueDelete(
+			localID: local.localID,
+			serverID: local.serverID,
+			syncStatus: local.syncStatus,
+			deleteLocal: { context in context.delete(local) },
+			markPendingDelete: { local.syncStatus = .pendingDelete },
+			entityType: entityType
+		)
+	}
+
+	private func enqueueDelete(
+		localID: UUID,
+		serverID: String?,
+		syncStatus: SyncStatus,
+		deleteLocal: (ModelContext) -> Void,
+		markPendingDelete: () -> Void,
+		entityType: SyncEntityType
+	) {
+		guard let context = modelContext else { return }
+
+		if syncStatus == .pendingCreate {
+			cancelOps(for: localID)
+			deleteLocal(context)
+		} else {
+			cancelOps(for: localID)
+			markPendingDelete()
+			context.insert(
+				SyncOperation(
+					entityType: entityType,
+					operationType: .delete,
+					payload: Data(),
+					localID: localID,
+					serverID: serverID
+				))
+		}
+		persist()
+	}
+
 	/// Deletes all SyncOperations for a given localID (used when purging a pending-create entity).
 	private func cancelOps(for localID: UUID) {
 		guard let context = modelContext else { return }
@@ -743,18 +801,14 @@ final class SyncEngine {
 	// MARK: - Lookups
 
 	private func findLocalGroceryItem(byLocalID id: UUID) -> LocalGroceryItem? {
-		guard let ctx = modelContext else { return nil }
-		return try? ctx.fetch(
-			FetchDescriptor<LocalGroceryItem>(predicate: #Predicate { $0.localID == id })
-		).first
+		fetchFirst(FetchDescriptor<LocalGroceryItem>(predicate: #Predicate { $0.localID == id }))
 	}
 
 	private func findLocalGroceryItem(byServerID id: String) -> LocalGroceryItem? {
-		guard let ctx = modelContext else { return nil }
 		let sid: String? = id
-		return try? ctx.fetch(
+		return fetchFirst(
 			FetchDescriptor<LocalGroceryItem>(predicate: #Predicate { $0.serverID == sid })
-		).first
+		)
 	}
 
 	private func findLocalGroceryItem(byModelID id: String) -> LocalGroceryItem? {
@@ -763,18 +817,14 @@ final class SyncEngine {
 	}
 
 	private func findLocalMealPlan(byLocalID id: UUID) -> LocalMealPlan? {
-		guard let ctx = modelContext else { return nil }
-		return try? ctx.fetch(
-			FetchDescriptor<LocalMealPlan>(predicate: #Predicate { $0.localID == id })
-		).first
+		fetchFirst(FetchDescriptor<LocalMealPlan>(predicate: #Predicate { $0.localID == id }))
 	}
 
 	private func findLocalMealPlan(byServerID id: String) -> LocalMealPlan? {
-		guard let ctx = modelContext else { return nil }
 		let sid: String? = id
-		return try? ctx.fetch(
+		return fetchFirst(
 			FetchDescriptor<LocalMealPlan>(predicate: #Predicate { $0.serverID == sid })
-		).first
+		)
 	}
 
 	private func findLocalMealPlan(byModelID id: String) -> LocalMealPlan? {
@@ -783,23 +833,29 @@ final class SyncEngine {
 	}
 
 	private func findLocalReceipt(byLocalID id: UUID) -> LocalReceipt? {
-		guard let ctx = modelContext else { return nil }
-		return try? ctx.fetch(
-			FetchDescriptor<LocalReceipt>(predicate: #Predicate { $0.localID == id })
-		).first
+		fetchFirst(FetchDescriptor<LocalReceipt>(predicate: #Predicate { $0.localID == id }))
 	}
 
 	private func findLocalReceipt(byServerID id: String) -> LocalReceipt? {
-		guard let ctx = modelContext else { return nil }
 		let sid: String? = id
-		return try? ctx.fetch(
+		return fetchFirst(
 			FetchDescriptor<LocalReceipt>(predicate: #Predicate { $0.serverID == sid })
-		).first
+		)
 	}
 
 	private func findLocalReceipt(byModelID id: String) -> LocalReceipt? {
 		findLocalReceipt(byServerID: id)
 			?? UUID(uuidString: id).flatMap { findLocalReceipt(byLocalID: $0) }
+	}
+
+	private func loadAll<T: PersistentModel>(_ type: T.Type) -> [T] {
+		guard let context = modelContext else { return [] }
+		return (try? context.fetch(FetchDescriptor<T>())) ?? []
+	}
+
+	private func fetchFirst<T: PersistentModel>(_ descriptor: FetchDescriptor<T>) -> T? {
+		guard let context = modelContext else { return nil }
+		return try? context.fetch(descriptor).first
 	}
 
 	private func log(_ msg: String) {

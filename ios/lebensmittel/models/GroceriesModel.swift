@@ -100,7 +100,11 @@ class GroceriesModel {
 	// MARK: UI Update Methods, used for WebSocket updates
 
 	func addItem(_ item: GroceryItem) {
-		groceryItems.append(item)
+		if let index = groceryItems.firstIndex(where: { $0.id == item.id }) {
+			groceryItems[index] = item
+		} else {
+			groceryItems.append(item)
+		}
 		if item.name.caseInsensitiveCompare(
 			newItemName.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
 		{
@@ -121,6 +125,10 @@ class GroceriesModel {
 
 	func removeItem(withId id: String) {
 		groceryItems.removeAll { $0.id == id }
+	}
+
+	func replaceAll(with items: [GroceryItem]) {
+		groceryItems = items
 	}
 
 	// MARK: CRUD Operations

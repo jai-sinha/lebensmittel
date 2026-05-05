@@ -34,6 +34,11 @@ class MealsModel {
 	// MARK: UI Update Methods, used for WebSocket updates
 
 	func addMealPlan(_ plan: MealPlan) {
+		if let existingDate = mealPlans.first(where: { $0.value.id == plan.id })?.key,
+			existingDate != plan.date
+		{
+			mealPlans.removeValue(forKey: existingDate)
+		}
 		mealPlans[plan.date] = plan
 	}
 
@@ -47,6 +52,13 @@ class MealsModel {
 	func removeMealPlan(withId id: String) {
 		if let key = mealPlans.first(where: { $0.value.id == id })?.key {
 			mealPlans.removeValue(forKey: key)
+		}
+	}
+
+	func replaceAll(with plans: [MealPlan]) {
+		mealPlans.removeAll()
+		for plan in plans {
+			mealPlans[plan.date] = plan
 		}
 	}
 

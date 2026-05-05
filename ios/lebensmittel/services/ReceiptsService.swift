@@ -51,12 +51,6 @@ struct ReceiptsService: ReceiptsServicing {
 		)
 	}
 
-	func deleteReceiptSync(id: String) async throws {
-		try await client.sendWithoutResponse(
-			path: "/receipts/\(id)",
-			method: .DELETE
-		)
-	}
 }
 
 private struct ReceiptUpdatePayload: Encodable {

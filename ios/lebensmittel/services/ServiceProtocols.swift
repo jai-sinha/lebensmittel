@@ -10,7 +10,6 @@ import Foundation
 protocol GroceriesServicing: Sendable {
 	func fetchGroceries() async throws -> [GroceryItem]
 	func createGroceryItem(name: String, category: String) async throws -> GroceryItem
-	func updateGroceryItem(id: String, field: GroceriesModel.GroceryItemField) async throws
 	func updateGroceryItem(
 		id: String,
 		isNeeded: Bool,

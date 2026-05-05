@@ -11,6 +11,9 @@ import SwiftUI
 @main
 struct lebensmittelApp: App {
 	private let modelContainer: ModelContainer
+	private let groceriesService: GroceriesService
+	private let mealsService: MealsService
+	private let receiptsService: ReceiptsService
 
 	@State private var sessionManager = SessionManager()
 	@State private var groceriesModel: GroceriesModel
@@ -36,6 +39,9 @@ struct lebensmittelApp: App {
 		let groceriesService = GroceriesService(client: apiClient)
 		let mealsService = MealsService(client: apiClient)
 		let receiptsService = ReceiptsService(client: apiClient)
+		self.groceriesService = groceriesService
+		self.mealsService = mealsService
+		self.receiptsService = receiptsService
 
 		let groceries = GroceriesModel(service: groceriesService)
 		let meals = MealsModel(service: mealsService)
@@ -63,23 +69,55 @@ struct lebensmittelApp: App {
 		guard !hasStartedAuthenticatedSession else { return }
 		hasStartedAuthenticatedSession = true
 
-		SyncEngine.shared.syncIfNeeded()
-		SocketService.shared.start(
-			with: groceriesModel,
-			mealsModel: mealsModel,
-			receiptsModel: receiptsModel,
-			shoppingModel: shoppingModel
-		)
-		refreshData()
+		Task {
+			await hydrateFromServerAndStartSocket()
+		}
+	}
+
+	private func hydrateFromServerAndStartSocket() async {
+		do {
+			async let groceriesTask = groceriesService.fetchGroceries()
+			async let mealsTask = mealsService.fetchMealPlans()
+			async let receiptsTask = receiptsService.fetchReceipts()
+
+			let groceries = try await groceriesTask
+			let meals = try await mealsTask
+			let receipts = try await receiptsTask
+
+			let mergedGroceries = SyncEngine.shared.mergeGroceries(groceries)
+			let mergedMeals = SyncEngine.shared.mergeMealPlans(meals)
+			let mergedReceipts = SyncEngine.shared.mergeReceipts(receipts)
+
+			groceriesModel.replaceAll(with: mergedGroceries)
+			mealsModel.replaceAll(with: mergedMeals)
+			receiptsModel.replaceAll(with: mergedReceipts)
+			SocketService.shared.start(
+				with: groceriesModel,
+				mealsModel: mealsModel,
+				receiptsModel: receiptsModel,
+				shoppingModel: shoppingModel
+			)
+			SyncEngine.shared.syncIfNeeded()
+		} catch {
+			groceriesModel.fetchGroceries()
+			mealsModel.fetchMealPlans()
+			receiptsModel.fetchReceipts()
+			SocketService.shared.start(
+				with: groceriesModel,
+				mealsModel: mealsModel,
+				receiptsModel: receiptsModel,
+				shoppingModel: shoppingModel
+			)
+		}
 	}
 
 	private func refreshData(triggerSync: Bool = true) {
 		if triggerSync {
 			SyncEngine.shared.syncIfNeeded()
 		}
-		groceriesModel.fetchGroceries()
-		mealsModel.fetchMealPlans()
-		receiptsModel.fetchReceipts()
+		Task {
+			await hydrateFromServerAndStartSocket()
+		}
 	}
 
 	var body: some Scene {
@@ -116,8 +154,11 @@ struct lebensmittelApp: App {
 						}
 
 						.onChange(of: ConnectivityMonitor.shared.isOnline) { _, isOnline in
-							guard isOnline else { return }
-							SocketService.shared.ensureConnected()
+							if isOnline {
+								SocketService.shared.restart()
+							} else {
+								SocketService.shared.disconnect()
+							}
 						}
 						.onReceive(
 							NotificationCenter.default.publisher(

@@ -71,8 +71,7 @@ final class SocketService: WebSocketDelegate {
 	}
 	static let shared = SocketService()
 
-	// Toggle this to true if you need verbose socket logs for debugging
-	@MainActor static var verbose = false
+	@MainActor static var verbose = true
 
 	private var socket: WebSocket?
 	private(set) var isConnectedForSync = false
@@ -112,6 +111,7 @@ final class SocketService: WebSocketDelegate {
 		guard groceriesModel != nil, !isConnectedForSync else { return }
 		reconnectTask?.cancel()
 		reconnectTask = nil
+		resetSocketState()
 		connect()
 	}
 
@@ -164,15 +164,14 @@ final class SocketService: WebSocketDelegate {
 	func disconnect() {
 		reconnectTask?.cancel()
 		reconnectTask = nil
-		socket?.delegate = nil
-		socket?.disconnect()
-		socket = nil
-		isConnectedForSync = false
+		resetSocketState()
 		if Self.verbose { print("WebSocket: Disconnected") }
 	}
 
 	func restart() {
-		disconnect()
+		reconnectTask?.cancel()
+		reconnectTask = nil
+		resetSocketState()
 		connect()
 	}
 
@@ -191,7 +190,7 @@ final class SocketService: WebSocketDelegate {
 
 		case .disconnected(let reason, let code):
 			Task { @MainActor in
-				isConnectedForSync = false
+				resetSocketState()
 				if Self.verbose { print("WebSocket disconnected:", reason, "code:", code) }
 				scheduleReconnect()
 			}
@@ -210,21 +209,21 @@ final class SocketService: WebSocketDelegate {
 
 		case .error(let error):
 			Task { @MainActor in
-				isConnectedForSync = false
+				resetSocketState()
 				if Self.verbose { print("WebSocket error:", error ?? "unknown error") }
 				scheduleReconnect()
 			}
 
 		case .cancelled:
 			Task { @MainActor in
-				isConnectedForSync = false
+				resetSocketState()
 				if Self.verbose { print("WebSocket cancelled") }
 				scheduleReconnect()
 			}
 
 		case .peerClosed:
 			Task { @MainActor in
-				isConnectedForSync = false
+				resetSocketState()
 				if Self.verbose { print("WebSocket peer closed") }
 				scheduleReconnect()
 			}
@@ -232,6 +231,13 @@ final class SocketService: WebSocketDelegate {
 		default:
 			break
 		}
+	}
+
+	private func resetSocketState() {
+		socket?.delegate = nil
+		socket?.disconnect()
+		socket = nil
+		isConnectedForSync = false
 	}
 
 	// MARK: - Reconnect

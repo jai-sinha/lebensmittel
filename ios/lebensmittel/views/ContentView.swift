@@ -18,7 +18,9 @@ struct ContentView: View {
 					message: StatusBannerKind.offline.message,
 					backgroundColor: StatusBannerKind.offline.backgroundColor
 				)
-			} else if SocketService.shared.bannerState == .reconnecting {
+			} else if sessionManager.isAuthenticated
+				&& SocketService.shared.bannerState == .reconnecting
+			{
 				StatusBannerView(
 					systemImage: StatusBannerKind.reconnecting.systemImage,
 					message: StatusBannerKind.reconnecting.message,

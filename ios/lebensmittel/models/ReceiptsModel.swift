@@ -34,7 +34,11 @@ class ReceiptsModel {
 	// MARK: UI Update Methods, used for WebSocket updates
 
 	func addReceipt(_ receipt: Receipt) {
-		receipts.append(receipt)
+		if let index = receipts.firstIndex(where: { $0.id == receipt.id }) {
+			receipts[index] = receipt
+		} else {
+			receipts.append(receipt)
+		}
 	}
 
 	func updateReceipt(_ receipt: Receipt) {
@@ -45,6 +49,10 @@ class ReceiptsModel {
 
 	func deleteReceipt(withId id: String) {
 		receipts.removeAll { $0.id == id }
+	}
+
+	func replaceAll(with receipts: [Receipt]) {
+		self.receipts = receipts
 	}
 
 	// MARK: CRUD Operations

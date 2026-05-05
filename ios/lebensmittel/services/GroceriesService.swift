@@ -28,24 +28,6 @@ struct GroceriesService: GroceriesServicing {
 		)
 	}
 
-	func updateGroceryItem(id: String, field: GroceriesModel.GroceryItemField) async throws {
-		var payload: [String: Bool] = [:]
-
-		switch field {
-		case .isNeeded(let value):
-			payload["isNeeded"] = value
-			payload["isShoppingChecked"] = false
-		case .isShoppingChecked(let value):
-			payload["isShoppingChecked"] = value
-		}
-
-		try await client.sendWithoutResponse(
-			path: "/grocery-items/\(id)",
-			method: .PATCH,
-			body: payload
-		)
-	}
-
 	func updateGroceryItem(
 		id: String,
 		isNeeded: Bool,
