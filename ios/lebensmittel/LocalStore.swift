@@ -195,9 +195,6 @@ final class SyncOperation {
 	var operationType: SyncOperationType
 	/// JSON-encoded request body to replay against the server.
 	var payload: Data
-	/// JSON-encoded server state at the time the user made the edit.
-	/// Only populated for update operations; used for conflict detection.
-	var baseSnapshot: Data?
 	/// References the LocalXxx entity that owns this operation.
 	var localID: UUID
 	/// nil for creates until the server response is received and remapped.
@@ -211,7 +208,6 @@ final class SyncOperation {
 		entityType: SyncEntityType,
 		operationType: SyncOperationType,
 		payload: Data,
-		baseSnapshot: Data? = nil,
 		localID: UUID,
 		serverID: String? = nil,
 		createdAt: Date = Date(),
@@ -222,7 +218,6 @@ final class SyncOperation {
 		self.entityType = entityType
 		self.operationType = operationType
 		self.payload = payload
-		self.baseSnapshot = baseSnapshot
 		self.localID = localID
 		self.serverID = serverID
 		self.createdAt = createdAt

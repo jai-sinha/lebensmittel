@@ -8,12 +8,6 @@
 import Foundation
 import SwiftData
 
-// MARK: - Notification Name
-
-extension Notification.Name {
-	static let syncEngineDidFinish = Notification.Name("syncEngineDidFinish")
-}
-
 // MARK: - SyncEngine
 
 /// Owns all writes to SwiftData and all outbound network sync.
@@ -23,11 +17,6 @@ extension Notification.Name {
 
 @MainActor
 final class SyncEngine {
-	enum SyncBannerState: Equatable {
-		case idle
-		case syncing
-	}
-
 	static let shared = SyncEngine()
 
 	/// Set to true to enable verbose logging — mirrors SocketService.verbose.
@@ -37,8 +26,7 @@ final class SyncEngine {
 	private var groceriesService: (any GroceriesServicing)?
 	private var mealsService: (any MealsServicing)?
 	private var receiptsService: (any ReceiptsServicing)?
-	private var isSyncing = false
-	var bannerState: SyncBannerState { isSyncing ? .syncing : .idle }
+	private(set) var isSyncing = false
 
 	private struct ReceiptCreatePayload: Codable {
 		let date: String
@@ -89,8 +77,6 @@ final class SyncEngine {
 
 	private func drainQueue() async {
 		guard let context = modelContext else { return }
-		isSyncing = true
-		defer { isSyncing = false }
 
 		let descriptor = FetchDescriptor<SyncOperation>(
 			sortBy: [SortDescriptor(\.createdAt, order: .forward)]
@@ -101,15 +87,23 @@ final class SyncEngine {
 		}
 		guard !ops.isEmpty else {
 			log("Queue empty")
-			postFinished()
 			return
+		}
+
+		isSyncing = true
+		defer {
+			isSyncing = false
 		}
 
 		log("Processing \(ops.count) operation(s)")
 
 		for op in ops {
+			let opID = op.id
+			let entityType = op.entityType
+			let operationType = op.operationType
+
 			if op.retryCount >= 3 {
-				log("Operation \(op.id) hit max retries — discarding")
+				log("Operation \(opID) hit max retries — discarding")
 				context.delete(op)
 				try? context.save()
 				continue
@@ -119,24 +113,18 @@ final class SyncEngine {
 				try await process(op)
 				context.delete(op)
 				try? context.save()
-				log("✓ \(op.entityType.rawValue) \(op.operationType.rawValue) \(op.id)")
+				log("✓ \(entityType.rawValue) \(operationType.rawValue) \(opID)")
 			} catch {
 				op.retryCount += 1
 				op.lastError = error.localizedDescription
 				try? context.save()
 				log(
-					"✗ \(op.entityType.rawValue) \(op.operationType.rawValue) — \(error.localizedDescription). Retry \(op.retryCount)/3. Stopping."
+					"✗ \(entityType.rawValue) \(operationType.rawValue) — \(error.localizedDescription). Retry \(op.retryCount)/3. Stopping."
 				)
 				return
 			}
 		}
 
-		postFinished()
-	}
-
-	private func postFinished() {
-		log("Sync complete — posting syncEngineDidFinish")
-		NotificationCenter.default.post(name: .syncEngineDidFinish, object: nil)
 	}
 
 	// MARK: - Operation Processing
@@ -216,66 +204,6 @@ final class SyncEngine {
 		guard let context = modelContext else { return }
 		guard let serverID = op.serverID else { throw SyncError.missingServerID }
 
-		let currentData: Data?
-		switch op.entityType {
-		case .grocery:
-			guard let groceriesService else { throw SyncError.notConfigured }
-			guard
-				let item = try await groceriesService.fetchGroceries().first(where: {
-					$0.id == serverID
-				})
-			else {
-				currentData = nil
-				break
-			}
-			currentData = try JSONEncoder().encode(item)
-
-		case .meal:
-			guard let mealsService else { throw SyncError.notConfigured }
-			guard
-				let plan = try await mealsService.fetchMealPlans().first(where: {
-					$0.id == serverID
-				})
-			else {
-				currentData = nil
-				break
-			}
-			currentData = try JSONEncoder().encode(plan)
-
-		case .receipt:
-			guard let receiptsService else { throw SyncError.notConfigured }
-			guard
-				let receipt = try await receiptsService.fetchReceipts().first(where: {
-					$0.id == serverID
-				})
-			else {
-				currentData = nil
-				break
-			}
-			currentData = try JSONEncoder().encode(receipt)
-		}
-
-		guard let currentData else {
-			log(
-				"Update target \(op.entityType.rawValue)/\(serverID) no longer exists on server — discarding local change (server wins)"
-			)
-			deleteLocalEntity(entityType: op.entityType, localID: op.localID)
-			try? context.save()
-			return
-		}
-
-		if let snapshot = op.baseSnapshot,
-			(try? hasConflict(
-				entityType: op.entityType, serverData: currentData, snapshot: snapshot)) == true
-		{
-			log(
-				"Conflict on \(op.entityType.rawValue)/\(serverID) — discarding local change (server wins)"
-			)
-			applyServerState(currentData, entityType: op.entityType, serverID: serverID)
-			try? context.save()
-			return
-		}
-
 		switch op.entityType {
 		case .grocery:
 			guard let groceriesService else { throw SyncError.notConfigured }
@@ -334,34 +262,6 @@ final class SyncEngine {
 		try? context.save()
 	}
 
-	// MARK: - Conflict Detection
-
-	private func hasConflict(
-		entityType: SyncEntityType,
-		serverData: Data,
-		snapshot: Data
-	) throws -> Bool {
-		switch entityType {
-		case .grocery:
-			let s = try JSONDecoder().decode(GroceryItem.self, from: serverData)
-			let b = try JSONDecoder().decode(GroceryItem.self, from: snapshot)
-			return s.name != b.name
-				|| s.category != b.category
-				|| s.isNeeded != b.isNeeded
-				|| s.isShoppingChecked != b.isShoppingChecked
-		case .meal:
-			let s = try JSONDecoder().decode(MealPlan.self, from: serverData)
-			let b = try JSONDecoder().decode(MealPlan.self, from: snapshot)
-			return s.mealDescription != b.mealDescription
-		case .receipt:
-			let s = try JSONDecoder().decode(Receipt.self, from: serverData)
-			let b = try JSONDecoder().decode(Receipt.self, from: snapshot)
-			return s.totalAmount != b.totalAmount
-				|| s.purchasedBy != b.purchasedBy
-				|| s.notes != b.notes
-		}
-	}
-
 	// MARK: - Enqueue: Groceries
 
 	@discardableResult
@@ -384,8 +284,7 @@ final class SyncEngine {
 	func enqueueGroceryUpdate(
 		itemID: String,
 		isNeeded: Bool,
-		isShoppingChecked: Bool,
-		snapshot: GroceryItem
+		isShoppingChecked: Bool
 	) -> GroceryItem? {
 		guard let local = findLocalGroceryItem(byModelID: itemID) else { return nil }
 
@@ -402,8 +301,7 @@ final class SyncEngine {
 				for: local.localID,
 				serverID: local.serverID,
 				entityType: .grocery,
-				payloadDict: ["isNeeded": isNeeded, "isShoppingChecked": isShoppingChecked],
-				snapshot: snapshot
+				payloadDict: ["isNeeded": isNeeded, "isShoppingChecked": isShoppingChecked]
 			)
 		}
 		return local.toGroceryItem()
@@ -448,8 +346,7 @@ final class SyncEngine {
 	@discardableResult
 	func enqueueMealUpdate(
 		mealID: String,
-		mealDescription: String,
-		snapshot: MealPlan
+		mealDescription: String
 	) -> MealPlan? {
 		guard let local = findLocalMealPlan(byModelID: mealID) else { return nil }
 
@@ -465,8 +362,7 @@ final class SyncEngine {
 				for: local.localID,
 				serverID: local.serverID,
 				entityType: .meal,
-				payloadDict: ["mealDescription": mealDescription],
-				snapshot: snapshot
+				payloadDict: ["mealDescription": mealDescription]
 			)
 		}
 		return local.toMealPlan()
@@ -563,8 +459,7 @@ final class SyncEngine {
 		receiptID: String,
 		totalAmount: Double,
 		purchasedBy: String,
-		notes: String,
-		snapshot: Receipt
+		notes: String
 	) -> Receipt? {
 		guard let local = findLocalReceipt(byModelID: receiptID) else { return nil }
 
@@ -584,8 +479,7 @@ final class SyncEngine {
 					"totalAmount": totalAmount,
 					"purchasedBy": purchasedBy,
 					"notes": notes,
-				],
-				snapshot: snapshot
+				]
 			)
 		}
 		return local.toReceipt()
@@ -742,11 +636,9 @@ final class SyncEngine {
 		for localID: UUID,
 		serverID: String?,
 		entityType: SyncEntityType,
-		payloadDict: [String: Any],
-		snapshot: some Encodable
+		payloadDict: [String: Any]
 	) {
 		guard let context = modelContext else { return }
-		let snapshotData = (try? JSONEncoder().encode(snapshot)) ?? Data()
 		let payloadData: Data
 		switch entityType {
 		case .grocery:
@@ -776,7 +668,6 @@ final class SyncEngine {
 
 		if let op = existing {
 			op.payload = payloadData
-			op.baseSnapshot = snapshotData
 			op.retryCount = 0
 			op.lastError = nil
 		} else {
@@ -785,7 +676,6 @@ final class SyncEngine {
 					entityType: entityType,
 					operationType: .update,
 					payload: payloadData,
-					baseSnapshot: snapshotData,
 					localID: localID,
 					serverID: serverID
 				))
@@ -808,23 +698,6 @@ final class SyncEngine {
 					sortBy: [SortDescriptor(\.createdAt)]
 				))) ?? []
 		return all.filter { $0.localID == localID && $0.createdAt > date }
-	}
-
-	private func applyServerState(_ data: Data, entityType: SyncEntityType, serverID: String) {
-		switch entityType {
-		case .grocery:
-			if let item = try? JSONDecoder().decode(GroceryItem.self, from: data) {
-				findLocalGroceryItem(byServerID: serverID)?.applyServerValues(item)
-			}
-		case .meal:
-			if let plan = try? JSONDecoder().decode(MealPlan.self, from: data) {
-				findLocalMealPlan(byServerID: serverID)?.applyServerValues(plan)
-			}
-		case .receipt:
-			if let receipt = try? JSONDecoder().decode(Receipt.self, from: data) {
-				findLocalReceipt(byServerID: serverID)?.applyServerValues(receipt)
-			}
-		}
 	}
 
 	private func markSynced(entityType: SyncEntityType, serverID: String) {

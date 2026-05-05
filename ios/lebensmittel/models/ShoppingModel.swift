@@ -12,11 +12,19 @@ import Foundation
 class ShoppingModel {
 	// Reference to shared GroceriesModel
 	private var groceriesModel: GroceriesModel
+	private let receiptsService: any ReceiptsServicing
+	private let syncEngine: SyncEngine
 
 	var errorMessage: String? = nil
 
-	init(groceriesModel: GroceriesModel) {
+	init(
+		groceriesModel: GroceriesModel,
+		receiptsService: any ReceiptsServicing = ReceiptsService(),
+		syncEngine: SyncEngine = .shared
+	) {
 		self.groceriesModel = groceriesModel
+		self.receiptsService = receiptsService
+		self.syncEngine = syncEngine
 	}
 
 	// Delegate isLoading to groceriesModel
@@ -60,19 +68,41 @@ class ShoppingModel {
 		formatter.dateFormat = "yyyy-MM-dd"
 		let dateString = formatter.string(from: Date())
 
-		let optimisticReceipt = SyncEngine.shared.enqueueReceiptCreate(
-			date: dateString,
-			totalAmount: price,
-			purchasedBy: purchasedBy,
-			notes: notes,
-			checkedItems: checkedItems
-		)
+		if !ConnectivityMonitor.shared.isOnline {
+			let optimisticReceipt = syncEngine.enqueueReceiptCreate(
+				date: dateString,
+				totalAmount: price,
+				purchasedBy: purchasedBy,
+				notes: notes,
+				checkedItems: checkedItems
+			)
 
-		groceriesModel.groceryItems = SyncEngine.shared.loadAllGroceryItems()
-		if let receiptsModel = SocketService.shared.receiptsModel {
-			receiptsModel.receipts = SyncEngine.shared.loadAllReceipts()
-		} else {
-			_ = optimisticReceipt
+			groceriesModel.groceryItems = syncEngine.loadAllGroceryItems()
+			if let receiptsModel = SocketService.shared.receiptsModel {
+				receiptsModel.receipts = syncEngine.loadAllReceipts()
+			} else {
+				_ = optimisticReceipt
+			}
+			return
+		}
+
+		let itemNames = checkedItems.map { $0.name }
+		Task {
+			do {
+				_ = try await receiptsService.createReceipt(
+					NewReceipt(
+						date: dateString,
+						totalAmount: price,
+						purchasedBy: purchasedBy,
+						items: itemNames,
+						notes: notes
+					)
+				)
+			} catch {
+				await MainActor.run {
+					self.errorMessage = UserFacingError.message(for: error)
+				}
+			}
 		}
 	}
 }

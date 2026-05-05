@@ -159,13 +159,32 @@ class GroceriesModel {
 	func createGroceryItem(name: String, category: String) {
 		errorMessage = nil
 
-		let created = syncEngine.enqueueGroceryCreate(name: name, category: category)
-		groceryItems.append(created)
+		if !ConnectivityMonitor.shared.isOnline {
+			let created = syncEngine.enqueueGroceryCreate(name: name, category: category)
+			groceryItems.append(created)
 
-		if created.name.caseInsensitiveCompare(
-			newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
-		) == .orderedSame {
-			newItemName = ""
+			if created.name.caseInsensitiveCompare(
+				newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
+			) == .orderedSame {
+				newItemName = ""
+			}
+			return
+		}
+
+		let trimmedInput = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
+		Task {
+			do {
+				_ = try await service.createGroceryItem(name: name, category: category)
+				await MainActor.run {
+					if !trimmedInput.isEmpty {
+						self.newItemName = ""
+					}
+				}
+			} catch {
+				await MainActor.run {
+					self.errorMessage = UserFacingError.message(for: error)
+				}
+			}
 		}
 	}
 
@@ -181,24 +200,54 @@ class GroceriesModel {
 			updatedValues = (item.isNeeded, isShoppingChecked)
 		}
 
-		guard
-			let updated = syncEngine.enqueueGroceryUpdate(
-				itemID: item.id,
-				isNeeded: updatedValues.isNeeded,
-				isShoppingChecked: updatedValues.isShoppingChecked,
-				snapshot: item
-			)
-		else {
-			errorMessage = "Unable to update grocery item."
+		if !ConnectivityMonitor.shared.isOnline {
+			guard
+				let updated = syncEngine.enqueueGroceryUpdate(
+					itemID: item.id,
+					isNeeded: updatedValues.isNeeded,
+					isShoppingChecked: updatedValues.isShoppingChecked
+				)
+			else {
+				errorMessage = "Unable to update grocery item."
+				return
+			}
+
+			updateItem(updated)
 			return
 		}
 
-		updateItem(updated)
+		Task {
+			do {
+				try await service.updateGroceryItem(
+					id: item.id,
+					isNeeded: updatedValues.isNeeded,
+					isShoppingChecked: updatedValues.isShoppingChecked
+				)
+			} catch {
+				await MainActor.run {
+					self.errorMessage = UserFacingError.message(for: error)
+				}
+			}
+		}
 	}
 
 	func deleteGroceryItem(item: GroceryItem) {
 		errorMessage = nil
-		syncEngine.enqueueGroceryDelete(itemID: item.id)
-		removeItem(withId: item.id)
+
+		if !ConnectivityMonitor.shared.isOnline {
+			syncEngine.enqueueGroceryDelete(itemID: item.id)
+			removeItem(withId: item.id)
+			return
+		}
+
+		Task {
+			do {
+				try await service.deleteGroceryItem(id: item.id)
+			} catch {
+				await MainActor.run {
+					self.errorMessage = UserFacingError.message(for: error)
+				}
+			}
+		}
 	}
 }

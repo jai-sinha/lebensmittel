@@ -62,6 +62,7 @@ struct AnyCodable: Codable {
 	}
 }
 
+@Observable
 @MainActor
 final class SocketService: WebSocketDelegate {
 	enum ConnectionBannerState: Equatable {
@@ -74,9 +75,10 @@ final class SocketService: WebSocketDelegate {
 	@MainActor static var verbose = false
 
 	private var socket: WebSocket?
-	private var isConnected = false
-	var isConnectedForSync: Bool { isConnected }
-	var bannerState: ConnectionBannerState { isConnected ? .connected : .reconnecting }
+	private(set) var isConnectedForSync = false
+	var bannerState: ConnectionBannerState {
+		isConnectedForSync ? .connected : .reconnecting
+	}
 	private var reconnectTask: Task<Void, Never>?
 	private let reconnectDelay: TimeInterval = 3.0
 
@@ -107,7 +109,7 @@ final class SocketService: WebSocketDelegate {
 	/// Call from willEnterForeground to guarantee the socket is alive.
 	func ensureConnected() {
 		guard ConnectivityMonitor.shared.isOnline else { return }
-		guard groceriesModel != nil, !isConnected else { return }
+		guard groceriesModel != nil, !isConnectedForSync else { return }
 		reconnectTask?.cancel()
 		reconnectTask = nil
 		connect()
@@ -140,7 +142,7 @@ final class SocketService: WebSocketDelegate {
 
 				// Nil the old delegate before releasing the socket.
 				// Without this, its dealloc-triggered .cancelled fires back into
-				// didReceive, setting isConnected = false and kicking off another
+				// didReceive, setting isConnectedForSync = false and kicking off another
 				// reconnect — creating a churn loop that compounds over time.
 				socket?.delegate = nil
 				socket?.disconnect()
@@ -165,7 +167,7 @@ final class SocketService: WebSocketDelegate {
 		socket?.delegate = nil
 		socket?.disconnect()
 		socket = nil
-		isConnected = false
+		isConnectedForSync = false
 		if Self.verbose { print("WebSocket: Disconnected") }
 	}
 
@@ -180,7 +182,7 @@ final class SocketService: WebSocketDelegate {
 		switch event {
 		case .connected(let headers):
 			Task { @MainActor in
-				isConnected = true
+				isConnectedForSync = true
 				reconnectTask?.cancel()
 				reconnectTask = nil
 				SyncEngine.shared.syncIfNeeded()
@@ -189,7 +191,7 @@ final class SocketService: WebSocketDelegate {
 
 		case .disconnected(let reason, let code):
 			Task { @MainActor in
-				isConnected = false
+				isConnectedForSync = false
 				if Self.verbose { print("WebSocket disconnected:", reason, "code:", code) }
 				scheduleReconnect()
 			}
@@ -208,21 +210,21 @@ final class SocketService: WebSocketDelegate {
 
 		case .error(let error):
 			Task { @MainActor in
-				isConnected = false
+				isConnectedForSync = false
 				if Self.verbose { print("WebSocket error:", error ?? "unknown error") }
 				scheduleReconnect()
 			}
 
 		case .cancelled:
 			Task { @MainActor in
-				isConnected = false
+				isConnectedForSync = false
 				if Self.verbose { print("WebSocket cancelled") }
 				scheduleReconnect()
 			}
 
 		case .peerClosed:
 			Task { @MainActor in
-				isConnected = false
+				isConnectedForSync = false
 				if Self.verbose { print("WebSocket peer closed") }
 				scheduleReconnect()
 			}
@@ -405,7 +407,7 @@ final class SocketService: WebSocketDelegate {
 	// MARK: - Send
 
 	func send(event: String, data: [String: Any]) {
-		guard isConnected else {
+		guard isConnectedForSync else {
 			if Self.verbose { print("WebSocket: Cannot send, not connected") }
 			return
 		}

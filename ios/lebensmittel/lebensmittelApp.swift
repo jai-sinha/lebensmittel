@@ -17,6 +17,7 @@ struct lebensmittelApp: App {
 	@State private var mealsModel: MealsModel
 	@State private var receiptsModel: ReceiptsModel
 	@State private var shoppingModel: ShoppingModel
+	@State private var hasStartedAuthenticatedSession = false
 
 	init() {
 		do {
@@ -39,7 +40,10 @@ struct lebensmittelApp: App {
 		let groceries = GroceriesModel(service: groceriesService)
 		let meals = MealsModel(service: mealsService)
 		let receipts = ReceiptsModel(service: receiptsService)
-		let shopping = ShoppingModel(groceriesModel: groceries)
+		let shopping = ShoppingModel(
+			groceriesModel: groceries,
+			receiptsService: receiptsService
+		)
 
 		_groceriesModel = State(initialValue: groceries)
 		_mealsModel = State(initialValue: meals)
@@ -56,6 +60,9 @@ struct lebensmittelApp: App {
 	}
 
 	private func startSession() {
+		guard !hasStartedAuthenticatedSession else { return }
+		hasStartedAuthenticatedSession = true
+
 		SyncEngine.shared.syncIfNeeded()
 		SocketService.shared.start(
 			with: groceriesModel,
@@ -66,8 +73,10 @@ struct lebensmittelApp: App {
 		refreshData()
 	}
 
-	private func refreshData() {
-		SyncEngine.shared.syncIfNeeded()
+	private func refreshData(triggerSync: Bool = true) {
+		if triggerSync {
+			SyncEngine.shared.syncIfNeeded()
+		}
 		groceriesModel.fetchGroceries()
 		mealsModel.fetchMealPlans()
 		receiptsModel.fetchReceipts()
@@ -105,11 +114,7 @@ struct lebensmittelApp: App {
 								}
 							}
 						}
-						.onReceive(
-							NotificationCenter.default.publisher(for: .syncEngineDidFinish)
-						) { _ in
-							refreshData()
-						}
+
 						.onChange(of: ConnectivityMonitor.shared.isOnline) { _, isOnline in
 							guard isOnline else { return }
 							SocketService.shared.ensureConnected()
@@ -136,6 +141,11 @@ struct lebensmittelApp: App {
 			}
 			.onAppear {
 				sessionManager.checkAuthentication()
+			}
+			.onChange(of: sessionManager.isAuthenticated) { _, isAuthenticated in
+				if !isAuthenticated {
+					hasStartedAuthenticatedSession = false
+				}
 			}
 		}
 		.modelContainer(modelContainer)

@@ -11,13 +11,18 @@ import Foundation
 @Observable
 class ReceiptsModel {
 	private let service: any ReceiptsServicing
+	private let syncEngine: SyncEngine
 
 	var receipts: [Receipt] = []
 	var isLoading = false
 	var errorMessage: String? = nil
 
-	init(service: any ReceiptsServicing = ReceiptsService()) {
+	init(
+		service: any ReceiptsServicing = ReceiptsService(),
+		syncEngine: SyncEngine = .shared
+	) {
 		self.service = service
+		self.syncEngine = syncEngine
 	}
 
 	var currentMonth: String {
@@ -49,7 +54,7 @@ class ReceiptsModel {
 		errorMessage = nil
 
 		if !ConnectivityMonitor.shared.isOnline {
-			receipts = SyncEngine.shared.loadAllReceipts()
+			receipts = syncEngine.loadAllReceipts()
 			isLoading = false
 			return
 		}
@@ -60,7 +65,7 @@ class ReceiptsModel {
 			do {
 				let fetchedReceipts = try await service.fetchReceipts()
 				let mergedReceipts = await MainActor.run {
-					SyncEngine.shared.mergeReceipts(fetchedReceipts)
+					syncEngine.mergeReceipts(fetchedReceipts)
 				}
 				await MainActor.run {
 					self.receipts = mergedReceipts
@@ -78,21 +83,52 @@ class ReceiptsModel {
 	func updateReceipt(receipt: Receipt, price: Double, purchasedBy: String, notes: String) {
 		errorMessage = nil
 
-		if let updatedReceipt = SyncEngine.shared.enqueueReceiptUpdate(
-			receiptID: receipt.id,
-			totalAmount: price,
-			purchasedBy: purchasedBy,
-			notes: notes,
-			snapshot: receipt
-		) {
-			updateReceipt(updatedReceipt)
+		if !ConnectivityMonitor.shared.isOnline {
+			if let updatedReceipt = syncEngine.enqueueReceiptUpdate(
+				receiptID: receipt.id,
+				totalAmount: price,
+				purchasedBy: purchasedBy,
+				notes: notes
+			) {
+				updateReceipt(updatedReceipt)
+			}
+			return
+		}
+
+		Task {
+			do {
+				try await service.updateReceipt(
+					id: receipt.id,
+					price: price,
+					purchasedBy: purchasedBy,
+					notes: notes
+				)
+			} catch {
+				await MainActor.run {
+					self.errorMessage = UserFacingError.message(for: error)
+				}
+			}
 		}
 	}
 
 	func deleteReceipt(receiptId: String) {
 		errorMessage = nil
-		SyncEngine.shared.enqueueReceiptDelete(receiptID: receiptId)
-		deleteReceipt(withId: receiptId)
+
+		if !ConnectivityMonitor.shared.isOnline {
+			syncEngine.enqueueReceiptDelete(receiptID: receiptId)
+			deleteReceipt(withId: receiptId)
+			return
+		}
+
+		Task {
+			do {
+				try await service.deleteReceipt(id: receiptId)
+			} catch {
+				await MainActor.run {
+					self.errorMessage = UserFacingError.message(for: error)
+				}
+			}
+		}
 	}
 
 	// MARK: Grouping Helpers

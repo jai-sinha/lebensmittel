@@ -24,12 +24,6 @@ struct ContentView: View {
 					message: StatusBannerKind.reconnecting.message,
 					backgroundColor: StatusBannerKind.reconnecting.backgroundColor
 				)
-			} else if SyncEngine.shared.bannerState == .syncing {
-				StatusBannerView(
-					systemImage: StatusBannerKind.syncing.systemImage,
-					message: StatusBannerKind.syncing.message,
-					backgroundColor: StatusBannerKind.syncing.backgroundColor
-				)
 			}
 
 			TabView {

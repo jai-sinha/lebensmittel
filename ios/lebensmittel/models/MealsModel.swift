@@ -11,11 +11,16 @@ import Foundation
 @Observable
 class MealsModel {
 	private let service: any MealsServicing
+	private let syncEngine: SyncEngine
 	var mealPlans: [String: MealPlan] = [:]  // Keyed by date string
 	var errorMessage: String? = nil
 
-	init(service: any MealsServicing = MealsService()) {
+	init(
+		service: any MealsServicing = MealsService(),
+		syncEngine: SyncEngine = .shared
+	) {
 		self.service = service
+		self.syncEngine = syncEngine
 	}
 
 	func getMealPlan(for dateString: String) -> String {
@@ -51,7 +56,7 @@ class MealsModel {
 		errorMessage = nil
 
 		if !ConnectivityMonitor.shared.isOnline {
-			let localPlans = SyncEngine.shared.loadAllMealPlans()
+			let localPlans = syncEngine.loadAllMealPlans()
 			self.mealPlans.removeAll()
 			for mealPlan in localPlans {
 				self.mealPlans[mealPlan.date] = mealPlan
@@ -62,7 +67,7 @@ class MealsModel {
 		Task {
 			do {
 				let mealPlans = try await service.fetchMealPlans()
-				let mergedPlans = SyncEngine.shared.mergeMealPlans(mealPlans)
+				let mergedPlans = syncEngine.mergeMealPlans(mealPlans)
 				self.mealPlans.removeAll()
 				for mealPlan in mergedPlans {
 					self.mealPlans[mealPlan.date] = mealPlan
@@ -76,11 +81,27 @@ class MealsModel {
 	func createMealPlan(for dateString: String, meal: String) {
 		errorMessage = nil
 
-		let createdPlan = SyncEngine.shared.enqueueMealCreate(
-			date: dateString,
-			mealDescription: meal
-		)
-		mealPlans[createdPlan.date] = createdPlan
+		if !ConnectivityMonitor.shared.isOnline {
+			let createdPlan = syncEngine.enqueueMealCreate(
+				date: dateString,
+				mealDescription: meal
+			)
+			mealPlans[createdPlan.date] = createdPlan
+			return
+		}
+
+		Task {
+			do {
+				_ = try await service.createMealPlan(
+					date: dateString,
+					mealDescription: meal
+				)
+			} catch {
+				await MainActor.run {
+					self.errorMessage = UserFacingError.message(for: error)
+				}
+			}
+		}
 	}
 
 	func updateMealPlan(for dateString: String, meal: String) {
@@ -89,20 +110,48 @@ class MealsModel {
 
 		errorMessage = nil
 
-		if let updatedPlan = SyncEngine.shared.enqueueMealUpdate(
-			mealID: existingPlan.id,
-			mealDescription: meal,
-			snapshot: existingPlan
-		) {
-			mealPlans[updatedPlan.date] = updatedPlan
+		if !ConnectivityMonitor.shared.isOnline {
+			if let updatedPlan = syncEngine.enqueueMealUpdate(
+				mealID: existingPlan.id,
+				mealDescription: meal
+			) {
+				mealPlans[updatedPlan.date] = updatedPlan
+			}
+			return
+		}
+
+		Task {
+			do {
+				try await service.updateMealPlan(
+					id: existingPlan.id,
+					mealDescription: meal
+				)
+			} catch {
+				await MainActor.run {
+					self.errorMessage = UserFacingError.message(for: error)
+				}
+			}
 		}
 	}
 
 	func deleteMealPlan(mealId: String) {
 		errorMessage = nil
 
-		SyncEngine.shared.enqueueMealDelete(mealID: mealId)
-		removeMealPlan(withId: mealId)
+		if !ConnectivityMonitor.shared.isOnline {
+			syncEngine.enqueueMealDelete(mealID: mealId)
+			removeMealPlan(withId: mealId)
+			return
+		}
+
+		Task {
+			do {
+				try await service.deleteMealPlan(id: mealId)
+			} catch {
+				await MainActor.run {
+					self.errorMessage = UserFacingError.message(for: error)
+				}
+			}
+		}
 	}
 
 	/// Returns a "yyyy-MM-dd" string representing the user's local calendar date for the given Date.
