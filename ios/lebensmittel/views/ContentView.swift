@@ -10,21 +10,31 @@ import SwiftUI
 struct ContentView: View {
 	@Environment(SessionManager.self) var sessionManager
 
+	var statusBanner: StatusBannerKind? {
+		guard sessionManager.isAuthenticated else { return nil }
+
+		switch (
+			ConnectivityMonitor.shared.isOnline, SocketService.shared.isConnectedForSync,
+			SyncEngine.shared.isSyncing
+		) {
+		case (false, _, _):
+			return .offline
+		case (true, true, true):
+			return .syncing
+		case (true, false, _):
+			return .reconnecting
+		default:
+			return nil
+		}
+	}
+
 	var body: some View {
 		VStack(spacing: 0) {
-			if !ConnectivityMonitor.shared.isOnline {
+			if let banner = statusBanner {
 				StatusBannerView(
-					systemImage: StatusBannerKind.offline.systemImage,
-					message: StatusBannerKind.offline.message,
-					backgroundColor: StatusBannerKind.offline.backgroundColor
-				)
-			} else if sessionManager.isAuthenticated
-				&& SocketService.shared.bannerState == .reconnecting
-			{
-				StatusBannerView(
-					systemImage: StatusBannerKind.reconnecting.systemImage,
-					message: StatusBannerKind.reconnecting.message,
-					backgroundColor: StatusBannerKind.reconnecting.backgroundColor
+					systemImage: banner.systemImage,
+					message: banner.message,
+					backgroundColor: banner.backgroundColor
 				)
 			}
 

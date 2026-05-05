@@ -71,7 +71,7 @@ final class SocketService: WebSocketDelegate {
 	}
 	static let shared = SocketService()
 
-	@MainActor static var verbose = true
+	@MainActor static var verbose = false
 
 	private var socket: WebSocket?
 	private(set) var isConnectedForSync = false

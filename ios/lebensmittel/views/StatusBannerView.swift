@@ -50,7 +50,7 @@ enum StatusBannerKind {
 
 	var backgroundColor: Color {
 		switch self {
-		case .offline: .orange
+		case .offline: .red
 		case .syncing: .blue
 		case .reconnecting: .gray
 		}
