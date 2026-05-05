@@ -125,6 +125,8 @@ final class SyncEngine {
 			}
 		}
 
+		NotificationCenter.default.post(name: Notification.Name("syncEngineDidFinish"), object: nil)
+		log("Queue drained — posted syncEngineDidFinish")
 	}
 
 	// MARK: - Operation Processing

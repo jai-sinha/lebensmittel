@@ -69,54 +69,38 @@ struct lebensmittelApp: App {
 		guard !hasStartedAuthenticatedSession else { return }
 		hasStartedAuthenticatedSession = true
 
-		Task {
-			await hydrateFromServerAndStartSocket()
-		}
+		// Load last-known state from SwiftData immediately — no spinner.
+		groceriesModel.replaceAll(with: SyncEngine.shared.loadAllGroceryItems())
+		mealsModel.replaceAll(with: SyncEngine.shared.loadAllMealPlans())
+		receiptsModel.replaceAll(with: SyncEngine.shared.loadAllReceipts())
+
+		SocketService.shared.start(
+			with: groceriesModel,
+			mealsModel: mealsModel,
+			receiptsModel: receiptsModel,
+			shoppingModel: shoppingModel
+		)
+
+		// Reconcile with server in background — silently updates models when done.
+		Task { await backgroundReconcile() }
 	}
 
-	private func hydrateFromServerAndStartSocket() async {
+	/// Fetches the latest server state and merges it into SwiftData + models.
+	/// Never sets isLoading — updates are silent. Safe to call from any trigger.
+	private func backgroundReconcile() async {
+		guard ConnectivityMonitor.shared.isOnline else { return }
 		do {
-			async let groceriesTask = groceriesService.fetchGroceries()
-			async let mealsTask = mealsService.fetchMealPlans()
-			async let receiptsTask = receiptsService.fetchReceipts()
+			async let g = groceriesService.fetchGroceries()
+			async let m = mealsService.fetchMealPlans()
+			async let r = receiptsService.fetchReceipts()
+			let (groceries, meals, receipts) = try await (g, m, r)
 
-			let groceries = try await groceriesTask
-			let meals = try await mealsTask
-			let receipts = try await receiptsTask
-
-			let mergedGroceries = SyncEngine.shared.mergeGroceries(groceries)
-			let mergedMeals = SyncEngine.shared.mergeMealPlans(meals)
-			let mergedReceipts = SyncEngine.shared.mergeReceipts(receipts)
-
-			groceriesModel.replaceAll(with: mergedGroceries)
-			mealsModel.replaceAll(with: mergedMeals)
-			receiptsModel.replaceAll(with: mergedReceipts)
-			SocketService.shared.start(
-				with: groceriesModel,
-				mealsModel: mealsModel,
-				receiptsModel: receiptsModel,
-				shoppingModel: shoppingModel
-			)
+			groceriesModel.replaceAll(with: SyncEngine.shared.mergeGroceries(groceries))
+			mealsModel.replaceAll(with: SyncEngine.shared.mergeMealPlans(meals))
+			receiptsModel.replaceAll(with: SyncEngine.shared.mergeReceipts(receipts))
 			SyncEngine.shared.syncIfNeeded()
 		} catch {
-			groceriesModel.fetchGroceries()
-			mealsModel.fetchMealPlans()
-			receiptsModel.fetchReceipts()
-			SocketService.shared.start(
-				with: groceriesModel,
-				mealsModel: mealsModel,
-				receiptsModel: receiptsModel,
-				shoppingModel: shoppingModel
-			)
-		}
-	}
-
-	private func refreshData(triggerSync: Bool = true) {
-		if triggerSync {
-			SyncEngine.shared.syncIfNeeded()
-		}
-		Task {
-			await hydrateFromServerAndStartSocket()
+			// Network unavailable — local data is already displayed, nothing to do.
 		}
 	}
 
@@ -144,7 +128,7 @@ struct lebensmittelApp: App {
 								do {
 									_ = try await AuthManager.shared.ensureAuthenticated()
 									SocketService.shared.ensureConnected()
-									refreshData()
+									await backgroundReconcile()
 								} catch {
 									await MainActor.run {
 										sessionManager.clearLocalState()
@@ -162,12 +146,22 @@ struct lebensmittelApp: App {
 						}
 						.onReceive(
 							NotificationCenter.default.publisher(
+								for: Notification.Name("syncEngineDidFinish")
+							)
+						) { _ in
+							Task { await backgroundReconcile() }
+						}
+						.onReceive(
+							NotificationCenter.default.publisher(
 								for: Notification.Name("GroupChanged")
 							)
 						) { _ in
 							SyncEngine.shared.clearLocalData()
-							refreshData()
+							groceriesModel.replaceAll(with: [])
+							mealsModel.replaceAll(with: [])
+							receiptsModel.replaceAll(with: [])
 							SocketService.shared.restart()
+							Task { await backgroundReconcile() }
 						}
 				} else if sessionManager.isGuest {
 					ContentView()

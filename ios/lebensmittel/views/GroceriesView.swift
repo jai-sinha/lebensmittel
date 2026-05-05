@@ -66,6 +66,9 @@ struct GroceriesView: View {
 
 							// 2-col item grid
 							GroceriesGridView()
+								.refreshable {
+									model.fetchGroceries()
+								}
 						}
 						.background(
 							colorScheme == .dark
