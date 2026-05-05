@@ -29,7 +29,7 @@ const (
 	writeWait = 10 * time.Second
 
 	// Time allowed to read the next pong message from the peer
-	pongWait = 60 * time.Second
+	pongWait = 15 * time.Second
 
 	// Send pings to peer with this period (must be less than pongWait)
 	pingPeriod = (pongWait * 9) / 10
@@ -146,34 +146,19 @@ func (manager *WebSocketManager) Run() {
 		case message := <-manager.broadcast:
 			manager.mutex.RLock()
 
-			// If GroupIDs are provided, broadcast only to those groups
-			if len(message.GroupIDs) > 0 {
-				// Use a set to avoid sending duplicate messages to the same connection
-				targetConns := make(map[*websocket.Conn]bool)
+			// Use a set to avoid sending duplicate messages to the same connection
+			targetConns := make(map[*websocket.Conn]bool)
 
-				for _, groupID := range message.GroupIDs {
-					if conns, ok := manager.groups[groupID]; ok {
-						for conn := range conns {
-							targetConns[conn] = true
-						}
+			for _, groupID := range message.GroupIDs {
+				if conns, ok := manager.groups[groupID]; ok {
+					for conn := range conns {
+						targetConns[conn] = true
 					}
 				}
+			}
 
-				for conn := range targetConns {
-					if client, ok := manager.clients[conn]; ok {
-						client.writeMu.Lock()
-						conn.SetWriteDeadline(time.Now().Add(writeWait))
-						err := conn.WriteMessage(websocket.TextMessage, message.Data)
-						client.writeMu.Unlock()
-						if err != nil {
-							log.Printf("Error writing message: %v", err)
-							conn.Close()
-						}
-					}
-				}
-			} else {
-				// Broadcast to all (legacy behavior)
-				for conn, client := range manager.clients {
+			for conn := range targetConns {
+				if client, ok := manager.clients[conn]; ok {
 					client.writeMu.Lock()
 					conn.SetWriteDeadline(time.Now().Add(writeWait))
 					err := conn.WriteMessage(websocket.TextMessage, message.Data)
