@@ -20,33 +20,26 @@ struct GuestHomeView: View {
 					Text("Lebensmittel")
 						.font(.largeTitle)
 						.fontWeight(.bold)
-
-					Text(
-						"Shared grocery lists, meal planning, and household receipts. All in one place."
-					)
-					.font(.subheadline)
-					.foregroundStyle(.secondary)
-					.multilineTextAlignment(.center)
-					.padding(.horizontal, 24)
+                        .padding(.vertical, 8)
 
 					// MARK: - Feature Highlights
 					VStack(spacing: 12) {
 						FeatureRow(
-							icon: "list.bullet",
-							color: .blue,
+							icon: "cart",
+							color: .yellow,
 							title: "Shared Grocery Lists",
 							description:
-								"Manage what's needed by category, synced live across your household."
+								"Keep track of what your household needs by category."
 						)
 						FeatureRow(
 							icon: "calendar",
 							color: .orange,
 							title: "Meal Planning",
 							description:
-								"Plan meals for the week together so everyone knows what's for dinner."
+								"Plan meals together so everyone knows what's for dinner."
 						)
 						FeatureRow(
-							icon: "cart",
+							icon: "list.bullet",
 							color: .green,
 							title: "Smart Shopping",
 							description:
@@ -57,7 +50,7 @@ struct GuestHomeView: View {
 							color: .purple,
 							title: "Receipt Tracking",
 							description:
-								"See who spent what each month and keep household costs transparent."
+								"See who spent what each month and keep bills in one place."
 						)
 					}
 					.padding(.horizontal, 20)
@@ -111,7 +104,7 @@ struct GuestHomeView: View {
 								)
 						}
 					}
-					.padding(.horizontal, 24)
+                    .padding(.horizontal, 24)
 
 					// MARK: - Guest Bypass
 					Button {
@@ -121,6 +114,7 @@ struct GuestHomeView: View {
 							.font(.subheadline)
 							.foregroundStyle(.blue)
 					}
+                    .padding(.vertical, 4)
 
 					Spacer().frame(height: 32)
 				}
@@ -142,7 +136,7 @@ struct FeatureRow: View {
 	let description: String
 
 	var body: some View {
-		HStack(alignment: .top, spacing: 16) {
+		HStack(alignment: .center, spacing: 16) {
 			Image(systemName: icon)
 				.font(.title2)
 				.foregroundStyle(color)
