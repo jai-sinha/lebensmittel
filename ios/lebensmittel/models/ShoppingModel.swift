@@ -94,7 +94,7 @@ class ShoppingModel {
 						date: dateString,
 						totalAmount: price,
 						purchasedBy: purchasedBy,
-						items: itemNames,
+						items: itemNames.isEmpty ? nil : itemNames,
 						notes: notes
 					)
 				)
