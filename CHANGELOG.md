@@ -9,6 +9,20 @@ A/F/C/R
 
 ---
 
+## [2.3.0] - 2026-05-05
+
+### Added
+- Offline mode! The app now works offline, with any changes made syncing to the server when you're back online
+- Debug scheme + Config files for easier end to end testing
+
+### Fixed
+- Support page linking (got too markdown brained and forgot I was writing markup)
+- Zero dollar/Itemless checkout bug
+
+### Changed
+- GuestHomeView wording and coloring
+- Backend now can accept items list on receipt create, but old way of deriving item list is still retained as backup
+
 ## [2.2.2] - 2026-04-14
 
 ### Added
