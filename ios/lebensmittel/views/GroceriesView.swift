@@ -11,7 +11,7 @@ struct GroceriesView: View {
 	@Environment(GroceriesModel.self) var model
 	@Environment(SessionManager.self) var sessionManager
 	@Environment(\.colorScheme) var colorScheme
-	@FocusState private var isAddItemFieldFocused: Bool
+	@State private var isAddItemSheetPresented = false
 
 	var body: some View {
 		NavigationStack {
@@ -78,32 +78,28 @@ struct GroceriesView: View {
 						.shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
 						.padding(.horizontal, 12)
 
-						// Show search results above the search bar
-						SearchResultsDropdown()
-						AddItemSection(isAddItemFieldFocused: $isAddItemFieldFocused)
-							.frame(maxWidth: .infinity, alignment: .center)
-							.fixedSize(horizontal: false, vertical: true)
-							.padding(.horizontal, 12)
-							.padding(.top, 4)
-							.padding(.bottom, 0)
+						Button {
+							isAddItemSheetPresented = true
+						} label: {
+							Text("Add or search items")
+								.font(.headline)
+								.frame(maxWidth: .infinity)
+								.padding(.vertical, 12)
+						}
+						.buttonStyle(.borderedProminent)
+						.padding(.horizontal, 12)
+						.padding(.top, 4)
+						.padding(.bottom, 12)
+						.sheet(isPresented: $isAddItemSheetPresented) {
+							AddItemSheet()
+						}
 					}
 				}
 			}
 			.background(
 				colorScheme == .dark ? Color(.systemBackground) : Color(.secondarySystemBackground)
 			)
-			.contentShape(Rectangle())
-			.onTapGesture {
-				isAddItemFieldFocused = false
-			}
-			.gesture(
-				DragGesture(minimumDistance: 12)
-					.onEnded { value in
-						if value.translation.height > 20 {
-							isAddItemFieldFocused = false
-						}
-					}
-			)
+
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Groceries")
 			.toolbar {
@@ -266,104 +262,144 @@ struct GroceryItemCard: View {
 	}
 }
 
-// MARK: - Search Results Dropdown
+// MARK: - Add Item Sheet
 
-struct SearchResultsDropdown: View {
+struct AddItemSheet: View {
 	@Environment(GroceriesModel.self) var model
+	@Environment(\.dismiss) var dismiss
+	@Environment(\.colorScheme) var colorScheme
+	@FocusState private var isAddItemFieldFocused: Bool
+
+	private var displayedResults: ArraySlice<GroceryItem> {
+		model.searchResults.prefix(5)
+	}
 
 	var body: some View {
-		if model.isSearching && !model.searchResults.isEmpty {
-			VStack(spacing: 0) {
-				ForEach(model.searchResults.prefix(5)) { item in
-					Button {
-						model.selectExistingItem(item)
-					} label: {
-						HStack {
-							Image(systemName: item.isNeeded ? "checkmark.square.fill" : "square")
-								.foregroundStyle(item.isNeeded ? .green : .gray)
-							VStack(alignment: .leading) {
-								Text(item.name)
-									.foregroundStyle(.primary)
-								Text(item.category)
-									.font(.caption)
-									.foregroundStyle(.secondary)
-							}
-							Spacer()
-							if !item.isNeeded {
-								Text("Add to list")
-									.font(.caption)
-									.foregroundStyle(.blue)
+		NavigationStack {
+			VStack(alignment: .leading, spacing: 16) {
+				HStack(spacing: 4) {
+					Text("Category:")
+						.font(.caption)
+						.foregroundStyle(.secondary)
+					Picker(
+						"Category",
+						selection: Binding(
+							get: { model.searchCategory },
+							set: { model.searchCategory = $0 }
+						)
+					) {
+						ForEach(model.categories, id: \.self) { category in
+							Text(category).tag(category)
+						}
+					}
+					.pickerStyle(MenuPickerStyle())
+					.frame(maxWidth: .infinity, alignment: .leading)
+				}
+
+				HStack {
+					TextField(
+						"Search or add new item",
+						text: Binding(
+							get: { model.newItemName },
+							set: { model.newItemName = $0 }
+						)
+					)
+					.focused($isAddItemFieldFocused)
+					.textFieldStyle(RoundedBorderTextFieldStyle())
+					.onSubmit {
+						submitItem()
+					}
+
+					Button(model.exactMatch != nil ? "Select" : "Add") {
+						submitItem()
+					}
+					.disabled(model.newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+				}
+
+				ZStack(alignment: .top) {
+					Color.clear.frame(height: 260)
+
+					if model.isSearching && !displayedResults.isEmpty {
+						VStack(alignment: .leading, spacing: 0) {
+							Text("Matches")
+								.font(.caption)
+								.foregroundStyle(.secondary)
+								.padding(.horizontal, 16)
+								.padding(.top, 14)
+								.padding(.bottom, 8)
+
+							ForEach(Array(displayedResults.enumerated()), id: \.element.id) { index, item in
+								Button {
+									model.selectExistingItem(item)
+									dismiss()
+								} label: {
+									HStack {
+										Image(systemName: item.isNeeded ? "checkmark.square.fill" : "square")
+											.foregroundStyle(item.isNeeded ? .green : .gray)
+										VStack(alignment: .leading) {
+											Text(item.name)
+												.foregroundStyle(.primary)
+											Text(item.category)
+												.font(.caption)
+												.foregroundStyle(.secondary)
+										}
+										Spacer()
+										Text(item.isNeeded ? "Remove from list" : "Add to list")
+											.font(.caption)
+											.foregroundStyle(.blue)
+									}
+									.padding(.horizontal, 16)
+									.padding(.vertical, 10)
+								}
+								.buttonStyle(PlainButtonStyle())
+
+								if index < displayedResults.count - 1 {
+									Divider()
+										.padding(.leading, 16)
+								}
 							}
 						}
-						.padding(.horizontal)
-						.padding(.vertical, 8)
+						.background(
+							RoundedRectangle(cornerRadius: 16)
+								.fill(
+									colorScheme == .dark
+										? Color(.tertiarySystemBackground)
+										: Color(.secondarySystemBackground)
+								)
+						)
+						.overlay(
+							RoundedRectangle(cornerRadius: 16)
+								.stroke(Color(.separator).opacity(0.25), lineWidth: 1)
+						)
 					}
-					.buttonStyle(PlainButtonStyle())
-					if item.id != model.searchResults.prefix(5).last?.id {
-						Divider()
+				}
+
+				Spacer(minLength: 0)
+			}
+			.padding(.horizontal, 16)
+			.padding(.top, 16)
+			.navigationTitle("Add Item")
+			.navigationBarTitleDisplayMode(.inline)
+			.toolbar {
+				ToolbarItem(placement: .topBarTrailing) {
+					Button("Done") {
+						dismiss()
 					}
 				}
 			}
-			.padding(.vertical, 8)
-			.padding(.horizontal)
-			.padding(.bottom, 0)
+			.onAppear {
+				isAddItemFieldFocused = true
+			}
+			.onDisappear {
+				model.newItemName = ""
+			}
 		}
+		.presentationDetents([.large])
+		.presentationDragIndicator(.visible)
 	}
-}
 
-// MARK: - Add Item Section
-
-struct AddItemSection: View {
-	@Environment(GroceriesModel.self) var model
-	@FocusState.Binding var isAddItemFieldFocused: Bool
-
-	var body: some View {
-		VStack(spacing: 2) {
-			// Category picker
-			HStack {
-				Text("Category:")
-					.font(.caption)
-					.foregroundStyle(.secondary)
-				Picker(
-					"Category",
-					selection: Binding(
-						get: { model.searchCategory },
-						set: { model.searchCategory = $0 }
-					)
-				) {
-					ForEach(model.categories, id: \.self) { category in
-						Text(category).tag(category)
-					}
-				}
-				.pickerStyle(MenuPickerStyle())
-				.frame(maxWidth: .infinity, alignment: .leading)
-			}
-			.padding(.horizontal)
-
-			// Search/Add field
-			HStack {
-				TextField(
-					"Search or add new item",
-					text: Binding(
-						get: { model.newItemName },
-						set: { model.newItemName = $0 }
-					)
-				)
-				.focused($isAddItemFieldFocused)
-				.textFieldStyle(RoundedBorderTextFieldStyle())
-
-				.onSubmit {
-					model.addItem()
-					isAddItemFieldFocused = false
-				}
-				Button(model.exactMatch != nil ? "Select" : "Add") {
-					model.addItem()
-					isAddItemFieldFocused = false
-				}
-				.disabled(model.newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-			}
-			.padding(.horizontal)
-			.padding(.bottom)
-		}
+	private func submitItem() {
+		model.addItem()
+		dismiss()
 	}
 }

@@ -69,14 +69,6 @@ class GroceriesModel {
 		return categoriesWithItems + emptyCategories
 	}
 
-	var essentialsItems: [GroceryItem] {
-		itemsByCategory["Essentials"] ?? []
-	}
-
-	var otherCategories: [String] {
-		categories.filter { $0 != "Essentials" }
-	}
-
 	func addItem() {
 		let trimmedName = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !trimmedName.isEmpty else { return }
