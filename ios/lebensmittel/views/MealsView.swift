@@ -91,7 +91,7 @@ struct MealsView: View {
 			.navigationTitle("Meal Planning")
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
-					AuthMenuView()
+					GroupIDMenuView()
 				}
 			}
 

@@ -64,7 +64,7 @@ struct ReceiptsView: View {
 			.navigationTitle("Receipts")
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
-					AuthMenuView()
+					GroupIDMenuView()
 				}
 			}
 			.onAppear {

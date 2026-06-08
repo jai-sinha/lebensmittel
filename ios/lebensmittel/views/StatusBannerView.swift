@@ -44,15 +44,15 @@ enum StatusBannerKind {
 		switch self {
 		case .offline: "You're offline. Changes will sync when you're back online."
 		case .syncing: "Syncing..."
-		case .reconnecting: "Reconnecting..."
+		case .reconnecting: "Connecting..."
 		}
 	}
 
 	var backgroundColor: Color {
 		switch self {
 		case .offline: .red
-		case .syncing: .blue
-		case .reconnecting: .gray
+		case .syncing: .yellow
+		case .reconnecting: .blue
 		}
 	}
 }

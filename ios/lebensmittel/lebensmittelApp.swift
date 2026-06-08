@@ -80,7 +80,15 @@ struct lebensmittelApp: App {
 			shoppingModel: shoppingModel
 		)
 
-		Task { await backgroundReconcile() }
+		triggerBackgroundReconcile()
+	}
+
+	private func triggerBackgroundReconcile() {
+		Task {
+			await sessionManager.refreshGroupContext()
+			SocketService.shared.ensureConnected()
+			await backgroundReconcile()
+		}
 	}
 
 	private func backgroundReconcile() async {
@@ -119,11 +127,7 @@ struct lebensmittelApp: App {
 						for: UIApplication.willEnterForegroundNotification
 					)
 				) { _ in
-					Task {
-						await sessionManager.refreshGroupContext()
-						SocketService.shared.ensureConnected()
-						await backgroundReconcile()
-					}
+					triggerBackgroundReconcile()
 				}
 				.onChange(of: ConnectivityMonitor.shared.isOnline) { _, isOnline in
 					if isOnline {
@@ -137,7 +141,7 @@ struct lebensmittelApp: App {
 						for: Notification.Name("syncEngineDidFinish")
 					)
 				) { _ in
-					Task { await backgroundReconcile() }
+					triggerBackgroundReconcile()
 				}
 				.onReceive(
 					NotificationCenter.default.publisher(
@@ -149,10 +153,7 @@ struct lebensmittelApp: App {
 					mealsModel.replaceAll(with: [])
 					receiptsModel.replaceAll(with: [])
 					SocketService.shared.restart()
-					Task {
-						await sessionManager.refreshGroupContext()
-						await backgroundReconcile()
-					}
+					triggerBackgroundReconcile()
 				}
 				.modelContainer(modelContainer)
 		}

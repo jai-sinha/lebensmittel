@@ -3,14 +3,12 @@ package database
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lebensmittel/backend/models"
 )
@@ -461,8 +459,6 @@ func DeleteGroup(ctx context.Context, groupID string) error {
 		`DELETE FROM grocery_items WHERE group_id = $1`,
 		`DELETE FROM meal_plans WHERE group_id = $1`,
 		`DELETE FROM receipts WHERE group_id = $1`,
-		`DELETE FROM user_groups WHERE group_id = $1`,
-		`DELETE FROM join_codes WHERE group_id = $1`,
 		`DELETE FROM groups WHERE id = $1`,
 	}
 
@@ -482,175 +478,4 @@ func DeleteGroup(ctx context.Context, groupID string) error {
 	}
 
 	return nil
-}
-
-// Users
-
-func CreateUser(ctx context.Context, user *models.User) error {
-	query := `INSERT INTO users (id, username, email, password_hash, display_name) VALUES ($1, $2, $3, $4, $5)`
-	_, err := db.Exec(ctx, query, user.ID, user.Username, user.Email, user.PasswordHash, user.DisplayName)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return fmt.Errorf("username already taken")
-		}
-		return err
-	}
-	return nil
-}
-
-func GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
-	query := `SELECT id, username, email, password_hash, display_name FROM users WHERE username = $1`
-	var user models.User
-	err := db.QueryRow(ctx, query, username).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.DisplayName)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &user, nil
-}
-
-func GetUserByID(ctx context.Context, id string) (*models.User, error) {
-	query := `SELECT id, username, email, password_hash, display_name FROM users WHERE id = $1`
-	var user models.User
-	err := db.QueryRow(ctx, query, id).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.DisplayName)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &user, nil
-}
-
-func UpdateUser(ctx context.Context, id string, updates map[string]any) (*models.User, error) {
-	setParts := []string{}
-	args := []any{id}
-	argID := 2
-
-	for k, v := range updates {
-		dbCol := k
-		switch k {
-		case "displayName":
-			dbCol = "display_name"
-		}
-		setParts = append(setParts, fmt.Sprintf("%s = $%d", dbCol, argID))
-		args = append(args, v)
-		argID++
-	}
-	if len(setParts) == 0 {
-		return GetUserByID(ctx, id)
-	}
-
-	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $1 RETURNING id, username, email, password_hash, display_name", strings.Join(setParts, ", "))
-	var user models.User
-	err := db.QueryRow(ctx, query, args...).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.DisplayName)
-	if err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
-
-func DeleteUser(ctx context.Context, id string) error {
-	_, err := db.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
-	return err
-}
-
-// Group Users
-
-func AddUserToGroup(ctx context.Context, userID, groupID string) error {
-	_, err := db.Exec(ctx, "INSERT INTO user_groups (user_id, group_id) VALUES ($1, $2)", userID, groupID)
-	return err
-}
-
-func RemoveUserFromGroup(ctx context.Context, userID, groupID string) error {
-	_, err := db.Exec(ctx, "DELETE FROM user_groups WHERE user_id = $1 AND group_id = $2", userID, groupID)
-	return err
-}
-
-// GetUserGroups returns the groups for a given user.
-func GetUserGroups(ctx context.Context, userID string) ([]models.Group, error) {
-	query := `
-        SELECT g.id, g.name
-        FROM groups g
-        JOIN user_groups ug ON g.id = ug.group_id
-        WHERE ug.user_id = $1
-    `
-	rows, err := db.Query(ctx, query, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	// Initialize slice to empty to ensure JSON serialization is [] not null
-	groups := []models.Group{}
-	for rows.Next() {
-		var g models.Group
-		if err := rows.Scan(&g.ID, &g.Name); err != nil {
-			return nil, err
-		}
-		groups = append(groups, g)
-	}
-	return groups, rows.Err()
-}
-
-func GetGroupUsers(ctx context.Context, groupID string) ([]models.GroupUser, error) {
-	query := `
-		SELECT u.id, u.display_name
-		FROM users u
-		JOIN user_groups ug ON u.id = ug.user_id
-		WHERE ug.group_id = $1
-	`
-	rows, err := db.Query(ctx, query, groupID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query group users: %w", err)
-	}
-	defer rows.Close()
-
-	users := []models.GroupUser{}
-	for rows.Next() {
-		var user models.GroupUser
-		if err := rows.Scan(&user.ID, &user.DisplayName); err != nil {
-			return nil, fmt.Errorf("failed to scan user: %w", err)
-		}
-		users = append(users, user)
-	}
-	return users, rows.Err()
-}
-
-// Join Codes
-
-func CreateJoinCode(ctx context.Context, code *models.JoinCode) error {
-	query := `INSERT INTO join_codes (code, group_id, expires_at, created_by) VALUES ($1, $2, $3, $4)`
-	_, err := db.Exec(ctx, query, code.Code, code.GroupID, code.ExpiresAt, code.CreatedBy)
-	return err
-}
-
-func GetJoinCode(ctx context.Context, code string) (*models.JoinCode, error) {
-	query := `
-		SELECT code, group_id, expires_at, created_by
-		FROM join_codes
-		WHERE code = $1
-	`
-	var jc models.JoinCode
-	err := db.QueryRow(ctx, query, code).Scan(&jc.Code, &jc.GroupID, &jc.ExpiresAt, &jc.CreatedBy)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to get join code: %w", err)
-	}
-	return &jc, nil
-}
-
-func DeleteJoinCode(ctx context.Context, code string) error {
-	_, err := db.Exec(ctx, "DELETE FROM join_codes WHERE code = $1", code)
-	return err
-}
-
-func DeleteExpiredJoinCodes(ctx context.Context) error {
-	_, err := db.Exec(ctx, "DELETE FROM join_codes WHERE expires_at < NOW()")
-	return err
 }

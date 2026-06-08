@@ -18,7 +18,7 @@ type GroceryItem struct {
 }
 
 // NewGroceryItem creates a new grocery item with a generated UUID
-func NewGroceryItem(name, category string, isNeeded, isShoppingChecked bool, groupID, userID string) *GroceryItem {
+func NewGroceryItem(name, category string, isNeeded, isShoppingChecked bool, groupID string) *GroceryItem {
 	return &GroceryItem{
 		ID:                uuid.New().String(),
 		Name:              name,
@@ -50,7 +50,7 @@ func (m MealPlan) MarshalJSON() ([]byte, error) {
 }
 
 // NewMealPlan creates a new meal plan with a generated UUID
-func NewMealPlan(date time.Time, mealDescription, groupID, userID string) *MealPlan {
+func NewMealPlan(date time.Time, mealDescription, groupID string) *MealPlan {
 	return &MealPlan{
 		ID:              uuid.New().String(),
 		Date:            date,
@@ -96,7 +96,7 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 }
 
 // NewReceipt creates a new receipt with a generated UUID
-func NewReceipt(date time.Time, totalAmount float64, purchasedBy string, items []string, notes *string, groupID, userID string) *Receipt {
+func NewReceipt(date time.Time, totalAmount float64, purchasedBy string, items []string, notes *string, groupID string) *Receipt {
 	itemsJSON, _ := json.Marshal(items)
 	return &Receipt{
 		ID:          uuid.New().String(),
@@ -131,7 +131,7 @@ func (r *Receipt) GetItems() ([]string, error) {
 	return items, err
 }
 
-// Group represents a household or group of users
+// Group represents a shared household or planning group
 type Group struct {
 	ID   string `json:"id" db:"id"`
 	Name string `json:"name" db:"name"`
@@ -142,49 +142,5 @@ func NewGroup(name string) *Group {
 	return &Group{
 		ID:   uuid.New().String(),
 		Name: name,
-	}
-}
-
-// JoinCode represents a temporary code to join a group
-type JoinCode struct {
-	Code      string    `json:"code" db:"code"`
-	GroupID   string    `json:"groupId" db:"group_id"`
-	ExpiresAt time.Time `json:"expiresAt" db:"expires_at"`
-	CreatedBy string    `json:"createdBy" db:"created_by"`
-}
-
-// NewJoinCode creates a new join code
-func NewJoinCode(code, groupID, createdBy string, expiresIn time.Duration) *JoinCode {
-	return &JoinCode{
-		Code:      code,
-		GroupID:   groupID,
-		ExpiresAt: time.Now().UTC().Add(expiresIn),
-		CreatedBy: createdBy,
-	}
-}
-
-// User represents a user of the application
-type User struct {
-	ID           string `json:"id" db:"id"`
-	Username     string `json:"username" db:"username"`
-	Email        string `json:"email" db:"email"`
-	PasswordHash string `json:"-" db:"password_hash"`
-	DisplayName  string `json:"displayName" db:"display_name"`
-}
-
-// GroupUser is a lightweight struct for returning user info in a group context
-type GroupUser struct {
-	ID          string `json:"id"`
-	DisplayName string `json:"displayName"`
-}
-
-// NewUser creates a new user with a generated UUID
-func NewUser(username, email, passwordHash, displayName string) *User {
-	return &User{
-		ID:           uuid.New().String(),
-		Username:     username,
-		Email:        email,
-		PasswordHash: passwordHash,
-		DisplayName:  displayName,
 	}
 }

@@ -13,27 +13,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lebensmittel/backend/database"
 	"github.com/lebensmittel/backend/handlers"
-	"github.com/lebensmittel/backend/middleware"
 	"github.com/lebensmittel/backend/websocket"
 )
 
 func main() {
-
 	if err := database.InitDB(); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer database.CloseDB()
-
-	// Start background task to clean up expired join codes
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
-			if err := database.DeleteExpiredJoinCodes(context.Background()); err != nil {
-				log.Printf("Failed to delete expired join codes: %v", err)
-			}
-		}
-	}()
 
 	websocket.InitWebSocketManager()
 
@@ -43,7 +30,7 @@ func main() {
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
 	config.AllowMethods = []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Group-ID"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "X-Group-ID"}
 	r.Use(cors.New(config))
 
 	r.GET("/health", func(c *gin.Context) {
@@ -53,54 +40,29 @@ func main() {
 		})
 	})
 
-	// WebSocket endpoint
 	r.GET("/ws", websocket.HandleWebSocket)
 
-	// API routes group
 	api := r.Group("/api")
 
-	// Public routes
-	api.POST("/register", handlers.Register)
-	api.POST("/login", handlers.Login)
-	api.POST("/refresh", handlers.Refresh)
+	api.GET("/grocery-items", handlers.GetGroceryItems)
+	api.POST("/grocery-items", handlers.CreateGroceryItem)
+	api.PATCH("/grocery-items/:item_id", handlers.UpdateGroceryItem)
+	api.DELETE("/grocery-items/:item_id", handlers.DeleteGroceryItem)
 
-	// Public data routes (group-scoped via X-Group-ID)
-	data := api.Group("/")
-	data.GET("/grocery-items", handlers.GetGroceryItems)
-	data.POST("/grocery-items", handlers.CreateGroceryItem)
-	data.PATCH("/grocery-items/:item_id", handlers.UpdateGroceryItem)
-	data.DELETE("/grocery-items/:item_id", handlers.DeleteGroceryItem)
+	api.GET("/meal-plans", handlers.GetMealPlans)
+	api.POST("/meal-plans", handlers.CreateMealPlan)
+	api.PATCH("/meal-plans/:meal_id", handlers.UpdateMealPlan)
+	api.DELETE("/meal-plans/:meal_id", handlers.DeleteMealPlan)
 
-	data.GET("/meal-plans", handlers.GetMealPlans)
-	data.POST("/meal-plans", handlers.CreateMealPlan)
-	data.PATCH("/meal-plans/:meal_id", handlers.UpdateMealPlan)
-	data.DELETE("/meal-plans/:meal_id", handlers.DeleteMealPlan)
+	api.GET("/receipts", handlers.GetReceipts)
+	api.POST("/receipts", handlers.CreateReceipt)
+	api.PATCH("/receipts/:receipt_id", handlers.UpdateReceipt)
+	api.DELETE("/receipts/:receipt_id", handlers.DeleteReceipt)
 
-	data.GET("/receipts", handlers.GetReceipts)
-	data.POST("/receipts", handlers.CreateReceipt)
-	data.PATCH("/receipts/:receipt_id", handlers.UpdateReceipt)
-	data.DELETE("/receipts/:receipt_id", handlers.DeleteReceipt)
-
-	// Still-protected user/group/session routes
-	protected := api.Group("/")
-	protected.Use(middleware.AuthMiddleware())
-
-	protected.POST("/users", handlers.CreateUser)
-	protected.GET("/users/:username", handlers.GetUser)
-	protected.PATCH("/users/:user_id", handlers.UpdateUser)
-	protected.DELETE("/users/:user_id", handlers.DeleteUser)
-	protected.GET("/users/me/groups", handlers.GetUserGroups)
-	protected.GET("/users/me/active-group", handlers.GetActiveGroup)
-
-	protected.POST("/groups", handlers.CreateGroup)
-	protected.GET("/groups/:group_id", handlers.GetGroup)
-	protected.PATCH("/groups/:group_id", handlers.UpdateGroup)
-	protected.DELETE("/groups/:group_id", handlers.DeleteGroup)
-	protected.POST("/groups/:group_id/users", handlers.AddUserToGroup)
-	protected.GET("/groups/:group_id/users", handlers.GetGroupUsers)
-	protected.DELETE("/groups/:group_id/users/:user_id", handlers.RemoveUserFromGroup)
-	protected.POST("/groups/:group_id/invite", handlers.GenerateJoinCode)
-	protected.POST("/groups/join", handlers.JoinGroupWithCode)
+	api.POST("/groups", handlers.CreateGroup)
+	api.GET("/groups/:group_id", handlers.GetGroup)
+	api.PATCH("/groups/:group_id", handlers.UpdateGroup)
+	api.DELETE("/groups/:group_id", handlers.DeleteGroup)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -119,7 +81,6 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

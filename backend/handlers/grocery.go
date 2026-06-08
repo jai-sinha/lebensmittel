@@ -62,7 +62,7 @@ func CreateGroceryItem(c *gin.Context) {
 		isShoppingChecked = *data.IsShoppingChecked
 	}
 
-	newItem := models.NewGroceryItem(data.Name, data.Category, isNeeded, isShoppingChecked, groupID, "")
+	newItem := models.NewGroceryItem(data.Name, data.Category, isNeeded, isShoppingChecked, groupID)
 
 	if err := database.CreateGroceryItem(c.Request.Context(), newItem); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

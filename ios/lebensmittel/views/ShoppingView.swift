@@ -47,21 +47,25 @@ struct ShoppingView: View {
 						showCheckoutSheet = true
 					} label: {
 						Text("Checkout")
+							.font(.headline)
 							.frame(maxWidth: .infinity)
-							.padding()
-							.background(Color.blue)
-							.foregroundStyle(.white)
+							.padding(.vertical, 12)
 					}
-					.clipShape(.rect(cornerRadius: 10))
 					.buttonStyle(.borderedProminent)
-					.padding([.horizontal, .bottom])
+					.padding(.horizontal, 12)
+					.padding(.top, 4)
+					.padding(.bottom, 12)
+					.clipShape(.rect(cornerRadius: 10))
 				}
 			}
+			.background(
+				colorScheme == .dark ? Color(.systemBackground) : Color(.secondarySystemBackground)
+			)
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Shopping List")
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
-					AuthMenuView()
+					GroupIDMenuView()
 				}
 			}
 

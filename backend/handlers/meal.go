@@ -57,7 +57,7 @@ func CreateMealPlan(c *gin.Context) {
 		return
 	}
 
-	newMeal := models.NewMealPlan(date, data.MealDescription, groupID, "")
+	newMeal := models.NewMealPlan(date, data.MealDescription, groupID)
 
 	if err := database.CreateMealPlan(c.Request.Context(), newMeal); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
