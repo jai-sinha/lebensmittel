@@ -30,15 +30,8 @@ struct ReceiptsView: View {
 							model.errorMessage = nil
 							model.fetchReceipts()
 						}
-				} else if !sessionManager.isAuthenticated {
-					GuestSignInPrompt(
-						message:
-							"Sign in and join a household group to create receipts and track spending."
-					)
-					.frame(maxWidth: .infinity, maxHeight: .infinity)
-					.background(Color(.systemBackground))
-				} else if sessionManager.currentUserGroups.isEmpty {
-					Text("Please create or join a group to start meal planning.")
+				} else if !sessionManager.hasActiveGroup {
+					Text("Set a group ID from the top-right menu to start tracking receipts.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
 						.background(Color(.systemBackground))
@@ -104,7 +97,6 @@ struct MonthGroup: View {
 	@Binding var editError: String
 
 	@Environment(ReceiptsModel.self) var model
-	@Environment(SessionManager.self) var sessionManager
 
 	var body: some View {
 		DisclosureGroup(
@@ -133,13 +125,13 @@ struct MonthGroup: View {
 				}
 				// Monthly person totals
 				VStack(alignment: .leading) {
-					ForEach(sessionManager.currentGroupUsers, id: \.id) { user in
+					ForEach(group.userTotals.keys.sorted(), id: \.self) { purchaser in
 						HStack {
-							Text("\(user.displayName)'s Total:")
+							Text("\(purchaser)'s Total:")
 								.font(.subheadline)
 								.bold()
 							Text(
-								group.userTotals[user.displayName] ?? 0.0,
+								group.userTotals[purchaser] ?? 0.0,
 								format: .currency(code: "EUR").precision(.fractionLength(2))
 							)
 							.font(.subheadline)
@@ -258,7 +250,6 @@ struct EditReceiptSheet: View {
 	@Binding var showEditSheet: Bool
 
 	@Environment(ReceiptsModel.self) var model
-	@Environment(SessionManager.self) var sessionManager
 
 	var body: some View {
 		VStack(spacing: 25) {
@@ -276,12 +267,9 @@ struct EditReceiptSheet: View {
 			VStack(alignment: .leading, spacing: 12) {
 				Text("Purchased by")
 					.font(.headline)
-				Picker("Purchased by", selection: $editPurchaser) {
-					ForEach(sessionManager.currentGroupUsers, id: \.id) { user in
-						Text(user.displayName).tag(user.displayName)
-					}
-				}
-				.pickerStyle(SegmentedPickerStyle())
+				TextField("Purchased by", text: $editPurchaser)
+					.textFieldStyle(RoundedBorderTextFieldStyle())
+					.font(.body)
 			}
 			VStack(alignment: .leading, spacing: 12) {
 				Text("Notes (optional)")
@@ -313,7 +301,7 @@ struct EditReceiptSheet: View {
 						return
 					}
 					guard !editPurchaser.trimmingCharacters(in: .whitespaces).isEmpty else {
-						editError = "Please select who purchased."
+						editError = "Please enter who purchased."
 						return
 					}
 					if let receipt = selectedReceipt {

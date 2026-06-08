@@ -43,18 +43,15 @@ enum HTTPMethod: String {
 struct APIClient {
 	static let shared = APIClient()
 
-	private let auth: AuthManager
 	private let groupService: GroupService
 	private let session: URLSession
 	private let encoder = JSONEncoder()
 	private let decoder = JSONDecoder()
 
 	nonisolated init(
-		authService: AuthManager = .shared,
 		groupService: GroupService = .shared,
 		session: URLSession = .shared
 	) {
-		self.auth = authService
 		self.groupService = groupService
 		self.session = session
 	}
@@ -63,14 +60,12 @@ struct APIClient {
 		path: String,
 		method: HTTPMethod = .GET,
 		body: (any Encodable)? = nil,
-		requiresAuth: Bool = true,
 		includeGroupHeader: Bool = true
 	) async throws -> Response {
 		let request = try await makeRequest(
 			path: path,
 			method: method,
 			body: body,
-			requiresAuth: requiresAuth,
 			includeGroupHeader: includeGroupHeader
 		)
 		let (data, response) = try await perform(request)
@@ -81,14 +76,12 @@ struct APIClient {
 		path: String,
 		method: HTTPMethod,
 		body: (any Encodable)? = nil,
-		requiresAuth: Bool = true,
 		includeGroupHeader: Bool = true
 	) async throws {
 		let request = try await makeRequest(
 			path: path,
 			method: method,
 			body: body,
-			requiresAuth: requiresAuth,
 			includeGroupHeader: includeGroupHeader
 		)
 		let (_, response) = try await perform(request)
@@ -99,7 +92,6 @@ struct APIClient {
 		path: String,
 		method: HTTPMethod,
 		body: (any Encodable)?,
-		requiresAuth: Bool,
 		includeGroupHeader: Bool
 	) async throws -> URLRequest {
 		let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -112,13 +104,8 @@ struct APIClient {
 			request.httpBody = try encode(body)
 		}
 
-		if requiresAuth {
-			let token = try await auth.accessToken()
-			request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-		}
-
 		if includeGroupHeader,
-			let groupId = try await groupService.getActiveGroupId(),
+			let groupId = await groupService.getActiveGroupId(),
 			!groupId.isEmpty
 		{
 			request.setValue(groupId, forHTTPHeaderField: "X-Group-ID")
@@ -129,51 +116,12 @@ struct APIClient {
 
 	private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
 		do {
-			let (data, response) = try await session.data(for: request)
-
-			if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 401 {
-				_ = try await auth.refresh()
-
-				let retry = try await remakeRequestWithFreshAuth(from: request)
-				let (retryData, retryResponse) = try await session.data(for: retry)
-
-				if let retryHTTPResponse = retryResponse as? HTTPURLResponse,
-					retryHTTPResponse.statusCode == 401
-				{
-					try? await auth.logout()
-					throw APIError.unauthorized
-				}
-
-				return (retryData, retryResponse)
-			}
-
-			return (data, response)
+			return try await session.data(for: request)
 		} catch let error as APIError {
 			throw error
 		} catch {
 			throw APIError.transport(error)
 		}
-	}
-
-	private func remakeRequestWithFreshAuth(from request: URLRequest) async throws -> URLRequest {
-		var retry = request
-
-		if request.value(forHTTPHeaderField: "Authorization") != nil {
-			let newToken = try await auth.accessToken()
-			retry.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-		}
-
-		if request.value(forHTTPHeaderField: "X-Group-ID") != nil {
-			if let groupId = try await groupService.getActiveGroupId(),
-				!groupId.isEmpty
-			{
-				retry.setValue(groupId, forHTTPHeaderField: "X-Group-ID")
-			} else {
-				retry.setValue(nil, forHTTPHeaderField: "X-Group-ID")
-			}
-		}
-
-		return retry
 	}
 
 	private func validate(response: URLResponse) throws {
@@ -197,10 +145,6 @@ struct APIClient {
 	) throws -> Response {
 		guard let httpResponse = response as? HTTPURLResponse else {
 			throw APIError.invalidResponse
-		}
-
-		if httpResponse.statusCode == 409 {
-			throw AuthManager.AuthError.usernameTaken
 		}
 
 		guard (200...299).contains(httpResponse.statusCode) else {

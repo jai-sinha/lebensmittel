@@ -122,42 +122,35 @@ final class SocketService: WebSocketDelegate {
 		}
 
 		Task {
-			do {
-				let token = try await AuthManager.shared.accessToken()
-				let activeGroupId = try? await GroupService.shared.getActiveGroupId()
-
-				var urlComponents = URLComponents(
-					url: AppConfig.webSocketURL, resolvingAgainstBaseURL: false)!
-				var queryItems = [URLQueryItem(name: "token", value: token)]
-				if let activeGroupId, !activeGroupId.isEmpty {
-					queryItems.append(URLQueryItem(name: "groups", value: activeGroupId))
-				}
-				urlComponents.queryItems = queryItems
-
-				guard let wsURL = urlComponents.url else { return }
-
-				var request = URLRequest(url: wsURL)
-				request.timeoutInterval = 5
-				request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-				// Nil the old delegate before releasing the socket.
-				// Without this, its dealloc-triggered .cancelled fires back into
-				// didReceive, setting isConnectedForSync = false and kicking off another
-				// reconnect — creating a churn loop that compounds over time.
-				socket?.delegate = nil
-				socket?.disconnect()
-				socket = nil
-
-				let ws = WebSocket(request: request)
-				ws.delegate = self
-				socket = ws
-				ws.connect()
-
-				if Self.verbose { print("WebSocket: Connecting...") }
-			} catch {
-				if Self.verbose { print("WebSocket: Failed to get auth token: \(error)") }
-				scheduleReconnect()
+			let activeGroupId = await GroupService.shared.getActiveGroupId()
+			guard let activeGroupId, !activeGroupId.isEmpty else {
+				if Self.verbose { print("WebSocket: No active group, skipping connect") }
+				return
 			}
+
+			var urlComponents = URLComponents(
+				url: AppConfig.webSocketURL, resolvingAgainstBaseURL: false)!
+			urlComponents.queryItems = [URLQueryItem(name: "groups", value: activeGroupId)]
+
+			guard let wsURL = urlComponents.url else { return }
+
+			var request = URLRequest(url: wsURL)
+			request.timeoutInterval = 5
+
+			// Nil the old delegate before releasing the socket.
+			// Without this, its dealloc-triggered .cancelled fires back into
+			// didReceive, setting isConnectedForSync = false and kicking off another
+			// reconnect — creating a churn loop that compounds over time.
+			socket?.delegate = nil
+			socket?.disconnect()
+			socket = nil
+
+			let ws = WebSocket(request: request)
+			ws.delegate = self
+			socket = ws
+			ws.connect()
+
+			if Self.verbose { print("WebSocket: Connecting...") }
 		}
 	}
 

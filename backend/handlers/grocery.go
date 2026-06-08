@@ -10,15 +10,8 @@ import (
 )
 
 func GetGroceryItems(c *gin.Context) {
-	groupID, err := getActiveGroupID(c)
+	groupID, err := getRequestedGroupID(c)
 	if err != nil {
-		if err.Error() == "user has no groups" {
-			c.JSON(http.StatusOK, gin.H{
-				"groceryItems": []models.GroceryItem{},
-				"count":        0,
-			})
-			return
-		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -52,13 +45,7 @@ func CreateGroceryItem(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetString("userID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	groupID, err := getActiveGroupID(c)
+	groupID, err := getRequestedGroupID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -75,7 +62,7 @@ func CreateGroceryItem(c *gin.Context) {
 		isShoppingChecked = *data.IsShoppingChecked
 	}
 
-	newItem := models.NewGroceryItem(data.Name, data.Category, isNeeded, isShoppingChecked, groupID, userID)
+	newItem := models.NewGroceryItem(data.Name, data.Category, isNeeded, isShoppingChecked, groupID, "")
 
 	if err := database.CreateGroceryItem(c.Request.Context(), newItem); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -97,7 +84,13 @@ func UpdateGroceryItem(c *gin.Context) {
 		return
 	}
 
-	item, err := database.UpdateGroceryItem(c.Request.Context(), itemID, data)
+	groupID, err := getRequestedGroupID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	item, err := database.UpdateGroceryItem(c.Request.Context(), itemID, groupID, data)
 	if err != nil {
 		if item == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Grocery item not found"})
@@ -116,13 +109,13 @@ func UpdateGroceryItem(c *gin.Context) {
 func DeleteGroceryItem(c *gin.Context) {
 	itemID := c.Param("item_id")
 
-	groupID, err := getActiveGroupID(c)
+	groupID, err := getRequestedGroupID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := database.DeleteGroceryItem(c.Request.Context(), itemID); err != nil {
+	if err := database.DeleteGroceryItem(c.Request.Context(), itemID, groupID); err != nil {
 		if err.Error() == "grocery item not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Grocery item not found"})
 		} else {

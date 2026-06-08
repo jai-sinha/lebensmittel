@@ -25,15 +25,8 @@ struct GroceriesView: View {
 							model.fetchGroceries()
 						}
 				} else {
-					if !sessionManager.isAuthenticated {
-						GuestSignInPrompt(
-							message:
-								"Sign in and join a household group to manage your shared grocery list."
-						)
-						.frame(maxWidth: .infinity, maxHeight: .infinity)
-						.background(Color(.systemBackground))
-					} else if sessionManager.currentUserGroups.isEmpty {
-						Text("Please create or join a group to start adding groceries.")
+					if !sessionManager.hasActiveGroup {
+						Text("Set a group ID from the top-right menu to start adding groceries.")
 							.foregroundStyle(.secondary)
 							.frame(maxWidth: .infinity, maxHeight: .infinity)
 							.background(Color(.systemBackground))
@@ -90,6 +83,7 @@ struct GroceriesView: View {
 						.padding(.horizontal, 12)
 						.padding(.top, 4)
 						.padding(.bottom, 12)
+						.clipShape(.rect(cornerRadius: 10))
 						.sheet(isPresented: $isAddItemSheetPresented) {
 							AddItemSheet()
 						}

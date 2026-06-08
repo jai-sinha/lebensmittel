@@ -30,14 +30,8 @@ struct MealsView: View {
 	var body: some View {
 		NavigationStack {
 			ZStack {
-				if !sessionManager.isAuthenticated {
-					GuestSignInPrompt(
-						message: "Sign in and join a household group to start meal planning."
-					)
-					.frame(maxWidth: .infinity, maxHeight: .infinity)
-					.background(Color(.systemBackground))
-				} else if sessionManager.currentUserGroups.isEmpty {
-					Text("Please create or join a group to start meal planning.")
+				if !sessionManager.hasActiveGroup {
+					Text("Set a group ID from the top-right menu to start meal planning.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
 						.background(Color(.systemBackground))

@@ -13,15 +13,8 @@ import (
 )
 
 func GetReceipts(c *gin.Context) {
-	groupID, err := getActiveGroupID(c)
+	groupID, err := getRequestedGroupID(c)
 	if err != nil {
-		if err.Error() == "user has no groups" {
-			c.JSON(http.StatusOK, gin.H{
-				"receipts": []models.Receipt{},
-				"count":    0,
-			})
-			return
-		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -61,13 +54,7 @@ func CreateReceipt(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetString("userID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	groupID, err := getActiveGroupID(c)
+	groupID, err := getRequestedGroupID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -88,7 +75,6 @@ func CreateReceipt(c *gin.Context) {
 		ItemsList:   data.Items,
 		Notes:       data.Notes,
 		GroupID:     groupID,
-		UserID:      userID,
 	}
 
 	updatedItems, err := database.CreateReceipt(c.Request.Context(), newReceipt)
@@ -134,7 +120,13 @@ func UpdateReceipt(c *gin.Context) {
 		}
 	}
 
-	receipt, err := database.UpdateReceipt(c.Request.Context(), receiptID, data)
+	groupID, err := getRequestedGroupID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	receipt, err := database.UpdateReceipt(c.Request.Context(), receiptID, groupID, data)
 	if err != nil {
 		if receipt == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
@@ -153,13 +145,13 @@ func UpdateReceipt(c *gin.Context) {
 func DeleteReceipt(c *gin.Context) {
 	receiptID := c.Param("receipt_id")
 
-	groupID, err := getActiveGroupID(c)
+	groupID, err := getRequestedGroupID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := database.DeleteReceipt(c.Request.Context(), receiptID); err != nil {
+	if err := database.DeleteReceipt(c.Request.Context(), receiptID, groupID); err != nil {
 		if err.Error() == "receipt not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		} else {

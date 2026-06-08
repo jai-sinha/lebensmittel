@@ -11,15 +11,8 @@ import (
 )
 
 func GetMealPlans(c *gin.Context) {
-	groupID, err := getActiveGroupID(c)
+	groupID, err := getRequestedGroupID(c)
 	if err != nil {
-		if err.Error() == "user has no groups" {
-			c.JSON(http.StatusOK, gin.H{
-				"mealPlans": []models.MealPlan{},
-				"count":     0,
-			})
-			return
-		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -51,13 +44,7 @@ func CreateMealPlan(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetString("userID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	groupID, err := getActiveGroupID(c)
+	groupID, err := getRequestedGroupID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -70,7 +57,7 @@ func CreateMealPlan(c *gin.Context) {
 		return
 	}
 
-	newMeal := models.NewMealPlan(date, data.MealDescription, groupID, userID)
+	newMeal := models.NewMealPlan(date, data.MealDescription, groupID, "")
 
 	if err := database.CreateMealPlan(c.Request.Context(), newMeal); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -102,7 +89,13 @@ func UpdateMealPlan(c *gin.Context) {
 		data["date"] = date
 	}
 
-	meal, err := database.UpdateMealPlan(c.Request.Context(), mealID, data)
+	groupID, err := getRequestedGroupID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	meal, err := database.UpdateMealPlan(c.Request.Context(), mealID, groupID, data)
 	if err != nil {
 		if meal == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Meal plan not found"})
@@ -121,13 +114,13 @@ func UpdateMealPlan(c *gin.Context) {
 func DeleteMealPlan(c *gin.Context) {
 	mealID := c.Param("meal_id")
 
-	groupID, err := getActiveGroupID(c)
+	groupID, err := getRequestedGroupID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := database.DeleteMealPlan(c.Request.Context(), mealID); err != nil {
+	if err := database.DeleteMealPlan(c.Request.Context(), mealID, groupID); err != nil {
 		if err.Error() == "meal plan not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Meal plan not found"})
 		} else {

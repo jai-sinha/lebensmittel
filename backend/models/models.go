@@ -15,7 +15,6 @@ type GroceryItem struct {
 	IsNeeded          bool   `json:"isNeeded" db:"is_needed"`
 	IsShoppingChecked bool   `json:"isShoppingChecked" db:"is_shopping_checked"`
 	GroupID           string `json:"groupId" db:"group_id"`
-	UserID            string `json:"userId" db:"user_id"`
 }
 
 // NewGroceryItem creates a new grocery item with a generated UUID
@@ -27,7 +26,6 @@ func NewGroceryItem(name, category string, isNeeded, isShoppingChecked bool, gro
 		IsNeeded:          isNeeded,
 		IsShoppingChecked: isShoppingChecked,
 		GroupID:           groupID,
-		UserID:            userID,
 	}
 }
 
@@ -37,7 +35,6 @@ type MealPlan struct {
 	Date            time.Time `json:"date" db:"date"`
 	MealDescription string    `json:"mealDescription" db:"meal_description"`
 	GroupID         string    `json:"groupId" db:"group_id"`
-	UserID          string    `json:"userId" db:"user_id"`
 }
 
 // MarshalJSON customizes JSON serialization to format date as YYYY-MM-DD
@@ -59,7 +56,6 @@ func NewMealPlan(date time.Time, mealDescription, groupID, userID string) *MealP
 		Date:            date,
 		MealDescription: mealDescription,
 		GroupID:         groupID,
-		UserID:          userID,
 	}
 }
 
@@ -73,7 +69,6 @@ type Receipt struct {
 	ItemsList   []string  `json:"items" db:"-"` // For JSON serialization
 	Notes       *string   `json:"notes" db:"notes"`
 	GroupID     string    `json:"groupId" db:"group_id"`
-	UserID      string    `json:"userId" db:"user_id"`
 }
 
 // MarshalJSON customizes JSON serialization for Receipt
@@ -112,7 +107,6 @@ func NewReceipt(date time.Time, totalAmount float64, purchasedBy string, items [
 		ItemsList:   items,
 		Notes:       notes,
 		GroupID:     groupID,
-		UserID:      userID,
 	}
 }
 

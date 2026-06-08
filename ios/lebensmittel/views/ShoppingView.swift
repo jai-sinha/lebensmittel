@@ -18,15 +18,8 @@ struct ShoppingView: View {
 	var body: some View {
 		NavigationStack {
 			VStack {
-				if !sessionManager.isAuthenticated {
-					GuestSignInPrompt(
-						message:
-							"Sign in and join a household group to see your shared shopping list."
-					)
-					.frame(maxWidth: .infinity, maxHeight: .infinity)
-					.background(Color(.systemBackground))
-				} else if sessionManager.currentUserGroups.isEmpty {
-					Text("Please create or join a group to see your shopping list.")
+				if !sessionManager.hasActiveGroup {
+					Text("Set a group ID from the top-right menu to see your shopping list.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
 						.background(Color(.systemBackground))
@@ -58,8 +51,9 @@ struct ShoppingView: View {
 							.padding()
 							.background(Color.blue)
 							.foregroundStyle(.white)
-							.clipShape(.rect(cornerRadius: 10))
 					}
+					.clipShape(.rect(cornerRadius: 10))
+					.buttonStyle(.borderedProminent)
 					.padding([.horizontal, .bottom])
 				}
 			}
@@ -164,20 +158,14 @@ struct ShoppingRow: View {
 }
 
 struct CheckoutSheetView: View {
-	@Environment(SessionManager.self) var sessionManager
-
 	var onCancel: () -> Void
 
 	var onSubmit: (_ price: Double, _ purchaser: String, _ notes: String) -> Void
 
 	@State private var cost: String = ""
-	@State private var purchaser: String = "Jai"
+	@State private var purchaser: String = ""
 	@State private var notes: String = ""
 	@State private var error: String = ""
-
-	var purchaserOptions: [String] {
-		sessionManager.currentGroupUsers.map { $0.displayName }
-	}
 
 	var body: some View {
 		VStack(spacing: 25) {
@@ -197,12 +185,9 @@ struct CheckoutSheetView: View {
 			VStack(alignment: .leading, spacing: 12) {
 				Text("Purchased by")
 					.font(.headline)
-				Picker("Purchased by", selection: $purchaser) {
-					ForEach(purchaserOptions, id: \.self) { option in
-						Text(option).tag(option)
-					}
-				}
-				.pickerStyle(SegmentedPickerStyle())
+				TextField("Purchased by", text: $purchaser)
+					.textFieldStyle(RoundedBorderTextFieldStyle())
+					.font(.body)
 			}
 
 			VStack(alignment: .leading, spacing: 12) {
@@ -255,7 +240,7 @@ struct CheckoutSheetView: View {
 			return
 		}
 		guard !purchaser.trimmingCharacters(in: .whitespaces).isEmpty else {
-			error = "Please select who purchased."
+			error = "Please enter who purchased."
 			return
 		}
 		onSubmit(price, purchaser, notes)

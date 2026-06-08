@@ -52,7 +52,7 @@ func CloseDB() {
 // GroceryItems
 
 func GetAllGroceryItems(ctx context.Context, groupID string) ([]models.GroceryItem, error) {
-	query := `SELECT id, name, category, is_needed, is_shopping_checked, group_id, user_id FROM grocery_items WHERE group_id = $1 ORDER BY name`
+	query := `SELECT id, name, category, is_needed, is_shopping_checked, group_id FROM grocery_items WHERE group_id = $1 ORDER BY name`
 	rows, err := db.Query(ctx, query, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query grocery items: %w", err)
@@ -62,7 +62,7 @@ func GetAllGroceryItems(ctx context.Context, groupID string) ([]models.GroceryIt
 	items := []models.GroceryItem{}
 	for rows.Next() {
 		var item models.GroceryItem
-		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID, &item.UserID)
+		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan grocery item: %w", err)
 		}
@@ -72,15 +72,15 @@ func GetAllGroceryItems(ctx context.Context, groupID string) ([]models.GroceryIt
 }
 
 func CreateGroceryItem(ctx context.Context, item *models.GroceryItem) error {
-	query := `INSERT INTO grocery_items (id, name, category, is_needed, is_shopping_checked, group_id, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	_, err := db.Exec(ctx, query, item.ID, item.Name, item.Category, item.IsNeeded, item.IsShoppingChecked, item.GroupID, item.UserID)
+	query := `INSERT INTO grocery_items (id, name, category, is_needed, is_shopping_checked, group_id) VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := db.Exec(ctx, query, item.ID, item.Name, item.Category, item.IsNeeded, item.IsShoppingChecked, item.GroupID)
 	return err
 }
 
-func UpdateGroceryItem(ctx context.Context, id string, updates map[string]any) (*models.GroceryItem, error) {
+func UpdateGroceryItem(ctx context.Context, id, groupID string, updates map[string]any) (*models.GroceryItem, error) {
 	setParts := []string{}
-	args := []any{id}
-	argID := 2
+	args := []any{id, groupID}
+	argID := 3
 
 	for k, v := range updates {
 		dbCol := k
@@ -96,23 +96,13 @@ func UpdateGroceryItem(ctx context.Context, id string, updates map[string]any) (
 	}
 
 	if len(setParts) == 0 {
-		return GetGroceryItemByID(ctx, id)
+		return GetGroceryItemByID(ctx, id, groupID)
 	}
 
-	query := fmt.Sprintf("UPDATE grocery_items SET %s WHERE id = $1 RETURNING id, name, category, is_needed, is_shopping_checked, group_id, user_id", strings.Join(setParts, ", "))
+	query := fmt.Sprintf("UPDATE grocery_items SET %s WHERE id = $1 AND group_id = $2 RETURNING id, name, category, is_needed, is_shopping_checked, group_id", strings.Join(setParts, ", "))
 
 	var item models.GroceryItem
-	err := db.QueryRow(ctx, query, args...).Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID, &item.UserID)
-	if err != nil {
-		return nil, err
-	}
-	return &item, nil
-}
-
-func GetGroceryItemByID(ctx context.Context, id string) (*models.GroceryItem, error) {
-	query := `SELECT id, name, category, is_needed, is_shopping_checked, group_id, user_id FROM grocery_items WHERE id = $1`
-	var item models.GroceryItem
-	err := db.QueryRow(ctx, query, id).Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID, &item.UserID)
+	err := db.QueryRow(ctx, query, args...).Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -122,15 +112,34 @@ func GetGroceryItemByID(ctx context.Context, id string) (*models.GroceryItem, er
 	return &item, nil
 }
 
-func DeleteGroceryItem(ctx context.Context, id string) error {
-	_, err := db.Exec(ctx, "DELETE FROM grocery_items WHERE id = $1", id)
-	return err
+func GetGroceryItemByID(ctx context.Context, id, groupID string) (*models.GroceryItem, error) {
+	query := `SELECT id, name, category, is_needed, is_shopping_checked, group_id FROM grocery_items WHERE id = $1 AND group_id = $2`
+	var item models.GroceryItem
+	err := db.QueryRow(ctx, query, id, groupID).Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+func DeleteGroceryItem(ctx context.Context, id, groupID string) error {
+	tag, err := db.Exec(ctx, "DELETE FROM grocery_items WHERE id = $1 AND group_id = $2", id, groupID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("grocery item not found")
+	}
+	return nil
 }
 
 // MealPlans
 
 func GetAllMealPlans(ctx context.Context, groupID string) ([]models.MealPlan, error) {
-	query := `SELECT id, date, meal_description, group_id, user_id FROM meal_plans WHERE group_id = $1 ORDER BY date`
+	query := `SELECT id, date, meal_description, group_id FROM meal_plans WHERE group_id = $1 ORDER BY date`
 	rows, err := db.Query(ctx, query, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meal plans: %w", err)
@@ -140,7 +149,7 @@ func GetAllMealPlans(ctx context.Context, groupID string) ([]models.MealPlan, er
 	meals := []models.MealPlan{}
 	for rows.Next() {
 		var meal models.MealPlan
-		err := rows.Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID, &meal.UserID)
+		err := rows.Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan meal plan: %w", err)
 		}
@@ -150,18 +159,18 @@ func GetAllMealPlans(ctx context.Context, groupID string) ([]models.MealPlan, er
 }
 
 func CreateMealPlan(ctx context.Context, meal *models.MealPlan) error {
-	query := `INSERT INTO meal_plans (id, date, meal_description, group_id, user_id) VALUES ($1, $2, $3, $4, $5)`
-	_, err := db.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription, meal.GroupID, meal.UserID)
+	query := `INSERT INTO meal_plans (id, date, meal_description, group_id) VALUES ($1, $2, $3, $4)`
+	_, err := db.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription, meal.GroupID)
 	if err != nil {
 		return fmt.Errorf("failed to create meal plan: %w", err)
 	}
 	return nil
 }
 
-func UpdateMealPlan(ctx context.Context, id string, updates map[string]any) (*models.MealPlan, error) {
+func UpdateMealPlan(ctx context.Context, id, groupID string, updates map[string]any) (*models.MealPlan, error) {
 	setParts := []string{}
-	args := []any{id}
-	argID := 2
+	args := []any{id, groupID}
+	argID := 3
 
 	for k, v := range updates {
 		dbCol := k
@@ -174,22 +183,12 @@ func UpdateMealPlan(ctx context.Context, id string, updates map[string]any) (*mo
 		argID++
 	}
 	if len(setParts) == 0 {
-		return GetMealPlanByID(ctx, id)
+		return GetMealPlanByID(ctx, id, groupID)
 	}
 
-	query := fmt.Sprintf("UPDATE meal_plans SET %s WHERE id = $1 RETURNING id, date, meal_description, group_id, user_id", strings.Join(setParts, ", "))
+	query := fmt.Sprintf("UPDATE meal_plans SET %s WHERE id = $1 AND group_id = $2 RETURNING id, date, meal_description, group_id", strings.Join(setParts, ", "))
 	var meal models.MealPlan
-	err := db.QueryRow(ctx, query, args...).Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID, &meal.UserID)
-	if err != nil {
-		return nil, err
-	}
-	return &meal, nil
-}
-
-func GetMealPlanByID(ctx context.Context, id string) (*models.MealPlan, error) {
-	query := `SELECT id, date, meal_description, group_id, user_id FROM meal_plans WHERE id = $1`
-	var meal models.MealPlan
-	err := db.QueryRow(ctx, query, id).Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID, &meal.UserID)
+	err := db.QueryRow(ctx, query, args...).Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -199,15 +198,34 @@ func GetMealPlanByID(ctx context.Context, id string) (*models.MealPlan, error) {
 	return &meal, nil
 }
 
-func DeleteMealPlan(ctx context.Context, id string) error {
-	_, err := db.Exec(ctx, "DELETE FROM meal_plans WHERE id = $1", id)
-	return err
+func GetMealPlanByID(ctx context.Context, id, groupID string) (*models.MealPlan, error) {
+	query := `SELECT id, date, meal_description, group_id FROM meal_plans WHERE id = $1 AND group_id = $2`
+	var meal models.MealPlan
+	err := db.QueryRow(ctx, query, id, groupID).Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &meal, nil
+}
+
+func DeleteMealPlan(ctx context.Context, id, groupID string) error {
+	tag, err := db.Exec(ctx, "DELETE FROM meal_plans WHERE id = $1 AND group_id = $2", id, groupID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("meal plan not found")
+	}
+	return nil
 }
 
 // Receipts
 
 func GetAllReceipts(ctx context.Context, groupID string) ([]models.Receipt, error) {
-	query := `SELECT id, date, total_amount, purchased_by, items, notes, group_id, user_id FROM receipts WHERE group_id = $1 ORDER BY date DESC`
+	query := `SELECT id, date, total_amount, purchased_by, items, notes, group_id FROM receipts WHERE group_id = $1 ORDER BY date DESC`
 	rows, err := db.Query(ctx, query, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query receipts: %w", err)
@@ -218,7 +236,7 @@ func GetAllReceipts(ctx context.Context, groupID string) ([]models.Receipt, erro
 	for rows.Next() {
 		var receipt models.Receipt
 		var notes *string
-		err := rows.Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID, &receipt.UserID)
+		err := rows.Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan receipt: %w", err)
 		}
@@ -241,8 +259,8 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 			return nil, fmt.Errorf("failed to set receipt items: %w", err)
 		}
 
-		query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-		_, err = tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID, receipt.UserID)
+		query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		_, err = tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create receipt: %w", err)
 		}
@@ -255,7 +273,7 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 	}
 
 	// Get items that are needed and checked for the receipt.
-	itemsQuery := `SELECT id, name, category, is_needed, is_shopping_checked, group_id, user_id
+	itemsQuery := `SELECT id, name, category, is_needed, is_shopping_checked, group_id
 		FROM grocery_items
 		WHERE is_needed = true AND is_shopping_checked = true AND group_id = $1`
 	rows, err := tx.Query(ctx, itemsQuery, receipt.GroupID)
@@ -272,7 +290,7 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 	updatedItems := []models.GroceryItem{}
 	for rows.Next() {
 		var item models.GroceryItem
-		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID, &item.UserID)
+		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan grocery item for receipt: %w", err)
 		}
@@ -307,8 +325,8 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 		}
 	}
 
-	query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-	_, err = tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID, receipt.UserID)
+	query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	_, err = tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create receipt: %w", err)
 	}
@@ -320,10 +338,10 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 	return updatedItems, nil
 }
 
-func UpdateReceipt(ctx context.Context, id string, updates map[string]any) (*models.Receipt, error) {
+func UpdateReceipt(ctx context.Context, id, groupID string, updates map[string]any) (*models.Receipt, error) {
 	setParts := []string{}
-	args := []any{id}
-	argID := 2
+	args := []any{id, groupID}
+	argID := 3
 
 	for k, v := range updates {
 		dbCol := k
@@ -345,25 +363,13 @@ func UpdateReceipt(ctx context.Context, id string, updates map[string]any) (*mod
 		argID++
 	}
 	if len(setParts) == 0 {
-		return GetReceiptByID(ctx, id)
+		return GetReceiptByID(ctx, id, groupID)
 	}
 
-	query := fmt.Sprintf("UPDATE receipts SET %s WHERE id = $1 RETURNING id, date, total_amount, purchased_by, items, notes, group_id, user_id", strings.Join(setParts, ", "))
+	query := fmt.Sprintf("UPDATE receipts SET %s WHERE id = $1 AND group_id = $2 RETURNING id, date, total_amount, purchased_by, items, notes, group_id", strings.Join(setParts, ", "))
 	var receipt models.Receipt
 	var notes *string
-	err := db.QueryRow(ctx, query, args...).Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID, &receipt.UserID)
-	if err != nil {
-		return nil, err
-	}
-	receipt.Notes = notes
-	return &receipt, nil
-}
-
-func GetReceiptByID(ctx context.Context, id string) (*models.Receipt, error) {
-	query := `SELECT id, date, total_amount, purchased_by, items, notes, group_id, user_id FROM receipts WHERE id = $1`
-	var receipt models.Receipt
-	var notes *string
-	err := db.QueryRow(ctx, query, id).Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID, &receipt.UserID)
+	err := db.QueryRow(ctx, query, args...).Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -374,9 +380,30 @@ func GetReceiptByID(ctx context.Context, id string) (*models.Receipt, error) {
 	return &receipt, nil
 }
 
-func DeleteReceipt(ctx context.Context, id string) error {
-	_, err := db.Exec(ctx, "DELETE FROM receipts WHERE id = $1", id)
-	return err
+func GetReceiptByID(ctx context.Context, id, groupID string) (*models.Receipt, error) {
+	query := `SELECT id, date, total_amount, purchased_by, items, notes, group_id FROM receipts WHERE id = $1 AND group_id = $2`
+	var receipt models.Receipt
+	var notes *string
+	err := db.QueryRow(ctx, query, id, groupID).Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	receipt.Notes = notes
+	return &receipt, nil
+}
+
+func DeleteReceipt(ctx context.Context, id, groupID string) error {
+	tag, err := db.Exec(ctx, "DELETE FROM receipts WHERE id = $1 AND group_id = $2", id, groupID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("receipt not found")
+	}
+	return nil
 }
 
 // Groups

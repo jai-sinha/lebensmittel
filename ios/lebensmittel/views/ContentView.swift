@@ -11,7 +11,7 @@ struct ContentView: View {
 	@Environment(SessionManager.self) var sessionManager
 
 	var statusBanner: StatusBannerKind? {
-		guard sessionManager.isAuthenticated else { return nil }
+		guard sessionManager.hasActiveGroup else { return nil }
 
 		switch (
 			ConnectivityMonitor.shared.isOnline, SocketService.shared.isConnectedForSync,

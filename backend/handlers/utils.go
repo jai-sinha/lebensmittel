@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -47,6 +48,14 @@ func getActiveGroupID(c *gin.Context) (string, error) {
 
 	// Default to the first group
 	return userGroups[0].ID, nil
+}
+
+func getRequestedGroupID(c *gin.Context) (string, error) {
+	groupID := strings.TrimSpace(c.GetHeader("X-Group-ID"))
+	if groupID == "" {
+		return "", fmt.Errorf("X-Group-ID header required")
+	}
+	return groupID, nil
 }
 
 // GenerateExampleData creates example grocery items, a receipt, and a meal plan for a new group.

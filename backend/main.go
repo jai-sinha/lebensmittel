@@ -43,7 +43,7 @@ func main() {
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
 	config.AllowMethods = []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Group-ID"}
 	r.Use(cors.New(config))
 
 	r.GET("/health", func(c *gin.Context) {
@@ -64,24 +64,26 @@ func main() {
 	api.POST("/login", handlers.Login)
 	api.POST("/refresh", handlers.Refresh)
 
-	// Protected routes
+	// Public data routes (group-scoped via X-Group-ID)
+	data := api.Group("/")
+	data.GET("/grocery-items", handlers.GetGroceryItems)
+	data.POST("/grocery-items", handlers.CreateGroceryItem)
+	data.PATCH("/grocery-items/:item_id", handlers.UpdateGroceryItem)
+	data.DELETE("/grocery-items/:item_id", handlers.DeleteGroceryItem)
+
+	data.GET("/meal-plans", handlers.GetMealPlans)
+	data.POST("/meal-plans", handlers.CreateMealPlan)
+	data.PATCH("/meal-plans/:meal_id", handlers.UpdateMealPlan)
+	data.DELETE("/meal-plans/:meal_id", handlers.DeleteMealPlan)
+
+	data.GET("/receipts", handlers.GetReceipts)
+	data.POST("/receipts", handlers.CreateReceipt)
+	data.PATCH("/receipts/:receipt_id", handlers.UpdateReceipt)
+	data.DELETE("/receipts/:receipt_id", handlers.DeleteReceipt)
+
+	// Still-protected user/group/session routes
 	protected := api.Group("/")
 	protected.Use(middleware.AuthMiddleware())
-
-	protected.GET("/grocery-items", handlers.GetGroceryItems)
-	protected.POST("/grocery-items", handlers.CreateGroceryItem)
-	protected.PATCH("/grocery-items/:item_id", handlers.UpdateGroceryItem)
-	protected.DELETE("/grocery-items/:item_id", handlers.DeleteGroceryItem)
-
-	protected.GET("/meal-plans", handlers.GetMealPlans)
-	protected.POST("/meal-plans", handlers.CreateMealPlan)
-	protected.PATCH("/meal-plans/:meal_id", handlers.UpdateMealPlan)
-	protected.DELETE("/meal-plans/:meal_id", handlers.DeleteMealPlan)
-
-	protected.GET("/receipts", handlers.GetReceipts)
-	protected.POST("/receipts", handlers.CreateReceipt)
-	protected.PATCH("/receipts/:receipt_id", handlers.UpdateReceipt)
-	protected.DELETE("/receipts/:receipt_id", handlers.DeleteReceipt)
 
 	protected.POST("/users", handlers.CreateUser)
 	protected.GET("/users/:username", handlers.GetUser)

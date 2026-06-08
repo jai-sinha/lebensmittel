@@ -20,16 +20,16 @@ struct lebensmittelApp: App {
 	@State private var mealsModel: MealsModel
 	@State private var receiptsModel: ReceiptsModel
 	@State private var shoppingModel: ShoppingModel
-	@State private var hasStartedAuthenticatedSession = false
+	@State private var hasStartedSession = false
 
 	init() {
 		do {
 			modelContainer = try ModelContainer(
 				for:
 					LocalGroceryItem.self,
-				LocalMealPlan.self,
-				LocalReceipt.self,
-				SyncOperation.self
+					LocalMealPlan.self,
+					LocalReceipt.self,
+					SyncOperation.self
 			)
 		} catch {
 			fatalError("Failed to create SwiftData ModelContainer: \(error)")
@@ -66,10 +66,9 @@ struct lebensmittelApp: App {
 	}
 
 	private func startSession() {
-		guard !hasStartedAuthenticatedSession else { return }
-		hasStartedAuthenticatedSession = true
+		guard !hasStartedSession else { return }
+		hasStartedSession = true
 
-		// Load last-known state from SwiftData immediately — no spinner.
 		groceriesModel.replaceAll(with: SyncEngine.shared.loadAllGroceryItems())
 		mealsModel.replaceAll(with: SyncEngine.shared.loadAllMealPlans())
 		receiptsModel.replaceAll(with: SyncEngine.shared.loadAllReceipts())
@@ -81,14 +80,13 @@ struct lebensmittelApp: App {
 			shoppingModel: shoppingModel
 		)
 
-		// Reconcile with server in background — silently updates models when done.
 		Task { await backgroundReconcile() }
 	}
 
-	/// Fetches the latest server state and merges it into SwiftData + models.
-	/// Never sets isLoading — updates are silent. Safe to call from any trigger.
 	private func backgroundReconcile() async {
 		guard ConnectivityMonitor.shared.isOnline else { return }
+		guard sessionManager.hasActiveGroup else { return }
+
 		do {
 			async let g = groceriesService.fetchGroceries()
 			async let m = mealsService.fetchMealPlans()
@@ -100,89 +98,63 @@ struct lebensmittelApp: App {
 			receiptsModel.replaceAll(with: SyncEngine.shared.mergeReceipts(receipts))
 			SyncEngine.shared.syncIfNeeded()
 		} catch {
-			// Network unavailable — local data is already displayed, nothing to do.
+			// Local state is already shown; no further action needed here.
 		}
 	}
 
 	var body: some Scene {
 		WindowGroup {
-			Group {
-				if sessionManager.isCheckingAuth {
-					ProgressView("Loading...")
-				} else if sessionManager.isAuthenticated {
-					ContentView()
-						.environment(groceriesModel)
-						.environment(mealsModel)
-						.environment(receiptsModel)
-						.environment(shoppingModel)
-						.environment(sessionManager)
-						.onAppear {
-							startSession()
-						}
-						.onReceive(
-							NotificationCenter.default.publisher(
-								for: UIApplication.willEnterForegroundNotification
-							)
-						) { _ in
-							Task {
-								do {
-									_ = try await AuthManager.shared.ensureAuthenticated()
-									SocketService.shared.ensureConnected()
-									await backgroundReconcile()
-								} catch {
-									await MainActor.run {
-										sessionManager.clearLocalState()
-									}
-								}
-							}
-						}
-
-						.onChange(of: ConnectivityMonitor.shared.isOnline) { _, isOnline in
-							if isOnline {
-								SocketService.shared.restart()
-							} else {
-								SocketService.shared.disconnect()
-							}
-						}
-						.onReceive(
-							NotificationCenter.default.publisher(
-								for: Notification.Name("syncEngineDidFinish")
-							)
-						) { _ in
-							Task { await backgroundReconcile() }
-						}
-						.onReceive(
-							NotificationCenter.default.publisher(
-								for: Notification.Name("GroupChanged")
-							)
-						) { _ in
-							SyncEngine.shared.clearLocalData()
-							groceriesModel.replaceAll(with: [])
-							mealsModel.replaceAll(with: [])
-							receiptsModel.replaceAll(with: [])
-							SocketService.shared.restart()
-							Task { await backgroundReconcile() }
-						}
-				} else if sessionManager.isGuest {
-					ContentView()
-						.environment(groceriesModel)
-						.environment(mealsModel)
-						.environment(receiptsModel)
-						.environment(shoppingModel)
-						.environment(sessionManager)
-				} else {
-					GuestHomeView(sessionManager: sessionManager)
+			ContentView()
+				.environment(groceriesModel)
+				.environment(mealsModel)
+				.environment(receiptsModel)
+				.environment(shoppingModel)
+				.environment(sessionManager)
+				.onAppear {
+					sessionManager.bootstrap()
+					startSession()
 				}
-			}
-			.onAppear {
-				sessionManager.checkAuthentication()
-			}
-			.onChange(of: sessionManager.isAuthenticated) { _, isAuthenticated in
-				if !isAuthenticated {
-					hasStartedAuthenticatedSession = false
+				.onReceive(
+					NotificationCenter.default.publisher(
+						for: UIApplication.willEnterForegroundNotification
+					)
+				) { _ in
+					Task {
+						await sessionManager.refreshGroupContext()
+						SocketService.shared.ensureConnected()
+						await backgroundReconcile()
+					}
 				}
-			}
+				.onChange(of: ConnectivityMonitor.shared.isOnline) { _, isOnline in
+					if isOnline {
+						SocketService.shared.restart()
+					} else {
+						SocketService.shared.disconnect()
+					}
+				}
+				.onReceive(
+					NotificationCenter.default.publisher(
+						for: Notification.Name("syncEngineDidFinish")
+					)
+				) { _ in
+					Task { await backgroundReconcile() }
+				}
+				.onReceive(
+					NotificationCenter.default.publisher(
+						for: Notification.Name("GroupChanged")
+					)
+				) { _ in
+					SyncEngine.shared.clearLocalData()
+					groceriesModel.replaceAll(with: [])
+					mealsModel.replaceAll(with: [])
+					receiptsModel.replaceAll(with: [])
+					SocketService.shared.restart()
+					Task {
+						await sessionManager.refreshGroupContext()
+						await backgroundReconcile()
+					}
+				}
+				.modelContainer(modelContainer)
 		}
-		.modelContainer(modelContainer)
 	}
 }

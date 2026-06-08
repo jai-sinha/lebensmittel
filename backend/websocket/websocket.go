@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -11,8 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/lebensmittel/backend/auth"
-	"github.com/lebensmittel/backend/database"
 )
 
 var upgrader = websocket.Upgrader{
@@ -41,7 +38,6 @@ const (
 // Client represents a connected WebSocket client
 type Client struct {
 	Conn    *websocket.Conn
-	UserID  string
 	Groups  map[string]bool // Set of group IDs
 	writeMu sync.Mutex      // Serializes data-frame writes (broadcasts, welcome, echo)
 }
@@ -96,7 +92,7 @@ func (manager *WebSocketManager) Run() {
 				manager.groups[groupID][client.Conn] = true
 			}
 			manager.mutex.Unlock()
-			log.Printf("Client connected: UserID=%s, Groups=%v", client.UserID, client.Groups)
+			log.Printf("Client connected: Groups=%v", client.Groups)
 
 			// Send welcome message
 			welcomeMsg := map[string]any{
@@ -121,7 +117,7 @@ func (manager *WebSocketManager) Run() {
 					}
 					manager.groups[groupID][sub.Client] = true
 				}
-				log.Printf("Client %s subscribed to groups: %v", client.UserID, sub.GroupIDs)
+				log.Printf("Client subscribed to groups: %v", sub.GroupIDs)
 			}
 			manager.mutex.Unlock()
 
@@ -200,63 +196,26 @@ func (manager *WebSocketManager) EmitEvent(event string, payload any, groupIDs .
 
 // HandleWebSocket handles WebSocket connections
 func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
-	// 1. Authenticate
-	tokenString := c.Query("token")
-	if tokenString == "" {
-		// Try getting from header if not in query
-		authHeader := c.GetHeader("Authorization")
-		if len(authHeader) > 7 && strings.ToUpper(authHeader[0:7]) == "BEARER " {
-			tokenString = authHeader[7:]
-		}
-	}
-
-	if tokenString == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing token"})
-		return
-	}
-
-	claims, err := auth.ValidateToken(tokenString)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-		return
-	}
-
-	userID := claims.UserID
-
-	// 2. Upgrade connection
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("Failed to upgrade connection: %v", err)
 		return
 	}
 
-	// 3. Determine initial groups
-	// Client can pass ?groups=id1,id2
 	requestedGroups := c.Query("groups")
 	initialGroups := make(map[string]bool)
 
 	if requestedGroups != "" {
-		groupIDs := strings.Split(requestedGroups, ",")
-		// Verify membership
-		userGroups, err := database.GetUserGroups(context.Background(), userID)
-		if err == nil {
-			validGroupMap := make(map[string]bool)
-			for _, g := range userGroups {
-				validGroupMap[g.ID] = true
-			}
-
-			for _, gid := range groupIDs {
-				gid = strings.TrimSpace(gid)
-				if validGroupMap[gid] {
-					initialGroups[gid] = true
-				}
+		for _, gid := range strings.Split(requestedGroups, ",") {
+			gid = strings.TrimSpace(gid)
+			if gid != "" {
+				initialGroups[gid] = true
 			}
 		}
 	}
 
 	client := &Client{
 		Conn:   conn,
-		UserID: userID,
 		Groups: initialGroups,
 	}
 
@@ -318,24 +277,16 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 										}
 									}
 
-									// Verify membership
-									userGroups, err := database.GetUserGroups(context.Background(), userID)
-									if err == nil {
-										validGroupMap := make(map[string]bool)
-										for _, g := range userGroups {
-											validGroupMap[g.ID] = true
+									var requested []string
+									for _, gid := range groupIDs {
+										gid = strings.TrimSpace(gid)
+										if gid != "" {
+											requested = append(requested, gid)
 										}
+									}
 
-										var validIDs []string
-										for _, gid := range groupIDs {
-											if validGroupMap[gid] {
-												validIDs = append(validIDs, gid)
-											}
-										}
-
-										if len(validIDs) > 0 {
-											manager.subscribe <- Subscription{Client: conn, GroupIDs: validIDs}
-										}
+									if len(requested) > 0 {
+										manager.subscribe <- Subscription{Client: conn, GroupIDs: requested}
 									}
 								}
 							}

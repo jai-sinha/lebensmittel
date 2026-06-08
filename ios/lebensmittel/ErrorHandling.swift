@@ -13,10 +13,6 @@ enum UserFacingError {
 			return message(for: apiError)
 		}
 
-		if let authError = error as? AuthManager.AuthError {
-			return message(for: authError)
-		}
-
 		let nsError = error as NSError
 		if nsError.domain == NSURLErrorDomain {
 			return message(for: nsError)
@@ -28,31 +24,13 @@ enum UserFacingError {
 
 	static func message(for error: APIError) -> String {
 		switch error {
-		case .invalidURL, .invalidResponse, .encodingFailed:
+		case .invalidURL, .invalidResponse, .encodingFailed, .unauthorized:
 			return "Something went wrong. Please try again."
-		case .unauthorized:
-			return "Your session expired. Please sign in again."
 		case .server(_, let message):
 			let trimmed = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 			return trimmed.isEmpty ? "Something went wrong. Please try again." : trimmed
 		case .transport(let underlyingError):
 			return message(for: underlyingError)
-		}
-	}
-
-	static func message(for error: AuthManager.AuthError) -> String {
-		switch error {
-		case .noRefreshToken, .notAuthenticated:
-			return "Please sign in to continue."
-		case .refreshFailed:
-			return "Your session expired. Please sign in again."
-		case .invalidResponse:
-			return "Something went wrong. Please try again."
-		case .usernameTaken:
-			return "That username is already taken."
-		case .networkError(let message):
-			let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-			return trimmed.isEmpty ? "Something went wrong. Please try again." : trimmed
 		}
 	}
 
@@ -65,8 +43,6 @@ enum UserFacingError {
 		case NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
 			NSURLErrorNetworkConnectionLost:
 			return "Couldn't reach the server. Please try again."
-		case NSURLErrorUserAuthenticationRequired, NSURLErrorUserCancelledAuthentication:
-			return "Please sign in to continue."
 		default:
 			return "Something went wrong. Please try again."
 		}
