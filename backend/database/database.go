@@ -479,3 +479,25 @@ func DeleteGroup(ctx context.Context, groupID string) error {
 
 	return nil
 }
+
+// GetGroupsFromID is a temporary migration helper that reads legacy user-group
+// memberships so old installs can recover their existing groups after auth removal.
+func GetGroupsFromID(ctx context.Context, id string) ([]string, error) {
+	query := `SELECT group_id FROM user_groups WHERE user_id = $1 ORDER BY group_id`
+	rows, err := db.Query(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	groups := []string{}
+	for rows.Next() {
+		var groupID string
+		if err := rows.Scan(&groupID); err != nil {
+			return nil, err
+		}
+		groups = append(groups, groupID)
+	}
+
+	return groups, rows.Err()
+}

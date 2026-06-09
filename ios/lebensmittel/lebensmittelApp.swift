@@ -80,7 +80,11 @@ struct lebensmittelApp: App {
 			shoppingModel: shoppingModel
 		)
 
-		triggerBackgroundReconcile()
+		Task {
+			await GroupService.shared.migrateLegacyGroupIfNeeded()
+			await sessionManager.refreshGroupContext()
+			triggerBackgroundReconcile()
+		}
 	}
 
 	private func triggerBackgroundReconcile() {

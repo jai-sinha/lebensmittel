@@ -64,6 +64,9 @@ func main() {
 	api.PATCH("/groups/:group_id", handlers.UpdateGroup)
 	api.DELETE("/groups/:group_id", handlers.DeleteGroup)
 
+	// temporary migration endpoint for recovering legacy user group memberships
+	api.GET("/migration/users/:user_id/groups", handlers.GetGroupsFromLegacyUserID)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8000"
