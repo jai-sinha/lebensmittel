@@ -10,6 +10,7 @@ import Observation
 import Security
 import SwiftData
 
+
 @MainActor
 @Observable
 final class GroupModel {
@@ -32,6 +33,7 @@ final class GroupModel {
 	var activeGroupId: String?
 	var knownGroups: [AuthGroup] = []
 	var errorMessage: String?
+	var isLoading = false
 
 	var hasActiveGroup: Bool {
 		guard let activeGroupId else { return false }
@@ -129,17 +131,37 @@ final class GroupModel {
 		return group
 	}
 
-	func createGroup(name: String) async throws -> AuthGroup {
-		let group = try await service.createGroup(name: name)
-		setActiveGroup(group)
-		return group
+	func createGroup(name: String) async {
+		isLoading = true
+		errorMessage = nil
+		defer { isLoading = false }
+
+		let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmed.isEmpty else { return }
+
+		do {
+			let group = try await service.createGroup(name: trimmed)
+			setActiveGroup(group)
+		} catch {
+			errorMessage = UserFacingError.message(for: error)
+		}
 	}
 
-	func renameGroup(id: String, name: String) async throws -> AuthGroup {
-		let group = try await service.renameGroup(id: id, name: name)
-		upsertKnownGroup(group)
-		persistState()
-		return group
+	func renameGroup(id: String, name: String) async {
+		isLoading = true
+		errorMessage = nil
+		defer { isLoading = false }
+
+		let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmed.isEmpty else { return }
+
+		do {
+			let group = try await service.renameGroup(id: id, name: trimmed)
+			upsertKnownGroup(group)
+			persistState()
+		} catch {
+			errorMessage = UserFacingError.message(for: error)
+		}
 	}
 
 	func updateGroupCategories(id: String, categories: [String]) async throws -> AuthGroup {
@@ -154,6 +176,122 @@ final class GroupModel {
 		upsertKnownGroup(group)
 		persistState()
 		return group
+	}
+
+	// MARK: - Group item management
+
+	func normalizedGroupValues(_ values: [String]) -> [String] {
+		values
+			.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+			.filter { !$0.isEmpty }
+	}
+
+	func containsDuplicate(
+		_ candidate: String,
+		in values: [String],
+		excluding excludedIndex: Int? = nil
+	) -> Bool {
+		values.enumerated().contains { index, value in
+			index != excludedIndex && value.localizedCaseInsensitiveCompare(candidate) == .orderedSame
+		}
+	}
+
+	func saveGroupItem(value: String, kind: GroupItemKind, index: Int?) async {
+		isLoading = true
+		errorMessage = nil
+		defer { isLoading = false }
+
+		let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmed.isEmpty, let activeGroup else { return }
+
+		let rawValues = kind == .category ? activeGroup.categories : activeGroup.members
+		let normalized = normalizedGroupValues(rawValues)
+
+		if let index {
+			guard normalized.indices.contains(index) else { return }
+			if normalized[index].localizedCaseInsensitiveCompare(trimmed) == .orderedSame { return }
+			if containsDuplicate(trimmed, in: normalized, excluding: index) {
+				errorMessage = "\(kind.title) \"\(trimmed)\" already exists."
+				return
+			}
+		} else {
+			if containsDuplicate(trimmed, in: normalized) {
+				errorMessage = "\(kind.title) \"\(trimmed)\" already exists."
+				return
+			}
+		}
+
+		var updatedValues = kind == .category ? activeGroup.categories : activeGroup.members
+		if let index {
+			updatedValues[index] = trimmed
+		} else {
+			updatedValues.append(trimmed)
+		}
+
+		do {
+			switch kind {
+			case .category:
+				let group = try await service.updateGroupCategories(id: activeGroup.id, categories: updatedValues)
+				upsertKnownGroup(group)
+			case .member:
+				let group = try await service.updateGroupMembers(id: activeGroup.id, members: updatedValues)
+				upsertKnownGroup(group)
+			}
+			persistState()
+		} catch {
+			errorMessage = UserFacingError.message(for: error)
+		}
+	}
+
+	func deleteGroupItem(at index: Int, kind: GroupItemKind) async {
+		isLoading = true
+		errorMessage = nil
+		defer { isLoading = false }
+
+		guard let activeGroup else { return }
+		var updatedValues = kind == .category ? activeGroup.categories : activeGroup.members
+		let normalized = normalizedGroupValues(updatedValues)
+		guard normalized.indices.contains(index) else { return }
+		updatedValues.remove(at: index)
+
+		do {
+			switch kind {
+			case .category:
+				let group = try await service.updateGroupCategories(id: activeGroup.id, categories: updatedValues)
+				upsertKnownGroup(group)
+			case .member:
+				let group = try await service.updateGroupMembers(id: activeGroup.id, members: updatedValues)
+				upsertKnownGroup(group)
+			}
+			persistState()
+		} catch {
+			errorMessage = UserFacingError.message(for: error)
+		}
+	}
+
+	func moveCategories(from source: IndexSet, to destination: Int) async {
+		isLoading = true
+		errorMessage = nil
+		defer { isLoading = false }
+
+		guard let activeGroup else { return }
+		var categories = activeGroup.categories
+		categories.move(fromOffsets: source, toOffset: destination)
+
+		do {
+			let group = try await service.updateGroupCategories(id: activeGroup.id, categories: categories)
+			upsertKnownGroup(group)
+			persistState()
+		} catch {
+			errorMessage = UserFacingError.message(for: error)
+		}
+	}
+
+	func switchToGroup(_ group: AuthGroup) async {
+		isLoading = true
+		errorMessage = nil
+		defer { isLoading = false }
+		setActiveGroup(group)
 	}
 
 	func migrateLegacyGroupIfNeeded() async {
@@ -238,6 +376,24 @@ struct GroupSnapshot: Sendable {
 	let knownGroups: [AuthGroup]
 }
 
+enum GroupItemKind: String, Sendable {
+	case category
+	case member
+
+	var title: String {
+		switch self {
+		case .category: "Category"
+		case .member: "Member"
+		}
+	}
+
+	var placeholder: String {
+		switch self {
+		case .category: "Category name"
+		case .member: "Member name"
+		}
+	}
+}
 
 struct KeychainService: Sendable {
 	enum KeychainError: Error {

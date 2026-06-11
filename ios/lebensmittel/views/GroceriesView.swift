@@ -98,7 +98,7 @@ struct GroceriesView: View {
 			.navigationTitle("Groceries")
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
-					GroupIDMenuView()
+					GroupSheetView()
 				}
 			}
 			.onAppear {
