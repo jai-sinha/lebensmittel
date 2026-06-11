@@ -41,18 +41,18 @@ enum HTTPMethod: String {
 }
 
 struct APIClient {
-	static let shared = APIClient()
+	nonisolated(unsafe) static let shared = APIClient()
 
-	private let groupService: GroupService
+	private let groupStore: GroupStore
 	private let session: URLSession
 	private let encoder = JSONEncoder()
 	private let decoder = JSONDecoder()
 
 	nonisolated init(
-		groupService: GroupService = .shared,
+		groupStore: GroupStore = .shared,
 		session: URLSession = .shared
 	) {
-		self.groupService = groupService
+		self.groupStore = groupStore
 		self.session = session
 	}
 
@@ -105,7 +105,7 @@ struct APIClient {
 		}
 
 		if includeGroupHeader,
-			let groupId = await groupService.getActiveGroupId(),
+			let groupId = await groupStore.loadActiveGroupId(),
 			!groupId.isEmpty
 		{
 			request.setValue(groupId, forHTTPHeaderField: "X-Group-ID")

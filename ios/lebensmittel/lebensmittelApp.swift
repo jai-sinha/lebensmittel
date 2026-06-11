@@ -20,6 +20,7 @@ struct lebensmittelApp: App {
 	@State private var mealsModel: MealsModel
 	@State private var receiptsModel: ReceiptsModel
 	@State private var shoppingModel: ShoppingModel
+	@State private var groupModel: GroupModel
 	@State private var hasStartedSession = false
 
 	init() {
@@ -81,7 +82,7 @@ struct lebensmittelApp: App {
 		)
 
 		Task {
-			await GroupService.shared.migrateLegacyGroupIfNeeded()
+			await GroupModel.shared.migrateLegacyGroupIfNeeded()
 			await sessionManager.refreshGroupContext()
 			triggerBackgroundReconcile()
 		}

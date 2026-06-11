@@ -561,8 +561,11 @@ final class SyncEngine {
 		return all.contains { $0.serverID == serverID }
 	}
 
-	// MARK: - Logout Cleanup
+	// MARK: - Local Reset
 
+	/// Clears all persisted entity snapshots and pending sync work.
+	/// Used when the active group context changes so stale local data does not
+	/// bleed across groups.
 	func clearLocalData() {
 		guard let context = modelContext else { return }
 		try? context.delete(model: LocalGroceryItem.self)

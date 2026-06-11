@@ -47,13 +47,37 @@ func GetGroup(c *gin.Context) {
 func UpdateGroup(c *gin.Context) {
 	groupID := c.Param("group_id")
 
-	var data map[string]any
-	if err := c.ShouldBindJSON(&data); err != nil || len(data) == 0 {
+	var data struct {
+		Name       *string   `json:"name"`
+		Categories *[]string `json:"categories"`
+		Members    *[]string `json:"members"`
+	}
+	if err := c.ShouldBindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid group update payload"})
+		return
+	}
+
+	updates := map[string]any{}
+	if data.Name != nil {
+		name := strings.TrimSpace(*data.Name)
+		if name == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Group name cannot be empty"})
+			return
+		}
+		updates["name"] = name
+	}
+	if data.Categories != nil {
+		updates["categories"] = normalizeGroupValues(*data.Categories)
+	}
+	if data.Members != nil {
+		updates["members"] = normalizeGroupValues(*data.Members)
+	}
+	if len(updates) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No data provided"})
 		return
 	}
 
-	group, err := database.UpdateGroup(c.Request.Context(), groupID, data)
+	group, err := database.UpdateGroup(c.Request.Context(), groupID, updates)
 	if err != nil {
 		if group == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
@@ -64,6 +88,17 @@ func UpdateGroup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, group)
+}
+
+func normalizeGroupValues(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	return normalized
 }
 
 func DeleteGroup(c *gin.Context) {

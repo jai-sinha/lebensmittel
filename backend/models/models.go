@@ -133,14 +133,18 @@ func (r *Receipt) GetItems() ([]string, error) {
 
 // Group represents a shared household or planning group
 type Group struct {
-	ID   string `json:"id" db:"id"`
-	Name string `json:"name" db:"name"`
+	ID         string   `json:"id" db:"id"`
+	Name       string   `json:"name" db:"name"`
+	Categories []string `json:"categories" db:"categories"`
+	Members    []string `json:"members" db:"members"`
 }
 
 // NewGroup creates a new group with a generated UUID
 func NewGroup(name string) *Group {
 	return &Group{
-		ID:   uuid.New().String(),
-		Name: name,
+		ID:         uuid.New().String(),
+		Name:       name,
+		Categories: []string{"Essentials", "Protein", "Veggies", "Carbs", "Household", "Other"},
+		Members:    []string{"Default"},
 	}
 }

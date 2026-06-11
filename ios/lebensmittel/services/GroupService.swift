@@ -6,200 +6,93 @@
 //
 
 import Foundation
-import Security
 
-// MARK: - Group Storage
+struct GroupService: GroupServicing {
+	nonisolated(unsafe) static let shared = GroupService(client: .shared)
 
-actor GroupStorage {
-	private let defaults = UserDefaults.standard
-	private let activeGroupKey = "activeGroupId"
-	private let legacyGroupMigrationCompletedKey = "legacyGroupMigrationCompleted"
-
-	private var cachedActiveGroupId: String?
-	private var cachedLegacyGroupMigrationCompleted: Bool?
-
-	func loadActiveGroupId() -> String? {
-		if let cachedActiveGroupId {
-			return cachedActiveGroupId
-		}
-
-		let groupId = defaults.string(forKey: activeGroupKey)
-		cachedActiveGroupId = groupId
-		return groupId
+	private struct CreateGroupRequest: Encodable {
+		let name: String
 	}
 
-	func saveActiveGroupId(_ id: String?) {
-		cachedActiveGroupId = id
-
-		if let id, !id.isEmpty {
-			defaults.set(id, forKey: activeGroupKey)
-		} else {
-			defaults.removeObject(forKey: activeGroupKey)
-		}
+	private struct GroupPatchRequest: Encodable {
+		let name: String?
+		let categories: [String]?
+		let members: [String]?
 	}
 
-	func clearActiveGroupId() {
-		cachedActiveGroupId = nil
-		defaults.removeObject(forKey: activeGroupKey)
+	private let client: APIClient
+
+	nonisolated init(client: APIClient) {
+		self.client = client
 	}
 
-	func loadLegacyGroupMigrationCompleted() -> Bool {
-		if let cachedLegacyGroupMigrationCompleted {
-			return cachedLegacyGroupMigrationCompleted
-		}
-
-		let completed = defaults.bool(forKey: legacyGroupMigrationCompletedKey)
-		cachedLegacyGroupMigrationCompleted = completed
-		return completed
+	func fetchGroup(id: String) async throws -> AuthGroup {
+		let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+		return try await client.send(
+			path: "/groups/\(trimmed)",
+			includeGroupHeader: false
+		)
 	}
 
-	func saveLegacyGroupMigrationCompleted(_ completed: Bool) {
-		cachedLegacyGroupMigrationCompleted = completed
-		defaults.set(completed, forKey: legacyGroupMigrationCompletedKey)
-	}
-}
-
-// MARK: - Group Service
-
-actor GroupService {
-	static let shared = GroupService()
-
-	struct LegacyUser: Codable, Sendable {
-		let id: String
-		let username: String
-		let displayName: String
+	func createGroup(name: String) async throws -> AuthGroup {
+		let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+		return try await client.send(
+			path: "/groups",
+			method: .POST,
+			body: CreateGroupRequest(name: trimmed),
+			includeGroupHeader: false
+		)
 	}
 
-	private let keychain = KeychainService()
-	private let userKey = "user"
-	private let storage = GroupStorage()
-	private let session: URLSession
-	private let decoder = JSONDecoder()
-
-	init(session: URLSession = .shared) {
-		self.session = session
+	func renameGroup(id: String, name: String) async throws -> AuthGroup {
+		let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+		return try await patchGroup(
+			id: id,
+			request: GroupPatchRequest(name: trimmed, categories: nil, members: nil)
+		)
 	}
 
-	func getActiveGroupId() async -> String? {
-		guard let groupId = await storage.loadActiveGroupId() else { return nil }
-		let trimmed = groupId.trimmingCharacters(in: .whitespacesAndNewlines)
-		return trimmed.isEmpty ? nil : trimmed
+	func updateGroupCategories(id: String, categories: [String]) async throws -> AuthGroup {
+		return try await patchGroup(
+			id: id,
+			request: GroupPatchRequest(
+				name: nil,
+				categories: normalizeGroupValues(categories),
+				members: nil
+			)
+		)
 	}
 
-	func setActiveGroup(_ groupId: String) async {
-		let trimmed = groupId.trimmingCharacters(in: .whitespacesAndNewlines)
-		await storage.saveActiveGroupId(trimmed.isEmpty ? nil : trimmed)
+	func updateGroupMembers(id: String, members: [String]) async throws -> AuthGroup {
+		return try await patchGroup(
+			id: id,
+			request: GroupPatchRequest(
+				name: nil,
+				categories: nil,
+				members: normalizeGroupValues(members)
+			)
+		)
 	}
 
-	func clearActiveGroup() async {
-		await storage.clearActiveGroupId()
+	func fetchLegacyGroups(for userID: String) async throws -> [String] {
+		try await client.send(
+			path: "/migration/users/\(userID)/groups",
+			includeGroupHeader: false
+		)
 	}
 
-	func migrateLegacyGroupIfNeeded() async {
-		if await storage.loadLegacyGroupMigrationCompleted() {
-			return
-		}
-
-		guard let user = try? keychain.read(LegacyUser.self, forKey: userKey) else {
-			await storage.saveLegacyGroupMigrationCompleted(true)
-			return
-		}
-
-		do {
-			let groups = try await fetchLegacyGroups(for: user.id)
-			if await getActiveGroupId() == nil, let firstGroupID = groups.first {
-				await storage.saveActiveGroupId(firstGroupID)
-			}
-			await storage.saveLegacyGroupMigrationCompleted(true)
-		} catch {
-			// Leave migration incomplete so it can retry on the next app launch.
-		}
+	private func patchGroup(id: String, request: GroupPatchRequest) async throws -> AuthGroup {
+		try await client.send(
+			path: "/groups/\(id)",
+			method: .PATCH,
+			body: request,
+			includeGroupHeader: false
+		)
 	}
 
-	private func fetchLegacyGroups(for userID: String) async throws -> [String] {
-		let path = "migration/users/\(userID)/groups"
-		let baseURL = await AppConfig.apiBaseURL
-		let url = baseURL.appendingPathComponent(path)
-		let (data, response) = try await session.data(from: url)
-
-		guard let httpResponse = response as? HTTPURLResponse else {
-			throw APIError.invalidResponse
-		}
-
-		guard (200...299).contains(httpResponse.statusCode) else {
-			let message = (try? decoder.decode([String: String].self, from: data))?["error"]
-			throw APIError.server(statusCode: httpResponse.statusCode, message: message)
-		}
-
-		return try decoder.decode([String].self, from: data)
-	}
-}
-
-// MARK: Temporary Keychain/JWT utils
-struct KeychainService: Sendable {
-	enum KeychainError: Error {
-		case osStatus(OSStatus)
-		case encodingFailed
-		case decodingFailed
-		case itemNotFound
-	}
-
-	private let serviceName = "com.lebensmittel.auth"
-
-	nonisolated init() {}
-
-	nonisolated func save<T: Codable>(_ value: T, forKey key: String) throws {
-		let data = try JSONEncoder().encode(value)
-		let query: [CFString: Any] = [
-			kSecClass: kSecClassGenericPassword,
-			kSecAttrService: serviceName,
-			kSecAttrAccount: key,
-			kSecValueData: data,
-			kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-		]
-
-		// Try to delete existing item first
-		SecItemDelete(query as CFDictionary)
-
-		let status = SecItemAdd(query as CFDictionary, nil)
-		guard status == errSecSuccess else {
-			throw KeychainError.osStatus(status)
-		}
-	}
-
-	nonisolated func read<T: Codable>(_ type: T.Type, forKey key: String) throws -> T? {
-		let query: [CFString: Any] = [
-			kSecClass: kSecClassGenericPassword,
-			kSecAttrService: serviceName,
-			kSecAttrAccount: key,
-			kSecReturnData: kCFBooleanTrue!,
-			kSecMatchLimit: kSecMatchLimitOne,
-		]
-
-		var result: AnyObject?
-		let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-		if status == errSecItemNotFound {
-			return nil
-		}
-
-		guard status == errSecSuccess, let data = result as? Data else {
-			throw KeychainError.osStatus(status)
-		}
-
-		return try JSONDecoder().decode(T.self, from: data)
-	}
-
-	nonisolated func delete(forKey key: String) throws {
-		let query: [CFString: Any] = [
-			kSecClass: kSecClassGenericPassword,
-			kSecAttrService: serviceName,
-			kSecAttrAccount: key,
-		]
-
-		let status = SecItemDelete(query as CFDictionary)
-		guard status == errSecSuccess || status == errSecItemNotFound else {
-			throw KeychainError.osStatus(status)
-		}
+	private func normalizeGroupValues(_ values: [String]) -> [String] {
+		values
+			.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+			.filter { !$0.isEmpty }
 	}
 }

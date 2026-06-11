@@ -407,15 +407,15 @@ func DeleteReceipt(ctx context.Context, id, groupID string) error {
 // Groups
 
 func CreateGroup(ctx context.Context, group *models.Group) error {
-	query := `INSERT INTO groups (id, name) VALUES ($1, $2)`
-	_, err := db.Exec(ctx, query, group.ID, group.Name)
+	query := `INSERT INTO groups (id, name, categories, members) VALUES ($1, $2, $3, $4)`
+	_, err := db.Exec(ctx, query, group.ID, group.Name, group.Categories, group.Members)
 	return err
 }
 
 func GetGroupByID(ctx context.Context, id string) (*models.Group, error) {
-	query := `SELECT id, name FROM groups WHERE id = $1`
+	query := `SELECT id, name, categories, members FROM groups WHERE id = $1`
 	var group models.Group
-	err := db.QueryRow(ctx, query, id).Scan(&group.ID, &group.Name)
+	err := db.QueryRow(ctx, query, id).Scan(&group.ID, &group.Name, &group.Categories, &group.Members)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -430,19 +430,37 @@ func UpdateGroup(ctx context.Context, id string, updates map[string]any) (*model
 	args := []any{id}
 	argID := 2
 
-	for k, v := range updates {
-		setParts = append(setParts, fmt.Sprintf("%s = $%d", k, argID))
-		args = append(args, v)
+	for _, field := range []struct {
+		key    string
+		column string
+	}{
+		{key: "name", column: "name"},
+		{key: "categories", column: "categories"},
+		{key: "members", column: "members"},
+	} {
+		value, exists := updates[field.key]
+		if !exists {
+			continue
+		}
+
+		setParts = append(setParts, fmt.Sprintf("%s = $%d", field.column, argID))
+		args = append(args, value)
 		argID++
 	}
 	if len(setParts) == 0 {
 		return GetGroupByID(ctx, id)
 	}
 
-	query := fmt.Sprintf("UPDATE groups SET %s WHERE id = $1 RETURNING id, name", strings.Join(setParts, ", "))
+	query := fmt.Sprintf(
+		"UPDATE groups SET %s WHERE id = $1 RETURNING id, name, categories, members",
+		strings.Join(setParts, ", "),
+	)
 	var group models.Group
-	err := db.QueryRow(ctx, query, args...).Scan(&group.ID, &group.Name)
+	err := db.QueryRow(ctx, query, args...).Scan(&group.ID, &group.Name, &group.Categories, &group.Members)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &group, nil
@@ -455,6 +473,7 @@ func DeleteGroup(ctx context.Context, groupID string) error {
 	}
 	defer tx.Rollback(ctx)
 
+	// TODO: i think delete cascades automatically. can we remove this?
 	queries := []string{
 		`DELETE FROM grocery_items WHERE group_id = $1`,
 		`DELETE FROM meal_plans WHERE group_id = $1`,

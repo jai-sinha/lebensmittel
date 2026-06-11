@@ -83,26 +83,61 @@ struct MealPlansResponse: Codable {
 struct AuthGroup: Identifiable, Codable, Hashable, Sendable {
 	let id: String
 	let name: String
+	let members: [String]
+	let categories: [String]
 
 	enum CodingKeys: String, CodingKey {
 		case id
 		case name
+		case members
+		case categories
 	}
 
-	nonisolated init(id: String, name: String) {
+	nonisolated init(
+		id: String,
+		name: String,
+		members: [String] = [],
+		categories: [String] = []
+	) {
 		self.id = id
 		self.name = name
+		self.members = members
+		self.categories = categories
 	}
 
 	nonisolated init(from decoder: Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		self.id = try container.decode(String.self, forKey: .id)
 		self.name = try container.decode(String.self, forKey: .name)
+		self.members = try Self.decodeStringArray(forKey: .members, from: container)
+		self.categories = try Self.decodeStringArray(forKey: .categories, from: container)
 	}
 
 	nonisolated func encode(to encoder: Encoder) throws {
 		var container = encoder.container(keyedBy: CodingKeys.self)
 		try container.encode(id, forKey: .id)
 		try container.encode(name, forKey: .name)
+		try container.encode(members, forKey: .members)
+		try container.encode(categories, forKey: .categories)
+	}
+
+	nonisolated private static func decodeStringArray(
+		forKey key: CodingKeys,
+		from container: KeyedDecodingContainer<CodingKeys>
+	) throws -> [String] {
+		if let values = try container.decodeIfPresent([String].self, forKey: key) {
+			return values
+				.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+				.filter { !$0.isEmpty }
+		}
+
+		if let value = try container.decodeIfPresent(String.self, forKey: key) {
+			return value
+				.components(separatedBy: ",")
+				.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+				.filter { !$0.isEmpty }
+		}
+
+		return []
 	}
 }

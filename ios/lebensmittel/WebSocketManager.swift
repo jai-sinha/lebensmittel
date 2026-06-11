@@ -122,7 +122,7 @@ final class SocketService: WebSocketDelegate {
 		}
 
 		Task {
-			let activeGroupId = await GroupService.shared.getActiveGroupId()
+			let activeGroupId = await GroupModel.shared.getActiveGroupId()
 			guard let activeGroupId, !activeGroupId.isEmpty else {
 				if Self.verbose { print("WebSocket: No active group, skipping connect") }
 				return
