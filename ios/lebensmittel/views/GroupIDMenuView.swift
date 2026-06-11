@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct GroupIDMenuView: View {
-	@Environment(SessionManager.self) private var sessionManager
+	@Environment(GroupModel.self) private var groupModel
 	@State private var isSheetPresented = false
 
 	var body: some View {
@@ -20,16 +20,15 @@ struct GroupIDMenuView: View {
 		}
 		.sheet(isPresented: $isSheetPresented) {
 			GroupManagementSheet()
-				.environment(sessionManager)
+				.environment(groupModel)
 		}
 	}
 }
 
 private struct GroupManagementSheet: View {
-	@Environment(SessionManager.self) private var sessionManager
+	@Environment(GroupModel.self) private var groupModel
 	@Environment(\.dismiss) private var dismiss
 
-	@State private var manualGroupID = ""
 	@State private var newGroupName = ""
 	@State private var renamedGroupName = ""
 	@State private var errorMessage: String?
@@ -39,9 +38,7 @@ private struct GroupManagementSheet: View {
 	@State private var pendingGroupItemDeletion: PendingGroupItemDeletion?
 
 	private var activeGroup: AuthGroup? {
-		guard let activeID = sessionManager.activeGroupId else { return nil }
-		return sessionManager.knownGroups.first(where: { $0.id == activeID })
-			?? AuthGroup(id: activeID, name: activeID)
+		groupModel.activeGroup
 	}
 
 	private var currentGroupCategories: [String] {
@@ -52,9 +49,7 @@ private struct GroupManagementSheet: View {
 		normalizedGroupValues(activeGroup?.members ?? [])
 	}
 
-	private var canSubmitManualGroupID: Bool {
-		!manualGroupID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-	}
+
 
 	private var canCreateGroup: Bool {
 		!newGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -94,7 +89,7 @@ private struct GroupManagementSheet: View {
 			.onAppear {
 				renamedGroupName = activeGroup?.name ?? ""
 			}
-			.onChange(of: sessionManager.activeGroupId) { _, _ in
+			.onChange(of: groupModel.activeGroupId) { _, _ in
 				renamedGroupName = activeGroup?.name ?? ""
 				isReorderingCategories = false
 			}
@@ -288,7 +283,7 @@ private struct GroupManagementSheet: View {
 
 	private var knownGroupsSection: some View {
 		GroupCardSection(title: "Known Groups") {
-			if sessionManager.knownGroups.isEmpty {
+			if groupModel.knownGroups.isEmpty {
 				Text("No saved groups yet.")
 					.foregroundStyle(.secondary)
 			} else {
@@ -303,11 +298,11 @@ private struct GroupManagementSheet: View {
 							description: "The current-group section is live; creation UI is next."
 						)
 					}
-					ForEach(sessionManager.knownGroups) { group in
+					ForEach(groupModel.knownGroups) { group in
 						Button {
 							switchToGroup(group)
 						} label: {
-							KnownGroupRow(group: group, isActive: group.id == sessionManager.activeGroupId)
+							KnownGroupRow(group: group, isActive: group.id == groupModel.activeGroupId)
 						}
 						.buttonStyle(.plain)
 						.disabled(isLoading)
@@ -440,12 +435,12 @@ private struct GroupManagementSheet: View {
 			do {
 				switch kind {
 				case .category:
-					try await sessionManager.updateGroupCategories(
+					try await groupModel.updateGroupCategories(
 						id: activeGroup.id,
 						categories: normalizedValues
 					)
 				case .member:
-					try await sessionManager.updateGroupMembers(
+					try await groupModel.updateGroupMembers(
 						id: activeGroup.id,
 						members: normalizedValues
 					)
@@ -465,7 +460,7 @@ private struct GroupManagementSheet: View {
 		errorMessage = nil
 		Task {
 			isLoading = true
-			sessionManager.setActiveGroup(group)
+			groupModel.setActiveGroup(group)
 			isLoading = false
 		}
 	}
@@ -479,7 +474,7 @@ private struct GroupManagementSheet: View {
 		Task {
 			isLoading = true
 			do {
-				try await sessionManager.createGroup(name: groupName)
+				try await groupModel.createGroup(name: groupName)
 				newGroupName = ""
 				renamedGroupName = activeGroup?.name ?? ""
 			} catch {
@@ -498,8 +493,8 @@ private struct GroupManagementSheet: View {
 		Task {
 			isLoading = true
 			do {
-				try await sessionManager.renameGroup(id: activeGroup.id, name: newName)
-				renamedGroupName = sessionManager.knownGroups.first(where: { $0.id == activeGroup.id })?.name ?? newName
+				try await groupModel.renameGroup(id: activeGroup.id, name: newName)
+				renamedGroupName = groupModel.knownGroups.first(where: { $0.id == activeGroup.id })?.name ?? newName
 			} catch {
 				errorMessage = UserFacingError.message(for: error)
 			}

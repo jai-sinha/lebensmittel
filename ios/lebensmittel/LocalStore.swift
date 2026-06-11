@@ -23,6 +23,117 @@ enum SyncEntityType: String, Codable {
 	case receipt = "receipt"
 }
 
+// MARK: - Group Persistence
+
+@Model
+final class LocalGroupState {
+	@Attribute(.unique) var id: String
+	var activeGroupID: String?
+	var knownGroupsData: Data
+	var legacyGroupMigrationCompleted: Bool
+
+	init(
+		id: String = "group-state",
+		activeGroupID: String? = nil,
+		knownGroupsData: Data = Data(),
+		legacyGroupMigrationCompleted: Bool = false
+	) {
+		self.id = id
+		self.activeGroupID = activeGroupID
+		self.knownGroupsData = knownGroupsData
+		self.legacyGroupMigrationCompleted = legacyGroupMigrationCompleted
+	}
+
+	static let singletonID = "group-state"
+}
+
+@MainActor
+final class GroupStore {
+	static let shared = GroupStore()
+
+	private var modelContext: ModelContext?
+	var legacyGroupMigrationCompleted = false
+
+	func configure(modelContext: ModelContext) {
+		self.modelContext = modelContext
+	}
+
+	func loadSnapshot() -> GroupSnapshotData {
+		guard let state = fetchState() else {
+			return GroupSnapshotData()
+		}
+
+		legacyGroupMigrationCompleted = state.legacyGroupMigrationCompleted
+		return GroupSnapshotData(
+			activeGroupId: state.activeGroupID?.trimmedNilIfEmpty,
+			knownGroups: decodeKnownGroups(from: state.knownGroupsData),
+			legacyGroupMigrationCompleted: state.legacyGroupMigrationCompleted
+		)
+	}
+
+	func save(
+		activeGroupId: String?,
+		knownGroups: [AuthGroup],
+		legacyGroupMigrationCompleted: Bool
+	) {
+		guard let state = fetchOrCreateState() else { return }
+		state.activeGroupID = activeGroupId
+		state.knownGroupsData = encodeKnownGroups(knownGroups)
+		state.legacyGroupMigrationCompleted = legacyGroupMigrationCompleted
+
+		try? modelContext?.save()
+	}
+
+	private func fetchState() -> LocalGroupState? {
+		guard let modelContext else { return nil }
+		let descriptor = FetchDescriptor<LocalGroupState>()
+		return try? modelContext.fetch(descriptor).first(where: { $0.id == LocalGroupState.singletonID })
+	}
+
+	private func fetchOrCreateState() -> LocalGroupState? {
+		if let existing = fetchState() {
+			return existing
+		}
+
+		guard let modelContext else { return nil }
+		let state = LocalGroupState()
+		modelContext.insert(state)
+		return state
+	}
+
+	private func decodeKnownGroups(from data: Data) -> [AuthGroup] {
+		guard !data.isEmpty,
+			let groups = try? JSONDecoder().decode([AuthGroup].self, from: data)
+		else {
+			return []
+		}
+		return sortGroups(groups)
+	}
+
+	private func encodeKnownGroups(_ groups: [AuthGroup]) -> Data {
+		(try? JSONEncoder().encode(sortGroups(groups))) ?? Data()
+	}
+
+	private func sortGroups(_ groups: [AuthGroup]) -> [AuthGroup] {
+		groups.sorted { lhs, rhs in
+			lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+		}
+	}
+}
+
+struct GroupSnapshotData {
+	var activeGroupId: String? = nil
+	var knownGroups: [AuthGroup] = []
+	var legacyGroupMigrationCompleted: Bool = false
+}
+
+extension String {
+	var trimmedNilIfEmpty: String? {
+		let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+		return trimmed.isEmpty ? nil : trimmed
+	}
+}
+
 enum SyncOperationType: String, Codable {
 	case create = "create"
 	case update = "update"

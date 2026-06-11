@@ -6,94 +6,15 @@
 //
 
 import Foundation
+import Observation
 import Security
+import SwiftData
 
-actor GroupStore {
-	nonisolated(unsafe) static let shared = GroupStore()
-
-	private let defaults = UserDefaults.standard
-	private let activeGroupKey = "activeGroupId"
-	private let knownGroupsKey = "knownGroups"
-	private let legacyGroupMigrationCompletedKey = "legacyGroupMigrationCompleted"
-
-	private var cachedActiveGroupId: String?
-	private var cachedKnownGroups: [AuthGroup]?
-	private var cachedLegacyGroupMigrationCompleted: Bool?
-
-	func loadActiveGroupId() -> String? {
-		if let cachedActiveGroupId {
-			return cachedActiveGroupId
-		}
-
-		let groupId = defaults.string(forKey: activeGroupKey)
-		cachedActiveGroupId = groupId?.trimmedNilIfEmpty
-		return cachedActiveGroupId
-	}
-
-	func saveActiveGroupId(_ id: String?) {
-		let trimmed = id?.trimmedNilIfEmpty
-		cachedActiveGroupId = trimmed
-
-		if let trimmed {
-			defaults.set(trimmed, forKey: activeGroupKey)
-		} else {
-			defaults.removeObject(forKey: activeGroupKey)
-		}
-	}
-
-	func clearActiveGroupId() {
-		cachedActiveGroupId = nil
-		defaults.removeObject(forKey: activeGroupKey)
-	}
-
-	func loadKnownGroups() -> [AuthGroup] {
-		if let cachedKnownGroups {
-			return cachedKnownGroups
-		}
-
-		let groups = loadKnownGroupsFromDefaults()
-		cachedKnownGroups = groups
-		return groups
-	}
-
-	func saveKnownGroups(_ groups: [AuthGroup]) {
-		cachedKnownGroups = groups
-		if let data = try? JSONEncoder().encode(groups) {
-			defaults.set(data, forKey: knownGroupsKey)
-		} else {
-			defaults.removeObject(forKey: knownGroupsKey)
-		}
-	}
-
-	func loadLegacyGroupMigrationCompleted() -> Bool {
-		if let cachedLegacyGroupMigrationCompleted {
-			return cachedLegacyGroupMigrationCompleted
-		}
-
-		let completed = defaults.bool(forKey: legacyGroupMigrationCompletedKey)
-		cachedLegacyGroupMigrationCompleted = completed
-		return completed
-	}
-
-	func saveLegacyGroupMigrationCompleted(_ completed: Bool) {
-		cachedLegacyGroupMigrationCompleted = completed
-		defaults.set(completed, forKey: legacyGroupMigrationCompletedKey)
-	}
-
-	private func loadKnownGroupsFromDefaults() -> [AuthGroup] {
-		guard let data = defaults.data(forKey: knownGroupsKey),
-			let groups = try? JSONDecoder().decode([AuthGroup].self, from: data)
-		else {
-			return []
-		}
-		return groups
-	}
-}
-
-actor GroupModel {
-	nonisolated(unsafe) static let shared = GroupModel(
+@MainActor
+@Observable
+final class GroupModel {
+	static let shared = GroupModel(
 		service: GroupService(client: .shared),
-		store: .shared,
 		keychain: KeychainService()
 	)
 
@@ -104,105 +25,150 @@ actor GroupModel {
 	}
 
 	private let service: any GroupServicing
-	private let store: GroupStore
 	private let keychain: KeychainService
+	private let store: GroupStore
 	private let userKey = "user"
+
+	var activeGroupId: String?
+	var knownGroups: [AuthGroup] = []
+	var errorMessage: String?
+
+	var hasActiveGroup: Bool {
+		guard let activeGroupId else { return false }
+		return !activeGroupId.isEmpty
+	}
+
+	var activeGroup: AuthGroup? {
+		guard let activeGroupId else { return nil }
+		return knownGroups.first(where: { $0.id == activeGroupId })
+			?? AuthGroup(id: activeGroupId, name: activeGroupId)
+	}
 
 	init(
 		service: any GroupServicing,
-		store: GroupStore,
-		keychain: KeychainService
+		keychain: KeychainService,
+		store: GroupStore = .shared
 	) {
 		self.service = service
-		self.store = store
 		self.keychain = keychain
+		self.store = store
 	}
 
-	func getActiveGroupId() async -> String? {
-		await store.loadActiveGroupId()
+	func configure(modelContext: ModelContext) {
+		store.configure(modelContext: modelContext)
+		loadPersistedStateIfNeeded()
 	}
 
-	func getKnownGroups() async -> [AuthGroup] {
-		await store.loadKnownGroups()
+	func bootstrap() async {
+		loadPersistedStateIfNeeded()
+		await migrateLegacyGroupIfNeeded()
 	}
 
-	func activeGroupSnapshot() async -> GroupSnapshot {
-		async let activeGroupId = store.loadActiveGroupId()
-		async let knownGroups = store.loadKnownGroups()
-		return await GroupSnapshot(
-			activeGroupId: activeGroupId,
-			knownGroups: knownGroups
-		)
+	func getActiveGroupId() -> String? {
+		loadPersistedStateIfNeeded()
+		return activeGroupId
 	}
 
-	/// Persists the active group selection and keeps the known-groups cache in sync.
-	/// UI refresh, notifications, and local data resets belong to higher layers.
-	func setActiveGroup(_ groupId: String) async {
+	func activeGroupSnapshot() -> GroupSnapshot {
+		loadPersistedStateIfNeeded()
+		return GroupSnapshot(activeGroupId: activeGroupId, knownGroups: knownGroups)
+	}
+
+	func setActiveGroup(_ groupId: String) {
+		loadPersistedStateIfNeeded()
 		let trimmed = groupId.trimmedNilIfEmpty
-		guard let trimmed else {
-			await store.saveActiveGroupId(nil)
-			return
+		let previousGroupID = activeGroupId
+
+		activeGroupId = trimmed
+		if let trimmed {
+			ensureKnownGroup(AuthGroup(id: trimmed, name: trimmed))
 		}
 
-		await store.saveActiveGroupId(trimmed)
-		await ensureKnownGroup(AuthGroup(id: trimmed, name: trimmed))
+		persistState()
+		if previousGroupID != activeGroupId {
+			notifyGroupChanged()
+		}
 	}
 
-	func setActiveGroup(_ group: AuthGroup) async {
-		await upsertKnownGroup(group)
-		await store.saveActiveGroupId(group.id)
+	func setActiveGroup(_ group: AuthGroup) {
+		loadPersistedStateIfNeeded()
+		let previousGroupID = activeGroupId
+
+		upsertKnownGroup(group)
+		activeGroupId = group.id
+		persistState()
+
+		if previousGroupID != activeGroupId {
+			notifyGroupChanged()
+		}
 	}
 
-	func clearActiveGroup() async {
-		await store.clearActiveGroupId()
+	func clearActiveGroup() {
+		loadPersistedStateIfNeeded()
+		let hadActiveGroup = activeGroupId != nil
+		activeGroupId = nil
+		persistState()
+
+		if hadActiveGroup {
+			notifyGroupChanged()
+		}
 	}
 
-	/// Fetches a group from the backend and persists it as the active selection.
-	/// Callers are responsible for reacting to the changed group context.
 	func fetchGroup(id: String) async throws {
 		let group = try await service.fetchGroup(id: id)
-		await setActiveGroup(group)
+		setActiveGroup(group)
+	}
+
+	func refreshActiveGroup() async throws -> AuthGroup? {
+		loadPersistedStateIfNeeded()
+		guard let activeGroupId else { return nil }
+
+		let group = try await service.fetchGroup(id: activeGroupId)
+		upsertKnownGroup(group)
+		persistState()
+		return group
 	}
 
 	func createGroup(name: String) async throws -> AuthGroup {
 		let group = try await service.createGroup(name: name)
-		await setActiveGroup(group)
+		setActiveGroup(group)
 		return group
 	}
 
 	func renameGroup(id: String, name: String) async throws -> AuthGroup {
 		let group = try await service.renameGroup(id: id, name: name)
-		await upsertKnownGroup(group)
+		upsertKnownGroup(group)
+		persistState()
 		return group
 	}
 
 	func updateGroupCategories(id: String, categories: [String]) async throws -> AuthGroup {
 		let group = try await service.updateGroupCategories(id: id, categories: categories)
-		await upsertKnownGroup(group)
+		upsertKnownGroup(group)
+		persistState()
 		return group
 	}
 
 	func updateGroupMembers(id: String, members: [String]) async throws -> AuthGroup {
 		let group = try await service.updateGroupMembers(id: id, members: members)
-		await upsertKnownGroup(group)
+		upsertKnownGroup(group)
+		persistState()
 		return group
 	}
 
-	/// One-time migration from legacy keychain-backed user membership to the
-	/// current persisted group cache.
 	func migrateLegacyGroupIfNeeded() async {
-		if await store.loadLegacyGroupMigrationCompleted() {
-			return
-		}
+		loadPersistedStateIfNeeded()
+		guard !store.legacyGroupMigrationCompleted else { return }
 
 		guard let user = try? keychain.read(LegacyUser.self, forKey: userKey) else {
-			await store.saveLegacyGroupMigrationCompleted(true)
+			persistState(legacyGroupMigrationCompleted: true)
 			return
 		}
 
 		do {
 			let groupIDs = try await service.fetchLegacyGroups(for: user.id)
 			var recoveredGroups: [AuthGroup] = []
+
 			for groupID in groupIDs {
 				if let group = try? await service.fetchGroup(id: groupID) {
 					recoveredGroups.append(group)
@@ -212,37 +178,58 @@ actor GroupModel {
 			}
 
 			if !recoveredGroups.isEmpty {
-				await mergeKnownGroups(recoveredGroups)
+				mergeKnownGroups(recoveredGroups)
 			}
-			if await getActiveGroupId() == nil, let firstGroup = recoveredGroups.first {
-				await setActiveGroup(firstGroup)
+			if activeGroupId == nil, let firstGroup = recoveredGroups.first {
+				activeGroupId = firstGroup.id
 			}
-			await store.saveLegacyGroupMigrationCompleted(true)
+
+			persistState(legacyGroupMigrationCompleted: true)
 		} catch {
 			// Leave migration incomplete so it can retry on the next app launch.
 		}
 	}
 
-	private func mergeKnownGroups(_ groups: [AuthGroup]) async {
-		let existing = await store.loadKnownGroups()
-		var mergedByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+	private func loadPersistedStateIfNeeded() {
+		let snapshot = store.loadSnapshot()
+		activeGroupId = snapshot.activeGroupId
+		knownGroups = snapshot.knownGroups
+	}
+
+	private func persistState(legacyGroupMigrationCompleted: Bool? = nil) {
+		let completed = legacyGroupMigrationCompleted ?? store.legacyGroupMigrationCompleted
+		store.save(
+			activeGroupId: activeGroupId,
+			knownGroups: knownGroups,
+			legacyGroupMigrationCompleted: completed
+		)
+	}
+
+	private func mergeKnownGroups(_ groups: [AuthGroup]) {
+		var mergedByID = Dictionary(uniqueKeysWithValues: knownGroups.map { ($0.id, $0) })
 		for group in groups {
 			mergedByID[group.id] = group
 		}
-		let merged = mergedByID.values.sorted { lhs, rhs in
+		knownGroups = sortGroups(Array(mergedByID.values))
+	}
+
+	private func ensureKnownGroup(_ group: AuthGroup) {
+		guard !knownGroups.contains(where: { $0.id == group.id }) else { return }
+		knownGroups = sortGroups(knownGroups + [group])
+	}
+
+	private func upsertKnownGroup(_ group: AuthGroup) {
+		mergeKnownGroups([group])
+	}
+
+	private func sortGroups(_ groups: [AuthGroup]) -> [AuthGroup] {
+		groups.sorted { lhs, rhs in
 			lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
 		}
-		await store.saveKnownGroups(merged)
 	}
 
-	private func ensureKnownGroup(_ group: AuthGroup) async {
-		let groups = await store.loadKnownGroups()
-		guard !groups.contains(where: { $0.id == group.id }) else { return }
-		await store.saveKnownGroups(groups + [group])
-	}
-
-	private func upsertKnownGroup(_ group: AuthGroup) async {
-		await mergeKnownGroups([group])
+	private func notifyGroupChanged() {
+		NotificationCenter.default.post(name: Notification.Name("GroupChanged"), object: nil)
 	}
 }
 
@@ -251,12 +238,6 @@ struct GroupSnapshot: Sendable {
 	let knownGroups: [AuthGroup]
 }
 
-private extension String {
-	nonisolated var trimmedNilIfEmpty: String? {
-		let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-		return trimmed.isEmpty ? nil : trimmed
-	}
-}
 
 struct KeychainService: Sendable {
 	enum KeychainError: Error {

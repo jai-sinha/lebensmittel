@@ -8,10 +8,10 @@
 import SwiftUI
 
 struct ContentView: View {
-	@Environment(SessionManager.self) var sessionManager
+	@Environment(GroupModel.self) var groupModel
 
 	var statusBanner: StatusBannerKind? {
-		guard sessionManager.hasActiveGroup else { return nil }
+		guard groupModel.hasActiveGroup else { return nil }
 
 		switch (
 			ConnectivityMonitor.shared.isOnline, SocketService.shared.isConnectedForSync,

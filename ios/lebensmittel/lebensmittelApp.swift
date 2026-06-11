@@ -15,7 +15,6 @@ struct lebensmittelApp: App {
 	private let mealsService: MealsService
 	private let receiptsService: ReceiptsService
 
-	@State private var sessionManager = SessionManager()
 	@State private var groceriesModel: GroceriesModel
 	@State private var mealsModel: MealsModel
 	@State private var receiptsModel: ReceiptsModel
@@ -27,6 +26,7 @@ struct lebensmittelApp: App {
 		do {
 			modelContainer = try ModelContainer(
 				for:
+					LocalGroupState.self,
 					LocalGroceryItem.self,
 					LocalMealPlan.self,
 					LocalReceipt.self,
@@ -47,6 +47,8 @@ struct lebensmittelApp: App {
 		let groceries = GroceriesModel(service: groceriesService)
 		let meals = MealsModel(service: mealsService)
 		let receipts = ReceiptsModel(service: receiptsService)
+		let group = GroupModel.shared
+		group.configure(modelContext: ModelContext(modelContainer))
 		let shopping = ShoppingModel(
 			groceriesModel: groceries,
 			receiptsService: receiptsService
@@ -56,7 +58,7 @@ struct lebensmittelApp: App {
 		_mealsModel = State(initialValue: meals)
 		_receiptsModel = State(initialValue: receipts)
 		_shoppingModel = State(initialValue: shopping)
-		_sessionManager = State(initialValue: SessionManager())
+		_groupModel = State(initialValue: group)
 
 		SyncEngine.shared.configure(
 			modelContext: ModelContext(modelContainer),
@@ -82,15 +84,14 @@ struct lebensmittelApp: App {
 		)
 
 		Task {
-			await GroupModel.shared.migrateLegacyGroupIfNeeded()
-			await sessionManager.refreshGroupContext()
+			await groupModel.bootstrap()
 			triggerBackgroundReconcile()
 		}
 	}
 
 	private func triggerBackgroundReconcile() {
 		Task {
-			await sessionManager.refreshGroupContext()
+			await groupModel.bootstrap()
 			SocketService.shared.ensureConnected()
 			await backgroundReconcile()
 		}
@@ -98,17 +99,19 @@ struct lebensmittelApp: App {
 
 	private func backgroundReconcile() async {
 		guard ConnectivityMonitor.shared.isOnline else { return }
-		guard sessionManager.hasActiveGroup else { return }
+		guard groupModel.hasActiveGroup else { return }
 
 		do {
 			async let g = groceriesService.fetchGroceries()
 			async let m = mealsService.fetchMealPlans()
 			async let r = receiptsService.fetchReceipts()
-			let (groceries, meals, receipts) = try await (g, m, r)
+			async let group = groupModel.refreshActiveGroup()
+			let (groceries, meals, receipts, _) = try await (g, m, r, group)
 
 			groceriesModel.replaceAll(with: SyncEngine.shared.mergeGroceries(groceries))
 			mealsModel.replaceAll(with: SyncEngine.shared.mergeMealPlans(meals))
 			receiptsModel.replaceAll(with: SyncEngine.shared.mergeReceipts(receipts))
+
 			SyncEngine.shared.syncIfNeeded()
 		} catch {
 			// Local state is already shown; no further action needed here.
@@ -122,9 +125,8 @@ struct lebensmittelApp: App {
 				.environment(mealsModel)
 				.environment(receiptsModel)
 				.environment(shoppingModel)
-				.environment(sessionManager)
+				.environment(groupModel)
 				.onAppear {
-					sessionManager.bootstrap()
 					startSession()
 				}
 				.onReceive(

@@ -19,7 +19,7 @@ struct ReceiptsView: View {
 	@State private var editNotes: String = ""
 	@State private var editError: String = ""
 
-	@Environment(SessionManager.self) var sessionManager
+	@Environment(GroupModel.self) var groupModel
 
 	var body: some View {
 		NavigationStack {
@@ -30,7 +30,7 @@ struct ReceiptsView: View {
 							model.errorMessage = nil
 							model.fetchReceipts()
 						}
-				} else if !sessionManager.hasActiveGroup {
+				} else if !groupModel.hasActiveGroup {
 					Text("Set a group ID from the top-right menu to start tracking receipts.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct GroceriesView: View {
 	@Environment(GroceriesModel.self) var model
-	@Environment(SessionManager.self) var sessionManager
+	@Environment(GroupModel.self) var groupModel
 	@Environment(\.colorScheme) var colorScheme
 	@State private var isAddItemSheetPresented = false
 
@@ -25,7 +25,7 @@ struct GroceriesView: View {
 							model.fetchGroceries()
 						}
 				} else {
-					if !sessionManager.hasActiveGroup {
+					if !groupModel.hasActiveGroup {
 						Text("Set a group ID from the top-right menu to start adding groceries.")
 							.foregroundStyle(.secondary)
 							.frame(maxWidth: .infinity, maxHeight: .infinity)

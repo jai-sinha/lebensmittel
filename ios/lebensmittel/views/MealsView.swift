@@ -11,7 +11,7 @@ struct MealsView: View {
 	@Environment(MealsModel.self) var model
 	@Environment(\.colorScheme) var colorScheme
 	@State private var mealTexts: [String: String] = [:]
-	@Environment(SessionManager.self) var sessionManager
+	@Environment(GroupModel.self) var groupModel
 	@FocusState private var focusedMealDate: String?
 
 	private func date(for dayOffset: Int) -> Date {
@@ -30,7 +30,7 @@ struct MealsView: View {
 	var body: some View {
 		NavigationStack {
 			ZStack {
-				if !sessionManager.hasActiveGroup {
+				if !groupModel.hasActiveGroup {
 					Text("Set a group ID from the top-right menu to start meal planning.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)

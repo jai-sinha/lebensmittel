@@ -8,7 +8,7 @@
 import Foundation
 
 struct GroupService: GroupServicing {
-	nonisolated(unsafe) static let shared = GroupService(client: .shared)
+	static let shared = GroupService(client: .shared)
 
 	private struct CreateGroupRequest: Encodable {
 		let name: String

@@ -10,7 +10,7 @@ import SwiftUI
 /// Main shopping list view, including the checkout sheet.
 struct ShoppingView: View {
 	@Environment(ShoppingModel.self) var model
-	@Environment(SessionManager.self) var sessionManager
+	@Environment(GroupModel.self) var groupModel
 	@Environment(\.colorScheme) var colorScheme
 	// Checkout dialog state
 	@State private var showCheckoutSheet = false
@@ -18,7 +18,7 @@ struct ShoppingView: View {
 	var body: some View {
 		NavigationStack {
 			VStack {
-				if !sessionManager.hasActiveGroup {
+				if !groupModel.hasActiveGroup {
 					Text("Set a group ID from the top-right menu to see your shopping list.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
