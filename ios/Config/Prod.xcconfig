@@ -1,3 +1,0 @@
-API_SCHEME = https
-API_HOST = ls.jsinha.com
-WEB_SOCKET_SCHEME = wss
