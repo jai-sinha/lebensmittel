@@ -100,7 +100,7 @@ struct APIClient {
 		}
 
 		if includeGroupHeader,
-			let groupId = await GroupModel.shared.getActiveGroupId(),
+			let groupId = GroupModel.shared.getActiveGroupId(),
 			!groupId.isEmpty
 		{
 			request.setValue(groupId, forHTTPHeaderField: "X-Group-ID")

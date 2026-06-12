@@ -80,7 +80,8 @@ struct lebensmittelApp: App {
 			with: groceriesModel,
 			mealsModel: mealsModel,
 			receiptsModel: receiptsModel,
-			shoppingModel: shoppingModel
+			shoppingModel: shoppingModel,
+			groupsModel: groupModel
 		)
 
 		Task {

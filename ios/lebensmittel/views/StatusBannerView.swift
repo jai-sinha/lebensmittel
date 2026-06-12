@@ -30,13 +30,13 @@ struct StatusBannerView: View {
 enum StatusBannerKind {
 	case offline
 	case syncing
-	case reconnecting
+	case connecting
 
 	var systemImage: String {
 		switch self {
 		case .offline: "wifi.slash"
 		case .syncing: "arrow.triangle.2.circlepath"
-		case .reconnecting: "arrow.clockwise"
+		case .connecting: "arrow.clockwise"
 		}
 	}
 
@@ -44,7 +44,7 @@ enum StatusBannerKind {
 		switch self {
 		case .offline: "You're offline. Changes will sync when you're back online."
 		case .syncing: "Syncing..."
-		case .reconnecting: "Connecting..."
+		case .connecting: "Connecting..."
 		}
 	}
 
@@ -52,7 +52,7 @@ enum StatusBannerKind {
 		switch self {
 		case .offline: .red
 		case .syncing: .yellow
-		case .reconnecting: .blue
+		case .connecting: .blue
 		}
 	}
 }

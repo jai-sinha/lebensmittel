@@ -10,7 +10,6 @@ import Observation
 import Security
 import SwiftData
 
-
 @MainActor
 @Observable
 final class GroupModel {
@@ -167,6 +166,12 @@ final class GroupModel {
 		}
 	}
 
+	/// for WebSocket updates
+	func updateGroup(_ group: AuthGroup) {
+		upsertKnownGroup(group)
+		persistState()
+	}
+
 	// MARK: - Group item management
 
 	func normalizedGroupValues(_ values: [String]) -> [String] {
@@ -193,39 +198,28 @@ final class GroupModel {
 		let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !trimmed.isEmpty, let activeGroup else { return }
 
-		let rawValues = kind == .category ? activeGroup.categories : activeGroup.members
+		let rawValues = kind.values(from: activeGroup)
 		let normalized = normalizedGroupValues(rawValues)
 
 		if let index {
 			guard normalized.indices.contains(index) else { return }
 			if normalized[index].localizedCaseInsensitiveCompare(trimmed) == .orderedSame { return }
-			if containsDuplicate(trimmed, in: normalized, excluding: index) {
-				errorMessage = "\(kind.title) \"\(trimmed)\" already exists."
-				return
-			}
-		} else {
-			if containsDuplicate(trimmed, in: normalized) {
-				errorMessage = "\(kind.title) \"\(trimmed)\" already exists."
-				return
-			}
 		}
 
-		var updatedValues = kind == .category ? activeGroup.categories : activeGroup.members
-		if let index {
+		if containsDuplicate(trimmed, in: normalized, excluding: index) {
+			errorMessage = "\(kind.title) \"\(trimmed)\" already exists."
+			return
+		}
+
+		var updatedValues = kind.values(from: activeGroup)
+		if let index, updatedValues.indices.contains(index) {
 			updatedValues[index] = trimmed
 		} else {
 			updatedValues.append(trimmed)
 		}
 
 		do {
-			try await applyGroupUpdate {
-				switch kind {
-				case .category:
-					try await service.updateGroupCategories(id: activeGroup.id, categories: updatedValues)
-				case .member:
-					try await service.updateGroupMembers(id: activeGroup.id, members: updatedValues)
-				}
-			}
+			_ = try await kind.update(service: service, id: activeGroup.id, values: updatedValues)
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -237,19 +231,12 @@ final class GroupModel {
 		defer { isLoading = false }
 
 		guard let activeGroup else { return }
-		var updatedValues = kind == .category ? activeGroup.categories : activeGroup.members
+		var updatedValues = kind.values(from: activeGroup)
 		guard updatedValues.indices.contains(index) else { return }
 		updatedValues.remove(at: index)
 
 		do {
-			try await applyGroupUpdate {
-				switch kind {
-				case .category:
-					try await service.updateGroupCategories(id: activeGroup.id, categories: updatedValues)
-				case .member:
-					try await service.updateGroupMembers(id: activeGroup.id, members: updatedValues)
-				}
-			}
+			_ = try await kind.update(service: service, id: activeGroup.id, values: updatedValues)
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -278,16 +265,13 @@ final class GroupModel {
 		let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !trimmed.isEmpty else { return }
 
-		// Persist locally and set active immediately (offline-first)
+		// Set active locally immediately (offline-first)
 		setActiveGroup(trimmed)
 
-		// Try to fetch full group details from server
 		do {
 			let group = try await service.fetchGroup(id: trimmed)
 			upsertKnownGroup(group)
-			activeGroupId = group.id
 			persistState()
-			notifyGroupChanged()
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -416,8 +400,23 @@ enum GroupItemKind: String, Sendable {
 		case .member: "Member name"
 		}
 	}
+
+	func values(from group: AuthGroup) -> [String] {
+		switch self {
+		case .category: group.categories
+		case .member: group.members
+		}
+	}
+
+	func update(service: any GroupServicing, id: String, values: [String]) async throws -> AuthGroup {
+		switch self {
+		case .category: try await service.updateGroupCategories(id: id, categories: values)
+		case .member: try await service.updateGroupMembers(id: id, members: values)
+		}
+	}
 }
 
+/// Temporary keychain service just for the legacy migration logic, will be dropped in a few cycles
 struct KeychainService: Sendable {
 	enum KeychainError: Error {
 		case osStatus(OSStatus)

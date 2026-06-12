@@ -22,22 +22,14 @@ struct ContentView: View {
 		case (true, true, true):
 			return .syncing
 		case (true, false, _):
-			return .reconnecting
+			return .connecting
 		default:
 			return nil
 		}
 	}
 
 	var body: some View {
-		VStack(spacing: 0) {
-			if let banner = statusBanner {
-				StatusBannerView(
-					systemImage: banner.systemImage,
-					message: banner.message,
-					backgroundColor: banner.backgroundColor
-				)
-			}
-
+		ZStack(alignment: .top) {
 			TabView {
 				Tab("Groceries", systemImage: "list.bullet") {
 					GroceriesView()
@@ -54,6 +46,14 @@ struct ContentView: View {
 				Tab("Receipts", systemImage: "receipt") {
 					ReceiptsView()
 				}
+			}
+
+			if let banner = statusBanner {
+				StatusBannerView(
+					systemImage: banner.systemImage,
+					message: banner.message,
+					backgroundColor: banner.backgroundColor
+				)
 			}
 		}
 	}

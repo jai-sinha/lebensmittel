@@ -85,6 +85,7 @@ final class SocketService: WebSocketDelegate {
 	public private(set) var shoppingModel: ShoppingModel!
 	public private(set) var mealsModel: MealsModel!
 	public private(set) var receiptsModel: ReceiptsModel!
+	public private(set) var groupsModel: GroupModel!
 
 	private init() {}
 
@@ -92,12 +93,14 @@ final class SocketService: WebSocketDelegate {
 		with groceriesModel: GroceriesModel,
 		mealsModel: MealsModel,
 		receiptsModel: ReceiptsModel,
-		shoppingModel: ShoppingModel
+		shoppingModel: ShoppingModel,
+		groupsModel: GroupModel
 	) {
 		self.groceriesModel = groceriesModel
 		self.mealsModel = mealsModel
 		self.receiptsModel = receiptsModel
 		self.shoppingModel = shoppingModel
+		self.groupsModel = groupsModel
 
 		// Prevent double-starting
 		if socket != nil { return }
@@ -122,7 +125,7 @@ final class SocketService: WebSocketDelegate {
 		}
 
 		Task {
-			let activeGroupId = await GroupModel.shared.getActiveGroupId()
+			let activeGroupId = GroupModel.shared.getActiveGroupId()
 			guard let activeGroupId, !activeGroupId.isEmpty else {
 				if Self.verbose { print("WebSocket: No active group, skipping connect") }
 				return
@@ -273,6 +276,19 @@ final class SocketService: WebSocketDelegate {
 		switch event {
 		case "connected":
 			if Self.verbose { print("Server connected message:", payload) }
+
+		// MARK: Group Events
+		case "group_updated":
+			decode(payload, as: AuthGroup.self) { group in
+				if Self.verbose { print("group updated:", group) }
+				self.groupsModel.updateGroup(group)
+			}
+
+		case "group_deleted":
+			decode(payload, as: String.self) { groupID in
+				if Self.verbose { print("group deleted:", groupID) }
+				self.groupsModel.leaveGroup(id: groupID)
+			}
 
 		// MARK: Grocery Item Events
 		case "grocery_item_created":

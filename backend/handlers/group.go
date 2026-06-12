@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lebensmittel/backend/database"
 	"github.com/lebensmittel/backend/models"
+	"github.com/lebensmittel/backend/websocket"
 )
 
 func CreateGroup(c *gin.Context) {
@@ -93,6 +94,8 @@ func UpdateGroup(c *gin.Context) {
 		return
 	}
 
+	websocket.EmitEvent("group_updated", group, groupID)
+
 	c.JSON(http.StatusOK, group)
 }
 
@@ -118,6 +121,8 @@ func DeleteGroup(c *gin.Context) {
 		}
 		return
 	}
+
+	websocket.EmitEvent("group_deleted", gin.H{"id": groupID}, groupID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Group deleted successfully"})
 }
