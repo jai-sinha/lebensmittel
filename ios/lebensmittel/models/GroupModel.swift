@@ -82,24 +82,11 @@ final class GroupModel {
 		let previousGroupID = activeGroupId
 
 		activeGroupId = trimmed
-		if let trimmed {
-			ensureKnownGroup(AuthGroup(id: trimmed, name: trimmed))
+		if let trimmed, !knownGroups.contains(where: { $0.id == trimmed }) {
+			knownGroups = sortGroups(knownGroups + [AuthGroup(id: trimmed, name: trimmed)])
 		}
 
 		persistState()
-		if previousGroupID != activeGroupId {
-			notifyGroupChanged()
-		}
-	}
-
-	func setActiveGroup(_ group: AuthGroup) {
-		loadPersistedStateIfNeeded()
-		let previousGroupID = activeGroupId
-
-		upsertKnownGroup(group)
-		activeGroupId = group.id
-		persistState()
-
 		if previousGroupID != activeGroupId {
 			notifyGroupChanged()
 		}
@@ -118,7 +105,9 @@ final class GroupModel {
 
 	func fetchGroup(id: String) async throws {
 		let group = try await service.fetchGroup(id: id)
-		setActiveGroup(group)
+		setActiveGroup(group.id)
+		upsertKnownGroup(group)
+		persistState()
 	}
 
 	func refreshActiveGroup() async throws -> AuthGroup? {
@@ -141,7 +130,9 @@ final class GroupModel {
 
 		do {
 			let group = try await service.createGroup(name: trimmed)
-			setActiveGroup(group)
+			setActiveGroup(group.id)
+			upsertKnownGroup(group)
+			persistState()
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -156,26 +147,24 @@ final class GroupModel {
 		guard !trimmed.isEmpty else { return }
 
 		do {
-			let group = try await service.renameGroup(id: id, name: trimmed)
-			upsertKnownGroup(group)
-			persistState()
+			try await applyGroupUpdate {
+				try await service.renameGroup(id: id, name: trimmed)
+			}
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
 	}
 
 	func updateGroupCategories(id: String, categories: [String]) async throws -> AuthGroup {
-		let group = try await service.updateGroupCategories(id: id, categories: categories)
-		upsertKnownGroup(group)
-		persistState()
-		return group
+		try await applyGroupUpdate {
+			try await service.updateGroupCategories(id: id, categories: categories)
+		}
 	}
 
 	func updateGroupMembers(id: String, members: [String]) async throws -> AuthGroup {
-		let group = try await service.updateGroupMembers(id: id, members: members)
-		upsertKnownGroup(group)
-		persistState()
-		return group
+		try await applyGroupUpdate {
+			try await service.updateGroupMembers(id: id, members: members)
+		}
 	}
 
 	// MARK: - Group item management
@@ -229,15 +218,14 @@ final class GroupModel {
 		}
 
 		do {
-			switch kind {
-			case .category:
-				let group = try await service.updateGroupCategories(id: activeGroup.id, categories: updatedValues)
-				upsertKnownGroup(group)
-			case .member:
-				let group = try await service.updateGroupMembers(id: activeGroup.id, members: updatedValues)
-				upsertKnownGroup(group)
+			try await applyGroupUpdate {
+				switch kind {
+				case .category:
+					try await service.updateGroupCategories(id: activeGroup.id, categories: updatedValues)
+				case .member:
+					try await service.updateGroupMembers(id: activeGroup.id, members: updatedValues)
+				}
 			}
-			persistState()
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -250,20 +238,18 @@ final class GroupModel {
 
 		guard let activeGroup else { return }
 		var updatedValues = kind == .category ? activeGroup.categories : activeGroup.members
-		let normalized = normalizedGroupValues(updatedValues)
-		guard normalized.indices.contains(index) else { return }
+		guard updatedValues.indices.contains(index) else { return }
 		updatedValues.remove(at: index)
 
 		do {
-			switch kind {
-			case .category:
-				let group = try await service.updateGroupCategories(id: activeGroup.id, categories: updatedValues)
-				upsertKnownGroup(group)
-			case .member:
-				let group = try await service.updateGroupMembers(id: activeGroup.id, members: updatedValues)
-				upsertKnownGroup(group)
+			try await applyGroupUpdate {
+				switch kind {
+				case .category:
+					try await service.updateGroupCategories(id: activeGroup.id, categories: updatedValues)
+				case .member:
+					try await service.updateGroupMembers(id: activeGroup.id, members: updatedValues)
+				}
 			}
-			persistState()
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -276,9 +262,9 @@ final class GroupModel {
 		defer { isLoading = false }
 
 		do {
-			let group = try await service.updateGroupCategories(id: activeGroup.id, categories: categories)
-			upsertKnownGroup(group)
-			persistState()
+			try await applyGroupUpdate {
+				try await service.updateGroupCategories(id: activeGroup.id, categories: categories)
+			}
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -303,7 +289,7 @@ final class GroupModel {
 			persistState()
 			notifyGroupChanged()
 		} catch {
-			// Local placeholder is already in place; group works offline
+			errorMessage = UserFacingError.message(for: error)
 		}
 	}
 
@@ -311,7 +297,18 @@ final class GroupModel {
 		isLoading = true
 		errorMessage = nil
 		defer { isLoading = false }
-		setActiveGroup(group)
+		setActiveGroup(group.id)
+		upsertKnownGroup(group)
+		persistState()
+	}
+
+	func leaveGroup(id: String) {
+		knownGroups.removeAll { $0.id == id }
+		if activeGroupId == id {
+			activeGroupId = nil
+		}
+		persistState()
+		notifyGroupChanged()
 	}
 
 	func migrateLegacyGroupIfNeeded() async {
@@ -335,8 +332,8 @@ final class GroupModel {
 				}
 			}
 
-			if !recoveredGroups.isEmpty {
-				mergeKnownGroups(recoveredGroups)
+			for group in recoveredGroups {
+				upsertKnownGroup(group)
 			}
 			if activeGroupId == nil, let firstGroup = recoveredGroups.first {
 				activeGroupId = firstGroup.id
@@ -348,10 +345,16 @@ final class GroupModel {
 		}
 	}
 
+	// MARK: - Private
+
+	private var didLoadPersistedState = false
+
 	private func loadPersistedStateIfNeeded() {
+		guard !didLoadPersistedState else { return }
 		let snapshot = store.loadSnapshot()
 		activeGroupId = snapshot.activeGroupId
 		knownGroups = snapshot.knownGroups
+		didLoadPersistedState = true
 	}
 
 	private func persistState(legacyGroupMigrationCompleted: Bool? = nil) {
@@ -363,21 +366,21 @@ final class GroupModel {
 		)
 	}
 
-	private func mergeKnownGroups(_ groups: [AuthGroup]) {
-		var mergedByID = Dictionary(uniqueKeysWithValues: knownGroups.map { ($0.id, $0) })
-		for group in groups {
-			mergedByID[group.id] = group
-		}
-		knownGroups = sortGroups(Array(mergedByID.values))
-	}
-
-	private func ensureKnownGroup(_ group: AuthGroup) {
-		guard !knownGroups.contains(where: { $0.id == group.id }) else { return }
-		knownGroups = sortGroups(knownGroups + [group])
+	@discardableResult
+	private func applyGroupUpdate(_ update: () async throws -> AuthGroup) async rethrows -> AuthGroup {
+		let group = try await update()
+		upsertKnownGroup(group)
+		persistState()
+		return group
 	}
 
 	private func upsertKnownGroup(_ group: AuthGroup) {
-		mergeKnownGroups([group])
+		if let index = knownGroups.firstIndex(where: { $0.id == group.id }) {
+			knownGroups[index] = group
+		} else {
+			knownGroups.append(group)
+		}
+		knownGroups = sortGroups(knownGroups)
 	}
 
 	private func sortGroups(_ groups: [AuthGroup]) -> [AuthGroup] {

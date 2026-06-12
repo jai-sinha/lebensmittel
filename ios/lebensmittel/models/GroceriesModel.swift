@@ -7,10 +7,17 @@
 
 import Foundation
 import SwiftData
+import SwiftUI
 
 @MainActor
 @Observable
 class GroceriesModel {
+	private let groupModel: GroupModel
+
+	var categories: [String] {
+		groupModel.activeGroup?.categories ?? []
+	}
+
 	enum GroceryItemField {
 		case isNeeded(Bool)
 		case isShoppingChecked(Bool)
@@ -30,13 +37,13 @@ class GroceriesModel {
 		!newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 	}
 
-	let categories = ["Essentials", "Protein", "Veggies", "Carbs", "Household", "Other"]
-
 	init(
 		service: any GroceriesServicing = GroceriesService(),
+		groupModel: GroupModel = .shared,
 		syncEngine: SyncEngine = .shared
 	) {
 		self.service = service
+		self.groupModel = groupModel
 		self.syncEngine = syncEngine
 	}
 

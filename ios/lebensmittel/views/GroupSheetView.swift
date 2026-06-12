@@ -25,275 +25,259 @@ struct GroupSheetView: View {
 	}
 }
 
+// MARK: - GroupManagementSheet
+
 private struct GroupManagementSheet: View {
 	@Environment(GroupModel.self) private var groupModel
 	@Environment(\.dismiss) private var dismiss
 
-	@State private var renamedGroupName = ""
-	@State private var joinCode = ""
-	@State private var isShowingJoinCode = false
-	@State private var isReorderingCategories = false
+	@State private var alertText = ""
+	@State private var showJoinAlert = false
+	@State private var showCreateAlert = false
+	@State private var showRenameAlert = false
+	@State private var showLeaveAlert = false
 	@State private var groupItemEditor: GroupItemEditorContext?
-	@State private var pendingGroupItemDeletion: PendingGroupItemDeletion?
+	@State private var pendingDeletion: PendingGroupItemDeletion?
 
-	private var currentGroupCategories: [String] {
-		groupModel.normalizedGroupValues(groupModel.activeGroup?.categories ?? [])
+	// MARK: Computed properties
+
+	private var activeGroup: AuthGroup? {
+		groupModel.activeGroup
 	}
 
-	private var currentGroupMembers: [String] {
-		groupModel.normalizedGroupValues(groupModel.activeGroup?.members ?? [])
+	private var groupCategories: [String] {
+		groupModel.normalizedGroupValues(activeGroup?.categories ?? [])
 	}
 
-	private var canRenameActiveGroup: Bool {
-		groupModel.activeGroup != nil && !renamedGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+	private var groupMembers: [String] {
+		groupModel.normalizedGroupValues(activeGroup?.members ?? [])
 	}
+
+	// MARK: - Content sections
+
+	@ViewBuilder
+	private var errorBanner: some View {
+		if let errorMessage = groupModel.errorMessage {
+			Text(errorMessage)
+				.font(.footnote)
+				.foregroundStyle(.red)
+				.padding(12)
+				.frame(maxWidth: .infinity, alignment: .leading)
+				.background(Color.red.opacity(0.08))
+				.clipShape(RoundedRectangle(cornerRadius: 12))
+				.listRowInsets(EdgeInsets())
+		}
+	}
+
+	@ViewBuilder
+	private var categoriesSection: some View {
+		listSection(
+			headerLabel: "Categories",
+			headerIcon: "tag",
+			items: groupCategories,
+			isReorderable: true,
+			emptyMessage: "No categories yet. Add one below.",
+			addLabel: "Add Category",
+			editAction: { index, value in
+				groupItemEditor = GroupItemEditorContext(kind: .category, index: index, initialValue: value)
+			},
+			addAction: {
+				groupItemEditor = GroupItemEditorContext(kind: .category, index: nil, initialValue: "")
+			}
+		)
+	}
+
+	@ViewBuilder
+	private var membersSection: some View {
+		listSection(
+			headerLabel: "Members",
+			headerIcon: "person.2",
+			items: groupMembers,
+			isReorderable: false,
+			emptyMessage: "No members yet. Add one below.",
+			addLabel: "Add Member",
+			editAction: { index, value in
+				groupItemEditor = GroupItemEditorContext(kind: .member, index: index, initialValue: value)
+			},
+			addAction: {
+				groupItemEditor = GroupItemEditorContext(kind: .member, index: nil, initialValue: "")
+			},
+			deleteAction: { index, value in
+				pendingDeletion = PendingGroupItemDeletion(kind: .member, index: index, value: value)
+			}
+		)
+	}
+
+	private func listSection(
+		headerLabel: String,
+		headerIcon: String,
+		items: [String],
+		isReorderable: Bool,
+		emptyMessage: String,
+		addLabel: String,
+		editAction: @escaping (Int, String) -> Void,
+		addAction: @escaping () -> Void,
+		deleteAction: ((Int, String) -> Void)? = nil
+	) -> some View {
+		Section {
+			if items.isEmpty {
+				Text(emptyMessage)
+					.font(.footnote)
+					.foregroundStyle(.secondary)
+			}
+
+			ForEach(Array(items.enumerated()), id: \.offset) { index, value in
+				HStack {
+					Text(value)
+						.font(.subheadline)
+					Spacer()
+					if isReorderable {
+						Image(systemName: "line.3.horizontal")
+							.font(.footnote)
+							.foregroundStyle(.secondary)
+					}
+				}
+				.swipeActions(edge: .trailing) {
+					Button {
+						editAction(index, value)
+					} label: {
+						Label("Edit", systemImage: "pencil")
+					}
+					.tint(.blue)
+
+					if let deleteAction {
+						Button(role: .destructive) {
+							deleteAction(index, value)
+						} label: {
+							Label("Delete", systemImage: "trash")
+						}
+					}
+				}
+			}
+			.onMove { source, destination in
+				var updated = items
+				updated.move(fromOffsets: source, toOffset: destination)
+				Task {
+					await groupModel.setCategories(updated)
+				}
+			}
+			.disabled(!isReorderable)
+
+			Button(action: addAction) {
+				Label(addLabel, systemImage: "plus.circle.fill")
+					.font(.subheadline.weight(.semibold))
+			}
+			.disabled(groupModel.isLoading)
+		} header: {
+			HStack(spacing: 8) {
+				Label(headerLabel, systemImage: headerIcon)
+					.font(.subheadline.weight(.semibold))
+				Spacer()
+				Text("\(items.count)")
+					.font(.caption.weight(.semibold))
+					.foregroundStyle(.secondary)
+					.padding(.horizontal, 8)
+					.padding(.vertical, 4)
+					.background(Color(.tertiarySystemGroupedBackground))
+					.clipShape(Capsule())
+			}
+		}
+	}
+
+	@ViewBuilder
+	private var groupsSection: some View {
+		Section {
+			ForEach(groupModel.knownGroups) { group in
+				Button {
+					Task {
+						await groupModel.switchToGroup(group)
+					}
+				} label: {
+					HStack(spacing: 12) {
+						Image(systemName: group.id == groupModel.activeGroupId ? "checkmark.circle.fill" : "circle")
+							.foregroundStyle(group.id == groupModel.activeGroupId ? Color.accentColor : Color.secondary)
+						VStack(alignment: .leading, spacing: 2) {
+							Text(group.name)
+								.font(.headline)
+							Text(group.id)
+								.font(.caption.monospaced())
+								.foregroundStyle(.secondary)
+						}
+						Spacer()
+					}
+				}
+				.buttonStyle(.plain)
+				.disabled(groupModel.isLoading)
+			}
+		} header: {
+			Label("Groups", systemImage: "rectangle.3.group")
+		}
+	}
+
+	@ViewBuilder
+	private var noGroupSection: some View {
+		Section {
+			Text("No active group selected.")
+				.foregroundStyle(.secondary)
+		} header: {
+			Label("Current Group", systemImage: "rectangle.3.group")
+		}
+	}
+
+	@ViewBuilder
+	private var controlsSection: some View {
+		Section {
+			if let activeGroup {
+				Button {
+					alertText = activeGroup.name
+					showRenameAlert = true
+				} label: {
+					Text("Rename Current Group")
+				}
+
+				Button(role: .destructive) {
+					showLeaveAlert = true
+				} label: {
+					Text("Leave Current Group")
+				}
+			}
+
+			Button {
+				alertText = ""
+				showJoinAlert = true
+			} label: {
+				Text("Join Group")
+			}
+
+			Button {
+				alertText = ""
+				showCreateAlert = true
+			} label: {
+				Text("Create Group")
+			}
+		} header: {
+			Label("Group Controls", systemImage: "person.2.badge.gearshape")
+		}
+	}
+
+	// MARK: - Body
 
 	var body: some View {
 		NavigationStack {
 			List {
-				if let errorMessage = groupModel.errorMessage {
-					Text(errorMessage)
-						.font(.footnote)
-						.foregroundStyle(.red)
-						.padding(12)
-						.frame(maxWidth: .infinity, alignment: .leading)
-						.background(Color.red.opacity(0.08))
-						.clipShape(RoundedRectangle(cornerRadius: 12))
-						.listRowInsets(EdgeInsets())
-				}
+				errorBanner
 
-				if let activeGroup = groupModel.activeGroup {
-					Section {
-						VStack(alignment: .leading, spacing: 4) {
-							Text(activeGroup.name)
-								.font(.headline)
-							Text(activeGroup.id)
-								.font(.caption.monospaced())
-								.foregroundStyle(.secondary)
-						}
-					} header: {
-						Label("Current Group", systemImage: "rectangle.3.group")
-					} footer: {
-						Text("Manage the active group's categories and members.")
-					}
-
-					Section {
-						if currentGroupCategories.isEmpty {
-							Text("No categories yet. Add one below.")
-								.font(.footnote)
-								.foregroundStyle(.secondary)
-						}
-
-						ForEach(Array(currentGroupCategories.enumerated()), id: \.offset) { index, value in
-							Text(value)
-								.font(.subheadline)
-								.swipeActions(edge: .trailing, allowsFullSwipe: false) {
-									Button {
-										groupItemEditor = GroupItemEditorContext(kind: .category, index: index, initialValue: value)
-									} label: {
-										Label("Edit", systemImage: "pencil")
-									}
-									.tint(.blue)
-
-									Button(role: .destructive) {
-										pendingGroupItemDeletion = PendingGroupItemDeletion(kind: .category, index: index, value: value)
-									} label: {
-										Label("Delete", systemImage: "trash")
-									}
-								}
-						}
-						.onMove { source, destination in
-							var updated = currentGroupCategories
-							updated.move(fromOffsets: source, toOffset: destination)
-							Task {
-								await groupModel.setCategories(updated)
-							}
-						}
-
-						Button {
-							groupItemEditor = GroupItemEditorContext(kind: .category, index: nil, initialValue: "")
-						} label: {
-							Label("Add Category", systemImage: "plus.circle.fill")
-								.font(.subheadline.weight(.semibold))
-						}
-						.disabled(groupModel.isLoading)
-					} header: {
-						HStack(spacing: 8) {
-							Label("Categories", systemImage: "tag")
-								.font(.subheadline.weight(.semibold))
-							Spacer()
-							Text("\(currentGroupCategories.count)")
-								.font(.caption.weight(.semibold))
-								.foregroundStyle(.secondary)
-								.padding(.horizontal, 8)
-								.padding(.vertical, 4)
-								.background(Color(.tertiarySystemGroupedBackground))
-								.clipShape(Capsule())
-							if currentGroupCategories.count > 1 {
-								Button(isReorderingCategories ? "Done" : "Reorder") {
-									isReorderingCategories.toggle()
-								}
-								.font(.caption.weight(.semibold))
-								.disabled(groupModel.isLoading)
-							}
-						}
-					}
-
-					Section {
-						if currentGroupMembers.isEmpty {
-							Text("No members yet. Add one below.")
-								.font(.footnote)
-								.foregroundStyle(.secondary)
-						}
-
-						ForEach(Array(currentGroupMembers.enumerated()), id: \.offset) { index, value in
-							Text(value)
-								.font(.subheadline)
-								.swipeActions(edge: .trailing, allowsFullSwipe: false) {
-									Button {
-										groupItemEditor = GroupItemEditorContext(kind: .member, index: index, initialValue: value)
-									} label: {
-										Label("Edit", systemImage: "pencil")
-									}
-									.tint(.blue)
-
-									Button(role: .destructive) {
-										pendingGroupItemDeletion = PendingGroupItemDeletion(kind: .member, index: index, value: value)
-									} label: {
-										Label("Delete", systemImage: "trash")
-									}
-								}
-						}
-
-						Button {
-							groupItemEditor = GroupItemEditorContext(kind: .member, index: nil, initialValue: "")
-						} label: {
-							Label("Add Member", systemImage: "plus.circle.fill")
-								.font(.subheadline.weight(.semibold))
-						}
-						.disabled(groupModel.isLoading)
-					} header: {
-						HStack(spacing: 8) {
-							Label("Members", systemImage: "person.2")
-								.font(.subheadline.weight(.semibold))
-							Spacer()
-							Text("\(currentGroupMembers.count)")
-								.font(.caption.weight(.semibold))
-								.foregroundStyle(.secondary)
-								.padding(.horizontal, 8)
-								.padding(.vertical, 4)
-								.background(Color(.tertiarySystemGroupedBackground))
-								.clipShape(Capsule())
-						}
-					}
+				if activeGroup != nil {
+					groupsSection
+					categoriesSection
+					membersSection
 				} else {
-					Section {
-						Text("No active group selected.")
-							.foregroundStyle(.secondary)
-					} header: {
-						Label("Current Group", systemImage: "rectangle.3.group")
-					}
+					noGroupSection
 				}
 
-				Section {
-					VStack(alignment: .leading, spacing: 8) {
-						Text("Group Name")
-							.font(.subheadline.weight(.semibold))
-						TextField("Group Name", text: $renamedGroupName)
-							.textFieldStyle(.roundedBorder)
-
-						Button {
-							Task {
-								guard let activeGroup = groupModel.activeGroup else { return }
-								await groupModel.renameGroup(id: activeGroup.id, name: renamedGroupName)
-								if groupModel.errorMessage == nil {
-									renamedGroupName = groupModel.activeGroup?.name ?? renamedGroupName
-								}
-							}
-						} label: {
-							if groupModel.isLoading {
-								ProgressView()
-									.frame(maxWidth: .infinity)
-							} else {
-								Text("Save Group Name")
-									.frame(maxWidth: .infinity)
-							}
-						}
-						.buttonStyle(.bordered)
-						.disabled(groupModel.isLoading || !canRenameActiveGroup)
-					}
-
-					VStack(alignment: .leading, spacing: 4) {
-						Text("Join Code")
-							.font(.subheadline.weight(.semibold))
-						Text("Copy/share join-code support is the next group-settings task.")
-							.font(.footnote)
-							.foregroundStyle(.secondary)
-					}
-					.frame(maxWidth: .infinity, alignment: .leading)
-
-					VStack(alignment: .leading, spacing: 4) {
-						Text("Leave Group")
-							.font(.subheadline.weight(.semibold))
-						Text("Destructive leave/remove behavior still needs to be wired.")
-							.font(.footnote)
-							.foregroundStyle(.secondary)
-					}
-					.frame(maxWidth: .infinity, alignment: .leading)
-				} header: {
-					Text("Group Settings")
-				}
-
-				Section {
-					if groupModel.knownGroups.isEmpty {
-						Text("No saved groups yet.")
-							.foregroundStyle(.secondary)
-					} else {
-						ForEach(groupModel.knownGroups) { group in
-							Button {
-								Task {
-									await groupModel.switchToGroup(group)
-								}
-							} label: {
-								HStack(spacing: 12) {
-									Image(systemName: group.id == groupModel.activeGroupId ? "checkmark.circle.fill" : "circle")
-										.foregroundStyle(group.id == groupModel.activeGroupId ? Color.accentColor : Color.secondary)
-									VStack(alignment: .leading, spacing: 2) {
-										Text(group.name)
-											.foregroundStyle(.primary)
-										Text(group.id)
-											.font(.caption.monospaced())
-											.foregroundStyle(.secondary)
-									}
-									Spacer()
-								}
-							}
-							.buttonStyle(.plain)
-							.disabled(groupModel.isLoading)
-						}
-					}
-					HStack(spacing: 12) {
-						Button {
-							joinCode = ""
-							isShowingJoinCode = true
-						} label: {
-							Text("Join new group with Code")
-						}
-						VStack(alignment: .leading, spacing: 4) {
-							Text("Create Group")
-								.font(.subheadline.weight(.semibold))
-							Text("The current-group section is live; creation UI is next.")
-								.font(.footnote)
-								.foregroundStyle(.secondary)
-						}
-						.frame(maxWidth: .infinity, alignment: .leading)
-					}
-				} header: {
-					Text("Known Groups")
-				}
+				controlsSection
 			}
 			.listStyle(.insetGrouped)
-			.environment(\.editMode, .constant(isReorderingCategories ? .active : .inactive))
 			.navigationTitle("Groups")
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar {
@@ -302,13 +286,6 @@ private struct GroupManagementSheet: View {
 						dismiss()
 					}
 				}
-			}
-			.onAppear {
-				renamedGroupName = groupModel.activeGroup?.name ?? ""
-			}
-			.onChange(of: groupModel.activeGroupId) { _, _ in
-				renamedGroupName = groupModel.activeGroup?.name ?? ""
-				isReorderingCategories = false
 			}
 		}
 		.sheet(item: $groupItemEditor) { editor in
@@ -325,50 +302,89 @@ private struct GroupManagementSheet: View {
 			}
 		}
 		.alert(
-			pendingGroupItemDeletion?.title ?? "Delete Item",
+			"Delete \(pendingDeletion?.kind.title ?? "Item")",
 			isPresented: Binding(
-				get: { pendingGroupItemDeletion != nil },
-				set: { isPresented in
-					if !isPresented {
-						pendingGroupItemDeletion = nil
-					}
-				}
+				get: { pendingDeletion != nil },
+				set: { if !$0 { pendingDeletion = nil } }
 			),
-			presenting: pendingGroupItemDeletion
+			presenting: pendingDeletion
 		) { pending in
 			Button("Delete", role: .destructive) {
 				Task {
 					await groupModel.deleteGroupItem(at: pending.index, kind: pending.kind)
-					pendingGroupItemDeletion = nil
+					pendingDeletion = nil
 				}
 			}
 			Button("Cancel", role: .cancel) {
-				pendingGroupItemDeletion = nil
+				pendingDeletion = nil
 			}
 		} message: { pending in
 			Text(pending.message)
 		}
-		.alert("Join Group", isPresented: $isShowingJoinCode) {
-			TextField("Paste join code", text: $joinCode)
+		.alert("Join Group", isPresented: $showJoinAlert) {
+			TextField("Paste join code", text: $alertText)
 				.autocorrectionDisabled()
 				.textInputAutocapitalization(.never)
 			Button("Join") {
 				Task {
-					await groupModel.joinGroup(id: joinCode)
+					await groupModel.joinGroup(id: alertText)
 					if groupModel.errorMessage == nil {
-						joinCode = ""
+						alertText = ""
 					}
 				}
 			}
 			Button("Cancel", role: .cancel) {
-				joinCode = ""
+				alertText = ""
 			}
 		} message: {
 			Text("Enter the join code shared by your group.")
 		}
+		.alert("Create New Group", isPresented: $showCreateAlert) {
+			TextField("Group name", text: $alertText)
+				.autocorrectionDisabled()
+			Button("Create") {
+				Task {
+					await groupModel.createGroup(name: alertText)
+					alertText = ""
+				}
+			}
+			Button("Cancel", role: .cancel) {
+				alertText = ""
+			}
+		} message: {
+			Text("Enter a name for the new group.")
+		}
+		.alert("Rename Group", isPresented: $showRenameAlert) {
+			TextField("New name", text: $alertText)
+				.autocorrectionDisabled()
+			Button("Rename") {
+				guard let activeGroup, !alertText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+				Task {
+					await groupModel.renameGroup(id: activeGroup.id, name: alertText)
+					alertText = ""
+				}
+			}
+			Button("Cancel", role: .cancel) {
+				alertText = ""
+			}
+		} message: {
+			Text("Enter a new name for this group.")
+		}
+		.alert("Leave Group?", isPresented: $showLeaveAlert) {
+			Button("Leave", role: .destructive) {
+				guard let activeGroup else { return }
+				Task {
+					groupModel.leaveGroup(id: activeGroup.id)
+				}
+			}
+			Button("Cancel", role: .cancel) { }
+		} message: {
+			Text("Are you sure you want to leave this group?")
+		}
 	}
-
 }
+
+// MARK: - Helper types
 
 private struct GroupItemEditorContext: Identifiable {
 	let kind: GroupItemKind
@@ -405,6 +421,8 @@ private struct PendingGroupItemDeletion: Identifiable {
 		"Remove \"\(value)\" from this group?"
 	}
 }
+
+// MARK: - GroupItemEditorSheet
 
 private struct GroupItemEditorSheet: View {
 	let title: String
@@ -445,10 +463,7 @@ private struct GroupItemEditorSheet: View {
 				TextField(placeholder, text: $value)
 					.textFieldStyle(.roundedBorder)
 					.focused($isTextFieldFocused)
-					.onSubmit {
-						submit()
-					}
-
+					.onSubmit(submit)
 				Spacer()
 			}
 			.padding(16)
@@ -456,15 +471,11 @@ private struct GroupItemEditorSheet: View {
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar {
 				ToolbarItem(placement: .cancellationAction) {
-					Button("Cancel") {
-						dismiss()
-					}
+					Button("Cancel") { dismiss() }
 				}
 				ToolbarItem(placement: .confirmationAction) {
-					Button(submitTitle) {
-						submit()
-					}
-					.disabled(!canSubmit)
+					Button(submitTitle, action: submit)
+						.disabled(!canSubmit)
 				}
 			}
 			.onAppear {
