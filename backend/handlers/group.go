@@ -25,6 +25,12 @@ func CreateGroup(c *gin.Context) {
 		return
 	}
 
+	// seed example data for that group
+	if err := GenerateExampleData(c, newGroup.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusCreated, newGroup)
 }
 
