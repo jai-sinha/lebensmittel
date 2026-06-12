@@ -269,14 +269,11 @@ final class GroupModel {
 		}
 	}
 
-	func moveCategories(from source: IndexSet, to destination: Int) async {
+	func setCategories(_ categories: [String]) async {
+		guard let activeGroup else { return }
 		isLoading = true
 		errorMessage = nil
 		defer { isLoading = false }
-
-		guard let activeGroup else { return }
-		var categories = activeGroup.categories
-		categories.move(fromOffsets: source, toOffset: destination)
 
 		do {
 			let group = try await service.updateGroupCategories(id: activeGroup.id, categories: categories)
@@ -284,6 +281,29 @@ final class GroupModel {
 			persistState()
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
+		}
+	}
+
+	func joinGroup(id: String) async {
+		isLoading = true
+		errorMessage = nil
+		defer { isLoading = false }
+
+		let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmed.isEmpty else { return }
+
+		// Persist locally and set active immediately (offline-first)
+		setActiveGroup(trimmed)
+
+		// Try to fetch full group details from server
+		do {
+			let group = try await service.fetchGroup(id: trimmed)
+			upsertKnownGroup(group)
+			activeGroupId = group.id
+			persistState()
+			notifyGroupChanged()
+		} catch {
+			// Local placeholder is already in place; group works offline
 		}
 	}
 
