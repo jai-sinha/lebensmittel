@@ -72,19 +72,22 @@ private struct GroupManagementSheet: View {
 	@ViewBuilder
 	private var categoriesSection: some View {
 		listSection(
-			headerLabel: "Categories",
-			headerIcon: "tag",
-			items: groupCategories,
-			isReorderable: true,
-			emptyMessage: "No categories yet. Add one below.",
-			addLabel: "Add Category",
-			editAction: { index, value in
-				groupItemEditor = GroupItemEditorContext(kind: .category, index: index, initialValue: value)
-			},
-			addAction: {
-				groupItemEditor = GroupItemEditorContext(kind: .category, index: nil, initialValue: "")
-			}
-		)
+				headerLabel: "Categories",
+				headerIcon: "tag",
+				items: groupCategories,
+				isReorderable: true,
+				emptyMessage: "No categories yet. Add one below.",
+				addLabel: "Add Category",
+				editAction: { index, value in
+					groupItemEditor = GroupItemEditorContext(kind: .category, index: index, initialValue: value)
+				},
+				addAction: {
+					groupItemEditor = GroupItemEditorContext(kind: .category, index: nil, initialValue: "")
+				},
+				deleteAction: { index, value in
+					pendingDeletion = PendingGroupItemDeletion(kind: .category, index: index, value: value)
+				}
+			)
 	}
 
 	@ViewBuilder
@@ -126,42 +129,34 @@ private struct GroupManagementSheet: View {
 					.foregroundStyle(.secondary)
 			}
 
-			ForEach(Array(items.enumerated()), id: \.offset) { index, value in
-				HStack {
-					Text(value)
-						.font(.subheadline)
-					Spacer()
-					if isReorderable {
-						Image(systemName: "line.3.horizontal")
-							.font(.footnote)
-							.foregroundStyle(.secondary)
+			if isReorderable {
+				ForEach(Array(items.enumerated()), id: \.offset) { index, value in
+					itemRow(
+						index: index,
+						value: value,
+						isReorderable: isReorderable,
+						editAction: editAction,
+						deleteAction: deleteAction
+					)
+				}
+				.onMove { source, destination in
+					var updated = items
+					updated.move(fromOffsets: source, toOffset: destination)
+					Task {
+						await groupModel.setCategories(updated)
 					}
 				}
-				.swipeActions(edge: .trailing) {
-					Button {
-						editAction(index, value)
-					} label: {
-						Label("Edit", systemImage: "pencil")
-					}
-					.tint(.blue)
-
-					if let deleteAction {
-						Button(role: .destructive) {
-							deleteAction(index, value)
-						} label: {
-							Label("Delete", systemImage: "trash")
-						}
-					}
-				}
-			}
-			.onMove { source, destination in
-				var updated = items
-				updated.move(fromOffsets: source, toOffset: destination)
-				Task {
-					await groupModel.setCategories(updated)
+			} else {
+				ForEach(Array(items.enumerated()), id: \.offset) { index, value in
+					itemRow(
+						index: index,
+						value: value,
+						isReorderable: isReorderable,
+						editAction: editAction,
+						deleteAction: deleteAction
+					)
 				}
 			}
-			.disabled(!isReorderable)
 
 			Button(action: addAction) {
 				Label(addLabel, systemImage: "plus.circle.fill")
@@ -199,9 +194,20 @@ private struct GroupManagementSheet: View {
 						VStack(alignment: .leading, spacing: 2) {
 							Text(group.name)
 								.font(.headline)
-							Text(group.id)
-								.font(.caption.monospaced())
+							HStack {
+								Text(group.id)
+									.font(.caption.monospaced())
+										.foregroundStyle(.secondary)
+								Spacer()
+								Button {
+									UIPasteboard.general.string = group.id
+								} label: {
+									Image(systemName: "square.on.square")
+										.font(.caption.monospaced())
+								}
+								.buttonStyle(.borderless)
 								.foregroundStyle(.secondary)
+							}
 						}
 						Spacer()
 					}
@@ -419,6 +425,44 @@ private struct PendingGroupItemDeletion: Identifiable {
 
 	var message: String {
 		"Remove \"\(value)\" from this group?"
+	}
+}
+
+// MARK: - Row helpers
+
+@ViewBuilder
+private func itemRow(
+	index: Int,
+	value: String,
+	isReorderable: Bool,
+	editAction: @escaping (Int, String) -> Void,
+	deleteAction: ((Int, String) -> Void)?
+) -> some View {
+	HStack {
+		Text(value)
+			.font(.subheadline)
+		Spacer()
+		if isReorderable {
+			Image(systemName: "line.3.horizontal")
+				.font(.footnote)
+				.foregroundStyle(.secondary)
+		}
+	}
+	.swipeActions(edge: .trailing) {
+		Button {
+			editAction(index, value)
+		} label: {
+			Label("Edit", systemImage: "pencil")
+		}
+		.tint(.blue)
+
+		if let deleteAction {
+			Button(role: .destructive) {
+				deleteAction(index, value)
+			} label: {
+				Label("Delete", systemImage: "trash")
+			}
+		}
 	}
 }
 
