@@ -250,75 +250,29 @@ struct EditReceiptSheet: View {
 	@Binding var showEditSheet: Bool
 
 	@Environment(ReceiptsModel.self) var model
+	private let groupModel: GroupModel = .shared
+
+	var purchaserOptions: [String] {
+		groupModel.activeGroup!.members
+	}
 
 	var body: some View {
-		VStack(spacing: 25) {
-			Text("Edit Receipt")
-				.font(.title)
-				.bold()
-			VStack(alignment: .leading, spacing: 12) {
-				Text("Total Cost (€)")
-					.font(.headline)
-				TextField("", text: $editCost)
-					.keyboardType(.decimalPad)
-					.textFieldStyle(RoundedBorderTextFieldStyle())
-					.font(.body)
-			}
-			VStack(alignment: .leading, spacing: 12) {
-				Text("Purchased by")
-					.font(.headline)
-				TextField("Purchased by", text: $editPurchaser)
-					.textFieldStyle(RoundedBorderTextFieldStyle())
-					.font(.body)
-			}
-			VStack(alignment: .leading, spacing: 12) {
-				Text("Notes (optional)")
-					.font(.headline)
-				TextEditor(text: $editNotes)
-					.frame(minHeight: 40, maxHeight: 120)
-					.font(.body)
-					.background(Color(.systemGray6))
-					.clipShape(.rect(cornerRadius: 8))
-			}
-			if !editError.isEmpty {
-				Text(editError)
-					.foregroundStyle(.red)
-					.font(.callout)
-			}
-			HStack(spacing: 20) {
-				Button("Cancel") {
-					showEditSheet = false
+		ReceiptFormSheet(
+			title: "Edit Receipt",
+			cost: $editCost,
+			purchaser: $editPurchaser,
+			notes: $editNotes,
+			error: $editError,
+			purchaserOptions: purchaserOptions,
+			onCancel: { showEditSheet = false },
+			onSubmit: { price, purchaser, notes in
+				if let receipt = selectedReceipt {
+					model.updateReceipt(
+						receipt: receipt, price: price, purchasedBy: purchaser,
+						notes: notes)
 				}
-				.padding(.horizontal, 20)
-				.padding(.vertical, 10)
-				.background(Color.red.opacity(0.8))
-				.foregroundStyle(.white)
-				.clipShape(.rect(cornerRadius: 8))
-				Spacer()
-				Button("Submit") {
-					guard let price = Double(editCost), price > 0 else {
-						editError = "Please enter a valid cost."
-						return
-					}
-					guard !editPurchaser.trimmingCharacters(in: .whitespaces).isEmpty else {
-						editError = "Please enter who purchased."
-						return
-					}
-					if let receipt = selectedReceipt {
-						model.updateReceipt(
-							receipt: receipt, price: price, purchasedBy: editPurchaser,
-							notes: editNotes)
-					}
-					showEditSheet = false
-				}
-				.padding(.horizontal, 20)
-				.padding(.vertical, 10)
-				.background(Color.blue)
-				.foregroundStyle(.white)
-				.clipShape(.rect(cornerRadius: 8))
+				showEditSheet = false
 			}
-		}
-		.padding(30)
-		.presentationDetents([.medium])
+		)
 	}
 }
