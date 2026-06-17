@@ -9,6 +9,25 @@ A/F/C/R
 
 ---
 
+## [3.0.0] - 2026-06-17
+
+The end of authentication! Things are a lot simpler and a lot smoother to get up and running now, and hopefully no one gets their grocery group hacked into. Also introducing custom categories, allowing users to modify their category list from the default set.
+### Added
+- Category customization
+
+### Fixed
+- Connectivity banner causing layout shifts
+
+### Changed
+- Grocery search from a custom search bar to a proper Sheet
+- Group controls from a toolbar menu to a full Sheet
+
+### Removed
+- Clunky and unnecessary user models.
+- Relatedly, guest/unauthenticated views.
+
+___
+
 ## [2.3.0] - 2026-05-05
 
 ### Added
@@ -22,6 +41,8 @@ A/F/C/R
 ### Changed
 - GuestHomeView wording and coloring
 - Backend now can accept items list on receipt create, but old way of deriving item list is still retained as backup
+
+___
 
 ## [2.2.2] - 2026-04-14
 
