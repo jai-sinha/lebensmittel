@@ -88,12 +88,24 @@ struct ShoppingView: View {
 		if !model.uncheckedItems.isEmpty {
 			Section("To Buy") {
 				ForEach(model.uncheckedItems) { item in
-					ShoppingRow(item: item) {
-						model.updateGroceryItem(
-							item: item,
-							field: GroceriesModel.GroceryItemField.isShoppingChecked(true)
-						)
-					}
+					ShoppingRow(
+						item: item,
+						toggleChecked: {
+							model.updateGroceryItem(
+								item: item,
+								field: .isShoppingChecked(true)
+							)
+						},
+						toggleNeeded: {
+							Task { @MainActor in
+								try? await Task.sleep(for: .milliseconds(350))
+								model.updateGroceryItem(
+									item: item,
+									field: .isNeeded(false)
+								)
+							}
+						}
+					)
 				}
 			}
 		}
@@ -101,12 +113,24 @@ struct ShoppingView: View {
 		if !model.checkedItems.isEmpty {
 			Section("Completed") {
 				ForEach(model.checkedItems) { item in
-					ShoppingRow(item: item) {
-						model.updateGroceryItem(
-							item: item,
-							field: GroceriesModel.GroceryItemField.isShoppingChecked(false)
-						)
-					}
+					ShoppingRow(
+						item: item,
+						toggleChecked: {
+							model.updateGroceryItem(
+								item: item,
+								field: .isShoppingChecked(false)
+							)
+						},
+						toggleNeeded: {
+							Task { @MainActor in
+								try? await Task.sleep(for: .milliseconds(350))
+								model.updateGroceryItem(
+									item: item,
+									field: .isNeeded(false)
+								)
+							}
+						}
+					)
 				}
 			}
 		}
@@ -137,11 +161,12 @@ struct ShoppingView: View {
 /// A single row in the shopping list
 struct ShoppingRow: View {
 	let item: GroceryItem
-	let action: () -> Void
+	let toggleChecked: () -> Void
+	let toggleNeeded: () -> Void
 
 	var body: some View {
 		HStack {
-			Button(action: action) {
+			Button(action: toggleChecked) {
 				Label(
 					item.isShoppingChecked ? "Mark as not purchased" : "Mark as purchased",
 					systemImage: item.isShoppingChecked ? "checkmark.circle.fill" : "circle"
@@ -158,6 +183,13 @@ struct ShoppingRow: View {
 			Spacer()
 		}
 		.padding(.vertical, 2)
+		.swipeActions(edge: .trailing) {
+			Button(role: .destructive) {
+				toggleNeeded()
+			} label: {
+				Label("Remove from list", systemImage: "pencil")
+			}
+		}
 	}
 }
 
