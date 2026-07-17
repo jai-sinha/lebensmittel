@@ -300,6 +300,7 @@ final class SocketService: WebSocketDelegate {
 					}
 					return
 				}
+				SyncEngine.shared.upsertGroceryItem(item)
 				self.groceriesModel.addItem(item)
 			}
 
@@ -312,6 +313,7 @@ final class SocketService: WebSocketDelegate {
 					}
 					return
 				}
+				SyncEngine.shared.upsertGroceryItem(item)
 				self.groceriesModel.updateItem(item)
 			}
 
@@ -325,6 +327,7 @@ final class SocketService: WebSocketDelegate {
 						}
 						continue
 					}
+					SyncEngine.shared.upsertGroceryItem(item)
 					self.groceriesModel.updateItem(item)
 				}
 			}
@@ -335,6 +338,7 @@ final class SocketService: WebSocketDelegate {
 					if Self.verbose { print("Skipping grocery delete for pending entity:", id) }
 					return
 				}
+				SyncEngine.shared.deleteSyncedGroceryItem(serverID: id)
 				self.groceriesModel.removeItem(withId: id)
 			}
 
@@ -346,6 +350,7 @@ final class SocketService: WebSocketDelegate {
 					if Self.verbose { print("Skipping meal create for pending entity:", meal.id) }
 					return
 				}
+				SyncEngine.shared.upsertMealPlan(meal)
 				self.mealsModel.addMealPlan(meal)
 			}
 
@@ -356,6 +361,7 @@ final class SocketService: WebSocketDelegate {
 					if Self.verbose { print("Skipping meal update for pending entity:", meal.id) }
 					return
 				}
+				SyncEngine.shared.upsertMealPlan(meal)
 				self.mealsModel.updateMealPlan(meal)
 			}
 
@@ -365,6 +371,7 @@ final class SocketService: WebSocketDelegate {
 					if Self.verbose { print("Skipping meal delete for pending entity:", id) }
 					return
 				}
+				SyncEngine.shared.deleteSyncedMealPlan(serverID: id)
 				self.mealsModel.removeMealPlan(withId: id)
 			}
 
@@ -378,6 +385,7 @@ final class SocketService: WebSocketDelegate {
 					}
 					return
 				}
+				SyncEngine.shared.upsertReceipt(receipt)
 				self.receiptsModel.addReceipt(receipt)
 			}
 
@@ -390,6 +398,7 @@ final class SocketService: WebSocketDelegate {
 					}
 					return
 				}
+				SyncEngine.shared.upsertReceipt(receipt)
 				self.receiptsModel.updateReceipt(receipt)
 			}
 
@@ -399,6 +408,7 @@ final class SocketService: WebSocketDelegate {
 					if Self.verbose { print("Skipping receipt delete for pending entity:", id) }
 					return
 				}
+				SyncEngine.shared.deleteSyncedReceipt(serverID: id)
 				self.receiptsModel.deleteReceipt(withId: id)
 			}
 

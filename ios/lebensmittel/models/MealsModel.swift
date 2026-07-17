@@ -92,78 +92,24 @@ class MealsModel {
 
 	func createMealPlan(for dateString: String, meal: String) {
 		errorMessage = nil
-
-		if !ConnectivityMonitor.shared.isOnline {
-			let createdPlan = syncEngine.enqueueMealCreate(
-				date: dateString,
-				mealDescription: meal
-			)
-			mealPlans[createdPlan.date] = createdPlan
-			return
-		}
-
-		Task {
-			do {
-				_ = try await service.createMealPlan(
-					date: dateString,
-					mealDescription: meal
-				)
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-				}
-			}
-		}
+		let createdPlan = syncEngine.enqueueMealCreate(date: dateString, mealDescription: meal)
+		mealPlans[createdPlan.date] = createdPlan
 	}
 
 	func updateMealPlan(for dateString: String, meal: String) {
 		guard let existingPlan = mealPlans[dateString] else { return }
-		if existingPlan.mealDescription == meal { return }  // No change, skip update
+		if existingPlan.mealDescription == meal { return }
 
 		errorMessage = nil
-
-		if !ConnectivityMonitor.shared.isOnline {
-			if let updatedPlan = syncEngine.enqueueMealUpdate(
-				mealID: existingPlan.id,
-				mealDescription: meal
-			) {
-				mealPlans[updatedPlan.date] = updatedPlan
-			}
-			return
-		}
-
-		Task {
-			do {
-				try await service.updateMealPlan(
-					id: existingPlan.id,
-					mealDescription: meal
-				)
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-				}
-			}
+		if let updatedPlan = syncEngine.enqueueMealUpdate(mealID: existingPlan.id, mealDescription: meal) {
+			mealPlans[updatedPlan.date] = updatedPlan
 		}
 	}
 
 	func deleteMealPlan(mealId: String) {
 		errorMessage = nil
-
-		if !ConnectivityMonitor.shared.isOnline {
-			syncEngine.enqueueMealDelete(mealID: mealId)
-			removeMealPlan(withId: mealId)
-			return
-		}
-
-		Task {
-			do {
-				try await service.deleteMealPlan(id: mealId)
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-				}
-			}
-		}
+		syncEngine.enqueueMealDelete(mealID: mealId)
+		removeMealPlan(withId: mealId)
 	}
 
 	/// Returns a "yyyy-MM-dd" string representing the user's local calendar date for the given Date.

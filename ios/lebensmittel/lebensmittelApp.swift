@@ -49,10 +49,7 @@ struct lebensmittelApp: App {
 		let receipts = ReceiptsModel(service: receiptsService)
 		let group = GroupModel.shared
 		group.configure(modelContext: ModelContext(modelContainer))
-		let shopping = ShoppingModel(
-			groceriesModel: groceries,
-			receiptsService: receiptsService
-		)
+		let shopping = ShoppingModel(groceriesModel: groceries)
 
 		_groceriesModel = State(initialValue: groceries)
 		_mealsModel = State(initialValue: meals)

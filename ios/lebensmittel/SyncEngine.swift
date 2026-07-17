@@ -64,10 +64,6 @@ final class SyncEngine {
 			log("Offline, skipping")
 			return
 		}
-		guard SocketService.shared.isConnectedForSync else {
-			log("Socket disconnected, skipping")
-			return
-		}
 		Task {
 			await drainQueue()
 		}
@@ -529,6 +525,85 @@ final class SyncEngine {
 			syncStatus: { $0.syncStatus },
 			loadMerged: loadAllReceipts
 		)
+	}
+
+	// MARK: - Single-Item Upsert (WebSocket)
+
+	func upsertGroceryItem(_ item: GroceryItem) {
+		guard let context = modelContext else { return }
+		if let local = findLocalGroceryItem(byServerID: item.id) {
+			if local.syncStatus == .synced {
+				local.applyServerValues(item)
+			}
+		} else {
+			context.insert(
+				LocalGroceryItem(
+					serverID: item.id,
+					syncStatus: .synced,
+					name: item.name,
+					category: item.category,
+					isNeeded: item.isNeeded,
+					isShoppingChecked: item.isShoppingChecked
+				))
+		}
+		try? context.save()
+	}
+
+	func upsertMealPlan(_ plan: MealPlan) {
+		guard let context = modelContext else { return }
+		if let local = findLocalMealPlan(byServerID: plan.id) {
+			if local.syncStatus == .synced {
+				local.applyServerValues(plan)
+			}
+		} else {
+			context.insert(
+				LocalMealPlan(
+					serverID: plan.id,
+					syncStatus: .synced,
+					date: plan.date,
+					mealDescription: plan.mealDescription
+				))
+		}
+		try? context.save()
+	}
+
+	func upsertReceipt(_ receipt: Receipt) {
+		guard let context = modelContext else { return }
+		if let local = findLocalReceipt(byServerID: receipt.id) {
+			if local.syncStatus == .synced {
+				local.applyServerValues(receipt)
+			}
+		} else {
+			context.insert(
+				LocalReceipt(
+					serverID: receipt.id,
+					syncStatus: .synced,
+					date: receipt.date,
+					totalAmount: receipt.totalAmount,
+					purchasedBy: receipt.purchasedBy,
+					items: receipt.items,
+					notes: receipt.notes
+				))
+		}
+		try? context.save()
+	}
+
+	func deleteSyncedGroceryItem(serverID: String) {
+		guard let context = modelContext else { return }
+		findLocalGroceryItem(byServerID: serverID).map { context.delete($0) }
+		try? context.save()
+	}
+
+	func deleteSyncedMealPlan(serverID: String) {
+		guard let context = modelContext else { return }
+		findLocalMealPlan(byServerID: serverID).map { context.delete($0) }
+		try? context.save()
+	}
+
+	func deleteSyncedReceipt(serverID: String) {
+		guard let context = modelContext else { return }
+		findLocalReceipt(byServerID: serverID).map { context.delete($0) }
+		try? context.save()
 	}
 
 	// MARK: - Load All (offline read path)

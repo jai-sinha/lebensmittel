@@ -90,53 +90,20 @@ class ReceiptsModel {
 
 	func updateReceipt(receipt: Receipt, price: Double, purchasedBy: String, notes: String) {
 		errorMessage = nil
-
-		if !ConnectivityMonitor.shared.isOnline {
-			if let updatedReceipt = syncEngine.enqueueReceiptUpdate(
-				receiptID: receipt.id,
-				totalAmount: price,
-				purchasedBy: purchasedBy,
-				notes: notes
-			) {
-				updateReceipt(updatedReceipt)
-			}
-			return
-		}
-
-		Task {
-			do {
-				try await service.updateReceipt(
-					id: receipt.id,
-					price: price,
-					purchasedBy: purchasedBy,
-					notes: notes
-				)
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-				}
-			}
+		if let updatedReceipt = syncEngine.enqueueReceiptUpdate(
+			receiptID: receipt.id,
+			totalAmount: price,
+			purchasedBy: purchasedBy,
+			notes: notes
+		) {
+			updateReceipt(updatedReceipt)
 		}
 	}
 
 	func deleteReceipt(receiptId: String) {
 		errorMessage = nil
-
-		if !ConnectivityMonitor.shared.isOnline {
-			syncEngine.enqueueReceiptDelete(receiptID: receiptId)
-			deleteReceipt(withId: receiptId)
-			return
-		}
-
-		Task {
-			do {
-				try await service.deleteReceipt(id: receiptId)
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-				}
-			}
-		}
+		syncEngine.enqueueReceiptDelete(receiptID: receiptId)
+		deleteReceipt(withId: receiptId)
 	}
 
 	// MARK: Grouping Helpers
