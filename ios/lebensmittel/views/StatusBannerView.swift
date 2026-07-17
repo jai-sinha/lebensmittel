@@ -7,23 +7,28 @@
 
 import SwiftUI
 
-struct StatusBannerView: View {
-	let systemImage: String
-	let message: String
-	let backgroundColor: Color
+struct StatusIconView: View {
+	private var kind: StatusBannerKind? {
+		switch (
+			ConnectivityMonitor.shared.isOnline, SocketService.shared.isConnectedForSync,
+			SyncEngine.shared.isSyncing
+		) {
+		case (false, _, _):
+			return .offline
+		case (true, true, true):
+			return .syncing
+		case (true, false, _):
+			return .connecting
+		default:
+			return nil
+		}
+	}
 
 	var body: some View {
-		HStack(spacing: 8) {
-			Image(systemName: systemImage)
-			Text(message)
+		if let kind {
+			Image(systemName: kind.systemImage)
+				.foregroundStyle(kind.color)
 		}
-		.font(.footnote)
-		.fontWeight(.medium)
-		.foregroundStyle(.white)
-		.frame(maxWidth: .infinity)
-		.padding(.horizontal, 16)
-		.padding(.vertical, 10)
-		.background(backgroundColor)
 	}
 }
 
@@ -40,15 +45,7 @@ enum StatusBannerKind {
 		}
 	}
 
-	var message: String {
-		switch self {
-		case .offline: "You're offline. Changes will sync when you're back online."
-		case .syncing: "Syncing..."
-		case .connecting: "Connecting..."
-		}
-	}
-
-	var backgroundColor: Color {
+	var color: Color {
 		switch self {
 		case .offline: .red
 		case .syncing: .yellow

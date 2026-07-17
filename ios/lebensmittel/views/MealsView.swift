@@ -91,6 +91,9 @@ struct MealsView: View {
 			.navigationTitle("Meal Planning")
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
+					StatusIconView()
+				}
+				ToolbarItem(placement: .topBarTrailing) {
 					GroupSheetView()
 				}
 			}

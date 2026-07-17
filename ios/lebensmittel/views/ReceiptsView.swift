@@ -64,6 +64,9 @@ struct ReceiptsView: View {
 			.navigationTitle("Receipts")
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
+					StatusIconView()
+				}
+				ToolbarItem(placement: .topBarTrailing) {
 					GroupSheetView()
 				}
 			}

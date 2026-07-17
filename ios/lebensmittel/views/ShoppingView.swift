@@ -65,6 +65,9 @@ struct ShoppingView: View {
 			.navigationTitle("Shopping List")
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
+					StatusIconView()
+				}
+				ToolbarItem(placement: .topBarTrailing) {
 					GroupSheetView()
 				}
 			}
