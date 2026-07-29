@@ -304,11 +304,11 @@ struct AddItemSheet: View {
 					.focused($isAddItemFieldFocused)
 					.textFieldStyle(RoundedBorderTextFieldStyle())
 					.onSubmit {
-						submitItem()
+						model.addItem()
 					}
 
 					Button(model.exactMatch != nil ? "Select" : "Add") {
-						submitItem()
+						model.addItem()
 					}
 					.disabled(model.newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 				}
@@ -318,17 +318,9 @@ struct AddItemSheet: View {
 
 					if model.isSearching && !displayedResults.isEmpty {
 						VStack(alignment: .leading, spacing: 0) {
-							Text("Matches")
-								.font(.caption)
-								.foregroundStyle(.secondary)
-								.padding(.horizontal, 16)
-								.padding(.top, 14)
-								.padding(.bottom, 8)
-
 							ForEach(Array(displayedResults.enumerated()), id: \.element.id) { index, item in
 								Button {
 									model.selectExistingItem(item)
-									dismiss()
 								} label: {
 									HStack {
 										Image(systemName: item.isNeeded ? "checkmark.square.fill" : "square")
@@ -393,10 +385,5 @@ struct AddItemSheet: View {
 		}
 		.presentationDetents([.large])
 		.presentationDragIndicator(.visible)
-	}
-
-	private func submitItem() {
-		model.addItem()
-		dismiss()
 	}
 }
