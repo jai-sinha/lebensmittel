@@ -9,6 +9,19 @@ A/F/C/R
 
 ---
 
+## [3.0.1] - 2026-07-30
+
+Small fixes and cleanups
+
+### Added
+- Swipe to remove-from-list for shopping list items
+
+### Fixed
+- SyncEngine updates while connected
+
+### Changed
+- Connectivity status banner to toolbar
+
 ## [3.0.0] - 2026-06-17
 
 The end of authentication! Things are a lot simpler and a lot smoother to get up and running now, and hopefully no one gets their grocery group hacked into. Also introducing custom categories, allowing users to modify their category list from the default set.
