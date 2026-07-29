@@ -15,7 +15,7 @@ struct GroupSheetView: View {
 		Button {
 			isSheetPresented = true
 		} label: {
-			Image(systemName: "ellipsis.circle")
+			Image(systemName: "gear")
 				.imageScale(.large)
 		}
 		.sheet(isPresented: $isSheetPresented) {

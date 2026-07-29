@@ -277,7 +277,7 @@ final class SyncEngine {
 	/// `isNeeded` and `isShoppingChecked` are the desired final values.
 	/// The caller (GroceriesModel) is responsible for deriving them from its
 	/// GroceryItemField enum (e.g. setting isShoppingChecked = false when
-	/// isNeeded is being toggled, matching the current backend behaviour).
+	/// isNeeded is being toggled, matching the current backend behavior).
 	@discardableResult
 	func enqueueGroceryUpdate(
 		itemID: String,

@@ -171,7 +171,7 @@ struct ShoppingRow: View {
 		HStack {
 			Button(action: toggleChecked) {
 				Label(
-					item.isShoppingChecked ? "Mark as not purchased" : "Mark as purchased",
+					item.isShoppingChecked ? "Mark as not yet in basket" : "Mark as in basket",
 					systemImage: item.isShoppingChecked ? "checkmark.circle.fill" : "circle"
 				)
 				.labelStyle(.iconOnly)
@@ -190,7 +190,7 @@ struct ShoppingRow: View {
 			Button(role: .destructive) {
 				toggleNeeded()
 			} label: {
-				Label("Remove from list", systemImage: "pencil")
+				Label("Remove from list", systemImage: "trash")
 			}
 		}
 	}

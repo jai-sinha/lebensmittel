@@ -40,8 +40,8 @@ enum StatusBannerKind {
 	var systemImage: String {
 		switch self {
 		case .offline: "wifi.slash"
-		case .syncing: "arrow.triangle.2.circlepath"
-		case .connecting: "arrow.clockwise"
+		case .syncing: "arrow.trianglehead.2.clockwise.rotate.90"
+		case .connecting: "wifi.circle"
 		}
 	}
 
