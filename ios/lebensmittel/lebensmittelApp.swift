@@ -137,16 +137,10 @@ struct lebensmittelApp: App {
 				.onChange(of: ConnectivityMonitor.shared.isOnline) { _, isOnline in
 					if isOnline {
 						SocketService.shared.restart()
+						triggerBackgroundReconcile()
 					} else {
 						SocketService.shared.disconnect()
 					}
-				}
-				.onReceive(
-					NotificationCenter.default.publisher(
-						for: Notification.Name("syncEngineDidFinish")
-					)
-				) { _ in
-					triggerBackgroundReconcile()
 				}
 				.onReceive(
 					NotificationCenter.default.publisher(

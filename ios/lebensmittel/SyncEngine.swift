@@ -56,10 +56,6 @@ final class SyncEngine {
 	// MARK: - Sync Trigger
 
 	func syncIfNeeded() {
-		guard !isSyncing else {
-			log("Already syncing, skipping")
-			return
-		}
 		guard ConnectivityMonitor.shared.isOnline else {
 			log("Offline, skipping")
 			return
@@ -72,6 +68,13 @@ final class SyncEngine {
 	// MARK: - Queue Drain
 
 	private func drainQueue() async {
+		guard !isSyncing else { return }
+
+		isSyncing = true
+		defer {
+			isSyncing = false
+		}
+
 		guard let context = modelContext else { return }
 
 		let descriptor = FetchDescriptor<SyncOperation>(
@@ -84,11 +87,6 @@ final class SyncEngine {
 		guard !ops.isEmpty else {
 			log("Queue empty")
 			return
-		}
-
-		isSyncing = true
-		defer {
-			isSyncing = false
 		}
 
 		log("Processing \(ops.count) operation(s)")
@@ -121,8 +119,7 @@ final class SyncEngine {
 			}
 		}
 
-		NotificationCenter.default.post(name: Notification.Name("syncEngineDidFinish"), object: nil)
-		log("Queue drained — posted syncEngineDidFinish")
+		log("Queue drained")
 	}
 
 	// MARK: - Operation Processing
