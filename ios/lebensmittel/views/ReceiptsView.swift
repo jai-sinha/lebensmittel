@@ -100,6 +100,7 @@ struct MonthGroup: View {
 	@Binding var editError: String
 
 	@Environment(ReceiptsModel.self) var model
+	@AppStorage(ClientIdentity.preferredCurrencyDefaultsKey) private var currencyCode = Currency.eur.rawValue
 
 	var body: some View {
 		DisclosureGroup(
@@ -135,7 +136,7 @@ struct MonthGroup: View {
 								.bold()
 							Text(
 								group.userTotals[purchaser] ?? 0.0,
-								format: .currency(code: "EUR").precision(.fractionLength(2))
+								format: .currency(code: currencyCode).precision(.fractionLength(2))
 							)
 							.font(.subheadline)
 							.foregroundStyle(.green)
@@ -166,6 +167,7 @@ struct ReceiptRow: View {
 	@Binding var editError: String
 
 	@Environment(ReceiptsModel.self) var model
+	@AppStorage(ClientIdentity.preferredCurrencyDefaultsKey) private var currencyCode = Currency.eur.rawValue
 
 	var body: some View {
 		DisclosureGroup(
@@ -215,7 +217,7 @@ struct ReceiptRow: View {
 					Spacer()
 					Text(
 						receipt.totalAmount,
-						format: .currency(code: "EUR").precision(.fractionLength(2))
+						format: .currency(code: currencyCode).precision(.fractionLength(2))
 					)
 					.font(.subheadline)
 					.foregroundStyle(.green)

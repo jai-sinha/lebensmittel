@@ -30,6 +30,7 @@ struct GroupSheetView: View {
 private struct GroupManagementSheet: View {
 	@Environment(GroupModel.self) private var groupModel
 	@Environment(\.dismiss) private var dismiss
+	@AppStorage(ClientIdentity.preferredCurrencyDefaultsKey) private var currency: Currency = .eur
 
 	@State private var alertText = ""
 	@State private var showJoinAlert = false
@@ -231,6 +232,21 @@ private struct GroupManagementSheet: View {
 	}
 
 	@ViewBuilder
+	private var preferencesSection: some View {
+		Section {
+			Picker("Currency", selection: $currency) {
+				ForEach(Currency.allCases, id: \.self) { currency in
+					Text(currency.displayName)
+						.tag(currency)
+				}
+			}
+			.pickerStyle(.menu)
+		} header: {
+			Label("Preferences", systemImage: "dollarsign.circle")
+		}
+	}
+
+	@ViewBuilder
 	private var controlsSection: some View {
 		Section {
 			if let activeGroup {
@@ -282,6 +298,7 @@ private struct GroupManagementSheet: View {
 				}
 
 				controlsSection
+				preferencesSection
 			}
 			.listStyle(.insetGrouped)
 			.navigationTitle("Groups")
