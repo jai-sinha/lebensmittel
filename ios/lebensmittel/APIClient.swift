@@ -93,6 +93,7 @@ struct APIClient {
 		let url = AppConfig.apiBaseURL.appendingPathComponent(trimmedPath)
 		var request = URLRequest(url: url)
 		request.httpMethod = method.rawValue
+		request.setValue(ClientIdentity.id, forHTTPHeaderField: "X-Client-ID")
 
 		if let body {
 			request.setValue("application/json", forHTTPHeaderField: "Content-Type")

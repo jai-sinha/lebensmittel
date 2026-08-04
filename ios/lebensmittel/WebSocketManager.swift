@@ -12,6 +12,7 @@ import Starscream
 struct WebSocketMessage: Codable {
 	let event: String
 	let data: AnyCodable
+	let clientId: String?
 }
 
 // Helper to encode/decode Any types in JSON
@@ -264,14 +265,25 @@ final class SocketService: WebSocketDelegate {
 
 		do {
 			let message = try JSONDecoder().decode(WebSocketMessage.self, from: data)
-			handleEvent(message.event, payload: message.data.value)
+			handleEvent(message.event, payload: message.data.value, fromClientID: message.clientId)
 		} catch {
 			if Self.verbose { print("WebSocket decode error:", error, "message:", text) }
 		}
 	}
 
-	private func handleEvent(_ event: String, payload: Any) {
+	private func handleEvent(_ event: String, payload: Any, fromClientID: String?) {
 		if Self.verbose { print("WebSocket event:", event) }
+
+		// Ignore echoes of this device's own mutations. The server tags every
+		// entity create/update/delete broadcast with the originating client's id
+		// (backend websocket.EmitEventWithClientID), so our own actions are only
+		// ever applied via the HTTP response path, never via the echo — this is
+		// what prevents the create echo from racing the id remap. Untagged events
+		// (e.g. grocery_items_updated derived from a receipt) are still applied.
+		if let fromClientID, !fromClientID.isEmpty, fromClientID == ClientIdentity.id {
+			if Self.verbose { print("Ignoring own echo:", event) }
+			return
+		}
 
 		switch event {
 		case "connected":
