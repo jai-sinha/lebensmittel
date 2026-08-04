@@ -94,7 +94,7 @@ func UpdateGroup(c *gin.Context) {
 		return
 	}
 
-	websocket.EmitEvent("group_updated", group, groupID)
+	websocket.EmitEvent("group_updated", group, "", groupID)
 
 	c.JSON(http.StatusOK, group)
 }
@@ -122,7 +122,7 @@ func DeleteGroup(c *gin.Context) {
 		return
 	}
 
-	websocket.EmitEvent("group_deleted", gin.H{"id": groupID}, groupID)
+	websocket.EmitEvent("group_deleted", gin.H{"id": groupID}, "", groupID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Group deleted successfully"})
 }

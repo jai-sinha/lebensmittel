@@ -70,7 +70,7 @@ func CreateGroceryItem(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("grocery_item_created", newItem, groupID)
+	websocket.EmitEvent("grocery_item_created", newItem, c.GetHeader("X-Client-ID"), groupID)
 
 	c.JSON(http.StatusCreated, newItem)
 }
@@ -101,7 +101,7 @@ func UpdateGroceryItem(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("grocery_item_updated", item, item.GroupID)
+	websocket.EmitEvent("grocery_item_updated", item, c.GetHeader("X-Client-ID"), item.GroupID)
 
 	c.JSON(http.StatusOK, item)
 }
@@ -125,7 +125,7 @@ func DeleteGroceryItem(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("grocery_item_deleted", gin.H{"id": itemID}, groupID)
+	websocket.EmitEvent("grocery_item_deleted", gin.H{"id": itemID}, c.GetHeader("X-Client-ID"), groupID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Grocery item deleted successfully"})
 }

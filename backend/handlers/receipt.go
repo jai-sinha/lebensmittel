@@ -84,9 +84,9 @@ func CreateReceipt(c *gin.Context) {
 	}
 
 	// Emit websocket events
-	websocket.EmitEvent("receipt_created", newReceipt, groupID)
+	websocket.EmitEvent("receipt_created", newReceipt, c.GetHeader("X-Client-ID"), groupID)
 	if len(updatedItems) > 0 {
-		websocket.EmitEvent("grocery_items_updated", updatedItems, groupID)
+		websocket.EmitEvent("grocery_items_updated", updatedItems, c.GetHeader("X-Client-ID"), groupID)
 	}
 
 	c.JSON(http.StatusCreated, newReceipt)
@@ -137,7 +137,7 @@ func UpdateReceipt(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("receipt_updated", receipt, receipt.GroupID)
+	websocket.EmitEvent("receipt_updated", receipt, c.GetHeader("X-Client-ID"), receipt.GroupID)
 
 	c.JSON(http.StatusOK, receipt)
 }
@@ -161,7 +161,7 @@ func DeleteReceipt(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("receipt_deleted", gin.H{"id": receiptID}, groupID)
+	websocket.EmitEvent("receipt_deleted", gin.H{"id": receiptID}, c.GetHeader("X-Client-ID"), groupID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Receipt deleted successfully"})
 }

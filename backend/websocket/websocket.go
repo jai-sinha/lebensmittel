@@ -44,8 +44,8 @@ type Client struct {
 
 // BroadcastMessage represents a message to be sent to clients
 type BroadcastMessage struct {
-	Data     []byte
-	GroupIDs []string // Optional: if empty, broadcast to all (legacy)
+	Data    []byte
+	GroupID string
 }
 
 // Subscription represents a request to subscribe to groups
@@ -145,11 +145,9 @@ func (manager *WebSocketManager) Run() {
 			// Use a set to avoid sending duplicate messages to the same connection
 			targetConns := make(map[*websocket.Conn]bool)
 
-			for _, groupID := range message.GroupIDs {
-				if conns, ok := manager.groups[groupID]; ok {
-					for conn := range conns {
-						targetConns[conn] = true
-					}
+			if conns, ok := manager.groups[message.GroupID]; ok {
+				for conn := range conns {
+					targetConns[conn] = true
 				}
 			}
 
@@ -170,12 +168,14 @@ func (manager *WebSocketManager) Run() {
 	}
 }
 
-// EmitEvent sends an event to connected WebSocket clients
-// If groupIDs are provided, it sends only to clients subscribed to those groups
-func (manager *WebSocketManager) EmitEvent(event string, payload any, groupIDs ...string) {
+// EmitEvent sends an event to connected WebSocket clients, scoped by groupID
+func (manager *WebSocketManager) EmitEvent(event string, payload any, clientID string, groupID string) {
 	message := map[string]any{
 		"event": event,
 		"data":  payload,
+	}
+	if clientID != "" {
+		message["clientId"] = clientID
 	}
 
 	msgBytes, err := json.Marshal(message)
@@ -184,10 +184,10 @@ func (manager *WebSocketManager) EmitEvent(event string, payload any, groupIDs .
 		return
 	}
 
-	log.Printf("[socketio] Emitting %s -> %v (Groups: %v)", event, payload, groupIDs)
+	log.Printf("[socketio] Emitting %s -> %v (Groups: %v)", event, payload, groupID)
 
 	select {
-	case manager.broadcast <- BroadcastMessage{Data: msgBytes, GroupIDs: groupIDs}:
+	case manager.broadcast <- BroadcastMessage{Data: msgBytes, GroupID: groupID}:
 		log.Printf("[socketio] Emitted %s", event)
 	default:
 		log.Printf("[socketio] Emit failed for %s: broadcast channel full", event)
@@ -326,9 +326,9 @@ func InitWebSocketManager() {
 }
 
 // EmitEvent is a helper function to emit events using the global manager
-func EmitEvent(event string, payload any, groupIDs ...string) {
+func EmitEvent(event string, payload any, clientID string, groupID string) {
 	if wsManager != nil {
-		wsManager.EmitEvent(event, payload, groupIDs...)
+		wsManager.EmitEvent(event, payload, clientID, groupID)
 	}
 }
 

@@ -65,7 +65,7 @@ func CreateMealPlan(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("meal_plan_created", newMeal, groupID)
+	websocket.EmitEvent("meal_plan_created", newMeal, c.GetHeader("X-Client-ID"), groupID)
 
 	c.JSON(http.StatusCreated, newMeal)
 }
@@ -106,7 +106,7 @@ func UpdateMealPlan(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("meal_plan_updated", meal, meal.GroupID)
+	websocket.EmitEvent("meal_plan_updated", meal, c.GetHeader("X-Client-ID"), meal.GroupID)
 
 	c.JSON(http.StatusOK, meal)
 }
@@ -130,7 +130,7 @@ func DeleteMealPlan(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("meal_plan_deleted", gin.H{"id": mealID}, groupID)
+	websocket.EmitEvent("meal_plan_deleted", gin.H{"id": mealID}, c.GetHeader("X-Client-ID"), groupID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Meal plan deleted successfully"})
 }
