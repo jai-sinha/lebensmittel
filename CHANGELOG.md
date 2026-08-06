@@ -8,10 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 A/F/C/R
 
 ---
+## [3.1.0] - 2026-08-05
 
+Currency setting and big time bug fixes.
+
+### Added
+- User-specific currency controls to settings sheet
+
+### Fixed
+- SyncEngine bug causing double additions and deletions
+- Grocery view search closing after each item
+
+### Changed
+- Some icons and symbols
+
+___
 ## [3.0.1] - 2026-07-30
-
-Small fixes and cleanups
 
 ### Added
 - Swipe to remove-from-list for shopping list items
@@ -22,6 +34,7 @@ Small fixes and cleanups
 ### Changed
 - Connectivity status banner to toolbar
 
+___
 ## [3.0.0] - 2026-06-17
 
 The end of authentication! Things are a lot simpler and a lot smoother to get up and running now, and hopefully no one gets their grocery group hacked into. Also introducing custom categories, allowing users to modify their category list from the default set.

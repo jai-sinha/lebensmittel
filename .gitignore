@@ -8,3 +8,4 @@ Config/
 # xcede build/run config
 *.yml
 *.json
+.xcede
