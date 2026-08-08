@@ -39,6 +39,7 @@ struct ReceiptsView: View {
 					Text("No receipts yet. Create one from the Shopping tab to get started!")
 						.foregroundStyle(.secondary)
 				} else {
+					ScrollViewReader { proxy in
 					List {
 						ForEach(model.groupReceiptsByMonthWithPersonTotals()) { group in
 							MonthGroup(
@@ -52,8 +53,13 @@ struct ReceiptsView: View {
 								editNotes: $editNotes,
 								editError: $editError
 							)
+							.id(group.month)
 						}
 					}
+					.onAppear {
+						proxy.scrollTo(model.currentMonth, anchor: .top)
+					}
+				}
 					.scrollContentBackground(.hidden)
 					.refreshable {
 						model.errorMessage = nil

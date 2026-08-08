@@ -152,8 +152,10 @@ struct MealRowView: View {
 			}
 			TextField(
 				"",
-				text: $text
+				text: $text,
+				axis: .vertical
 			)
+			.lineLimit(1...5)
 			.textFieldStyle(RoundedBorderTextFieldStyle())
 			.foregroundStyle(.primary)
 			.submitLabel(.done)
