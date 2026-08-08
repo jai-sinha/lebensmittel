@@ -54,12 +54,14 @@ struct ReceiptsView: View {
 							)
 						}
 					}
+					.scrollContentBackground(.hidden)
 					.refreshable {
 						model.errorMessage = nil
 						model.fetchReceipts()
 					}
 				}
 			}
+			.tintedBackground(.red, dark: .green, extendsSafeArea: true)
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Receipts")
 			.toolbar {

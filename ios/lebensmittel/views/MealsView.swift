@@ -9,7 +9,6 @@ import SwiftUI
 
 struct MealsView: View {
 	@Environment(MealsModel.self) var model
-	@Environment(\.colorScheme) var colorScheme
 	@State private var mealTexts: [String: String] = [:]
 	@Environment(GroupModel.self) var groupModel
 	@FocusState private var focusedMealDate: String?
@@ -34,7 +33,7 @@ struct MealsView: View {
 					Text("Set a group ID from the top-right menu to start meal planning.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
-						.background(Color(.systemBackground))
+						.tintedBackground(.green, dark: .red, extendsSafeArea: true)
 				} else if let errorMessage = model.errorMessage {
 					InlineErrorView(message: errorMessage)
 						.refreshable {
@@ -42,9 +41,6 @@ struct MealsView: View {
 							model.fetchMealPlans()
 						}
 				} else {
-					(colorScheme == .dark
-						? Color(.systemBackground) : Color(.secondarySystemBackground))
-						.ignoresSafeArea()
 					ScrollViewReader { proxy in
 						ScrollView {
 							VStack(spacing: -4) {
@@ -75,6 +71,7 @@ struct MealsView: View {
 					}
 				}
 			}
+			.tintedBackground(.green, dark: .red, extendsSafeArea: true)
 			.contentShape(Rectangle())
 			.onTapGesture {
 				focusedMealDate = nil

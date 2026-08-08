@@ -11,7 +11,6 @@ import SwiftUI
 struct ShoppingView: View {
 	@Environment(ShoppingModel.self) var model
 	@Environment(GroupModel.self) var groupModel
-	@Environment(\.colorScheme) var colorScheme
 	// Checkout dialog state
 	@State private var showCheckoutSheet = false
 
@@ -22,7 +21,7 @@ struct ShoppingView: View {
 					Text("Set a group ID from the top-right menu to see your shopping list.")
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
-						.background(Color(.systemBackground))
+						.tintedBackground(.orange, dark: .blue)
 				} else {
 					if model.isLoading {
 						ProgressView("Loading shopping list...")
@@ -33,10 +32,11 @@ struct ShoppingView: View {
 								model.fetchGroceries()
 							}
 					} else {
-						List {
-							listContent
-						}
-						.refreshable {
+List {
+						listContent
+					}
+					.scrollContentBackground(.hidden)
+					.refreshable {
 							model.errorMessage = nil
 							model.fetchGroceries()
 						}
@@ -58,9 +58,6 @@ struct ShoppingView: View {
 					.clipShape(.rect(cornerRadius: 10))
 				}
 			}
-			.background(
-				colorScheme == .dark ? Color(.systemBackground) : Color(.secondarySystemBackground)
-			)
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Shopping List")
 			.toolbar {
@@ -82,7 +79,7 @@ struct ShoppingView: View {
 					}
 				)
 			}
-
+			.tintedBackground(.orange, dark: .blue, extendsSafeArea: true)
 		}
 	}
 

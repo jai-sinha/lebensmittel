@@ -17,7 +17,8 @@ struct GroceriesView: View {
 		NavigationStack {
 			VStack {
 				if model.isLoading {
-					ProgressView("Loading groceries...").background(Color(.systemBackground))
+					ProgressView("Loading groceries...")
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
 				} else if let errorMessage = model.errorMessage {
 					InlineErrorView(message: errorMessage)
 						.refreshable {
@@ -29,7 +30,7 @@ struct GroceriesView: View {
 						Text("Set a group ID from the top-right menu to start adding groceries.")
 							.foregroundStyle(.secondary)
 							.frame(maxWidth: .infinity, maxHeight: .infinity)
-							.background(Color(.systemBackground))
+							.tintedBackground(.yellow, dark: .purple)
 					} else {
 						VStack(spacing: 0) {
 							// Sticky category pills row
@@ -90,9 +91,7 @@ struct GroceriesView: View {
 					}
 				}
 			}
-			.background(
-				colorScheme == .dark ? Color(.systemBackground) : Color(.secondarySystemBackground)
-			)
+			.tintedBackground(.yellow, dark: .purple, extendsSafeArea: true)
 
 			.navigationBarTitleDisplayMode(.inline)
 			.navigationTitle("Groceries")
