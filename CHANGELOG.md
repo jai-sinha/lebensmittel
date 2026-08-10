@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 A/F/C/R
 
 ---
+## [3.2.0] - 2026-08-10
+
+Added colors to the main views, and some small QOL changes
+
+### Added
+- Color backgrounds for the main views
+
+### Fixed
+- Line wrapping for meal rows
+- Receipt view opening on current month
+
+___
+
 ## [3.1.0] - 2026-08-05
 
 Currency setting and big time bug fixes.

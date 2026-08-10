@@ -2,9 +2,6 @@
 bin/
 .env
 
-# dev/prod scheme config
-Config/
-
 # xcede build/run config
 *.yml
 *.json
