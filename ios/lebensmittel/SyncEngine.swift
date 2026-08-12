@@ -135,7 +135,6 @@ final class SyncEngine {
 	private func processCreate(_ op: SyncOperation) async throws {
 		guard let context = modelContext else { return }
 
-		let serverID: String
 		switch op.entityType {
 		case .grocery:
 			guard let groceriesService else { throw SyncError.notConfigured }
@@ -153,7 +152,6 @@ final class SyncEngine {
 			}
 
 			let created = try await groceriesService.createGroceryItem(payload)
-			serverID = created.id
 			findLocalGroceryItem(byLocalID: op.localID)?.applyServerValues(created)
 
 		case .meal:
@@ -170,7 +168,6 @@ final class SyncEngine {
 			}
 
 			let created = try await mealsService.createMealPlan(payload)
-			serverID = created.id
 			findLocalMealPlan(byLocalID: op.localID)?.applyServerValues(created)
 
 		case .receipt:
@@ -186,25 +183,22 @@ final class SyncEngine {
 					notes: payload.notes
 				)
 			)
-			serverID = created.id
 			findLocalReceipt(byLocalID: op.localID)?.applyServerValues(created)
 		}
-
-		fetchOps(for: op.localID, after: op.createdAt).forEach { $0.serverID = serverID }
 
 		try? context.save()
 	}
 
 	private func processUpdate(_ op: SyncOperation) async throws {
 		guard let context = modelContext else { return }
-		guard let serverID = op.serverID else { throw SyncError.missingServerID }
+		let id = op.localID.uuidString
 
 		switch op.entityType {
 		case .grocery:
 			guard let groceriesService else { throw SyncError.notConfigured }
 			let payload = try JSONDecoder().decode(GroceryPatchPayload.self, from: op.payload)
 			try await groceriesService.updateGroceryItem(
-				id: serverID,
+				id: id,
 				isNeeded: payload.isNeeded,
 				isShoppingChecked: payload.isShoppingChecked
 			)
@@ -213,7 +207,7 @@ final class SyncEngine {
 			guard let mealsService else { throw SyncError.notConfigured }
 			let payload = try JSONDecoder().decode(MealPatchPayload.self, from: op.payload)
 			try await mealsService.updateMealPlan(
-				id: serverID,
+				id: id,
 				mealDescription: payload.mealDescription
 			)
 
@@ -221,36 +215,32 @@ final class SyncEngine {
 			guard let receiptsService else { throw SyncError.notConfigured }
 			let payload = try JSONDecoder().decode(ReceiptPatchPayload.self, from: op.payload)
 			try await receiptsService.updateReceipt(
-				id: serverID,
+				id: id,
 				price: payload.totalAmount,
 				purchasedBy: payload.purchasedBy,
 				notes: payload.notes ?? ""
 			)
 		}
 
-		markSynced(entityType: op.entityType, serverID: serverID)
+		markSynced(entityType: op.entityType, localID: op.localID)
 		try? context.save()
 	}
 
 	private func processDelete(_ op: SyncOperation) async throws {
 		guard let context = modelContext else { return }
 
-		guard let serverID = op.serverID else {
-			deleteLocalEntity(entityType: op.entityType, localID: op.localID)
-			try? context.save()
-			return
-		}
+		let id = op.localID.uuidString
 
 		switch op.entityType {
 		case .grocery:
 			guard let groceriesService else { throw SyncError.notConfigured }
-			try await groceriesService.deleteGroceryItem(id: serverID)
+			try await groceriesService.deleteGroceryItem(id: id)
 		case .meal:
 			guard let mealsService else { throw SyncError.notConfigured }
-			try await mealsService.deleteMealPlan(id: serverID)
+			try await mealsService.deleteMealPlan(id: id)
 		case .receipt:
 			guard let receiptsService else { throw SyncError.notConfigured }
-			try await receiptsService.deleteReceipt(id: serverID)
+			try await receiptsService.deleteReceipt(id: id)
 		}
 
 		deleteLocalEntity(entityType: op.entityType, localID: op.localID)
@@ -285,7 +275,7 @@ final class SyncEngine {
 		isNeeded: Bool,
 		isShoppingChecked: Bool
 	) -> GroceryItem? {
-		guard let local = findLocalGroceryItem(byModelID: itemID) else { return nil }
+		guard let local = findLocalGroceryItem(byLocalID: UUID(uuidString: itemID)!) else { return nil }
 
 		local.isNeeded = isNeeded
 		local.isShoppingChecked = isShoppingChecked
@@ -298,7 +288,6 @@ final class SyncEngine {
 			local.syncStatus = .pendingUpdate
 			upsertUpdateOp(
 				for: local.localID,
-				serverID: local.serverID,
 				entityType: .grocery,
 				payloadDict: ["isNeeded": isNeeded, "isShoppingChecked": isShoppingChecked]
 			)
@@ -307,7 +296,7 @@ final class SyncEngine {
 	}
 
 	func enqueueGroceryDelete(itemID: String) {
-		guard let local = findLocalGroceryItem(byModelID: itemID) else { return }
+		guard let local = findLocalGroceryItem(byLocalID: UUID(uuidString: itemID)!) else { return }
 		enqueueDelete(for: local, entityType: .grocery)
 	}
 
@@ -334,7 +323,7 @@ final class SyncEngine {
 		mealID: String,
 		mealDescription: String
 	) -> MealPlan? {
-		guard let local = findLocalMealPlan(byModelID: mealID) else { return nil }
+		guard let local = findLocalMealPlan(byLocalID: UUID(uuidString: mealID)!) else { return nil }
 
 		local.mealDescription = mealDescription
 
@@ -346,7 +335,6 @@ final class SyncEngine {
 			local.syncStatus = .pendingUpdate
 			upsertUpdateOp(
 				for: local.localID,
-				serverID: local.serverID,
 				entityType: .meal,
 				payloadDict: ["mealDescription": mealDescription]
 			)
@@ -355,7 +343,7 @@ final class SyncEngine {
 	}
 
 	func enqueueMealDelete(mealID: String) {
-		guard let local = findLocalMealPlan(byModelID: mealID) else { return }
+		guard let local = findLocalMealPlan(byLocalID: UUID(uuidString: mealID)!) else { return }
 		enqueueDelete(for: local, entityType: .meal)
 	}
 
@@ -395,14 +383,13 @@ final class SyncEngine {
 		// but websocket ordering is not guaranteed, so we still need queued PATCHes
 		// to clear the local pending state deterministically after reconnect.
 		for item in checkedItems {
-			guard let grocery = findLocalGroceryItem(byModelID: item.id) else { continue }
+			guard let grocery = findLocalGroceryItem(byLocalID: UUID(uuidString: item.id)!) else { continue }
 			grocery.isNeeded = false
 			grocery.isShoppingChecked = false
 			if grocery.syncStatus == .synced {
 				grocery.syncStatus = .pendingUpdate
 				upsertUpdateOp(
 					for: grocery.localID,
-					serverID: grocery.serverID,
 					entityType: .grocery,
 					payloadDict: ["isNeeded": false, "isShoppingChecked": false]
 				)
@@ -436,7 +423,7 @@ final class SyncEngine {
 		purchasedBy: String,
 		notes: String
 	) -> Receipt? {
-		guard let local = findLocalReceipt(byModelID: receiptID) else { return nil }
+		guard let local = findLocalReceipt(byLocalID: UUID(uuidString: receiptID)!) else { return nil }
 
 		local.totalAmount = totalAmount
 		local.purchasedBy = purchasedBy
@@ -448,7 +435,6 @@ final class SyncEngine {
 			local.syncStatus = .pendingUpdate
 			upsertUpdateOp(
 				for: local.localID,
-				serverID: local.serverID,
 				entityType: .receipt,
 				payloadDict: [
 					"totalAmount": totalAmount,
@@ -461,7 +447,7 @@ final class SyncEngine {
 	}
 
 	func enqueueReceiptDelete(receiptID: String) {
-		guard let local = findLocalReceipt(byModelID: receiptID) else { return }
+		guard let local = findLocalReceipt(byLocalID: UUID(uuidString: receiptID)!) else { return }
 		enqueueDelete(for: local, entityType: .receipt)
 	}
 
@@ -471,10 +457,10 @@ final class SyncEngine {
 	func mergeGroceries(_ serverItems: [GroceryItem]) -> [GroceryItem] {
 		mergeServerItems(
 			serverItems,
-			findLocal: { self.findLocalGroceryItem(byServerID: $0.id) },
+			findLocal: { self.findLocalGroceryItem(byLocalID: UUID(uuidString: $0.id)!) },
 			insertLocal: { item in
 				LocalGroceryItem(
-					serverID: item.id,
+					localID: UUID(uuidString: item.id)!,
 					syncStatus: .synced,
 					name: item.name,
 					category: item.category,
@@ -483,7 +469,7 @@ final class SyncEngine {
 				)
 			},
 			applyServerValues: { local, item in local.applyServerValues(item) },
-			serverID: { $0.serverID },
+			localID: { $0.localID },
 			syncStatus: { $0.syncStatus },
 			loadMerged: loadAllGroceryItems
 		)
@@ -493,17 +479,17 @@ final class SyncEngine {
 	func mergeMealPlans(_ serverPlans: [MealPlan]) -> [MealPlan] {
 		mergeServerItems(
 			serverPlans,
-			findLocal: { self.findLocalMealPlan(byServerID: $0.id) },
+			findLocal: { self.findLocalMealPlan(byLocalID: UUID(uuidString: $0.id)!) },
 			insertLocal: { plan in
 				LocalMealPlan(
-					serverID: plan.id,
+					localID: UUID(uuidString: plan.id)!,
 					syncStatus: .synced,
 					date: plan.date,
 					mealDescription: plan.mealDescription
 				)
 			},
 			applyServerValues: { local, plan in local.applyServerValues(plan) },
-			serverID: { $0.serverID },
+			localID: { $0.localID },
 			syncStatus: { $0.syncStatus },
 			loadMerged: loadAllMealPlans
 		)
@@ -513,10 +499,10 @@ final class SyncEngine {
 	func mergeReceipts(_ serverReceipts: [Receipt]) -> [Receipt] {
 		mergeServerItems(
 			serverReceipts,
-			findLocal: { self.findLocalReceipt(byServerID: $0.id) },
+			findLocal: { self.findLocalReceipt(byLocalID: UUID(uuidString: $0.id)!) },
 			insertLocal: { receipt in
 				LocalReceipt(
-					serverID: receipt.id,
+					localID: UUID(uuidString: receipt.id)!,
 					syncStatus: .synced,
 					date: receipt.date,
 					totalAmount: receipt.totalAmount,
@@ -526,7 +512,7 @@ final class SyncEngine {
 				)
 			},
 			applyServerValues: { local, receipt in local.applyServerValues(receipt) },
-			serverID: { $0.serverID },
+			localID: { $0.localID },
 			syncStatus: { $0.syncStatus },
 			loadMerged: loadAllReceipts
 		)
@@ -536,14 +522,14 @@ final class SyncEngine {
 
 	func upsertGroceryItem(_ item: GroceryItem) {
 		guard let context = modelContext else { return }
-		if let local = findLocalGroceryItem(byServerID: item.id) {
+		if let local = findLocalGroceryItem(byLocalID: UUID(uuidString: item.id)!) {
 			if local.syncStatus == .synced {
 				local.applyServerValues(item)
 			}
 		} else {
 			context.insert(
 				LocalGroceryItem(
-					serverID: item.id,
+					localID: UUID(uuidString: item.id)!,
 					syncStatus: .synced,
 					name: item.name,
 					category: item.category,
@@ -556,14 +542,14 @@ final class SyncEngine {
 
 	func upsertMealPlan(_ plan: MealPlan) {
 		guard let context = modelContext else { return }
-		if let local = findLocalMealPlan(byServerID: plan.id) {
+		if let local = findLocalMealPlan(byLocalID: UUID(uuidString: plan.id)!) {
 			if local.syncStatus == .synced {
 				local.applyServerValues(plan)
 			}
 		} else {
 			context.insert(
 				LocalMealPlan(
-					serverID: plan.id,
+					localID: UUID(uuidString: plan.id)!,
 					syncStatus: .synced,
 					date: plan.date,
 					mealDescription: plan.mealDescription
@@ -574,14 +560,14 @@ final class SyncEngine {
 
 	func upsertReceipt(_ receipt: Receipt) {
 		guard let context = modelContext else { return }
-		if let local = findLocalReceipt(byServerID: receipt.id) {
+		if let local = findLocalReceipt(byLocalID: UUID(uuidString: receipt.id)!) {
 			if local.syncStatus == .synced {
 				local.applyServerValues(receipt)
 			}
 		} else {
 			context.insert(
 				LocalReceipt(
-					serverID: receipt.id,
+					localID: UUID(uuidString: receipt.id)!,
 					syncStatus: .synced,
 					date: receipt.date,
 					totalAmount: receipt.totalAmount,
@@ -593,21 +579,21 @@ final class SyncEngine {
 		try? context.save()
 	}
 
-	func deleteSyncedGroceryItem(serverID: String) {
+	func deleteSyncedGroceryItem(id: String) {
 		guard let context = modelContext else { return }
-		findLocalGroceryItem(byServerID: serverID).map { context.delete($0) }
+		findLocalGroceryItem(byLocalID: UUID(uuidString: id)!).map { context.delete($0) }
 		try? context.save()
 	}
 
-	func deleteSyncedMealPlan(serverID: String) {
+	func deleteSyncedMealPlan(id: String) {
 		guard let context = modelContext else { return }
-		findLocalMealPlan(byServerID: serverID).map { context.delete($0) }
+		findLocalMealPlan(byLocalID: UUID(uuidString: id)!).map { context.delete($0) }
 		try? context.save()
 	}
 
-	func deleteSyncedReceipt(serverID: String) {
+	func deleteSyncedReceipt(id: String) {
 		guard let context = modelContext else { return }
-		findLocalReceipt(byServerID: serverID).map { context.delete($0) }
+		findLocalReceipt(byLocalID: UUID(uuidString: id)!).map { context.delete($0) }
 		try? context.save()
 	}
 
@@ -633,12 +619,13 @@ final class SyncEngine {
 
 	// MARK: - WebSocket Filter
 
-	/// True when there is at least one pending SyncOperation for the given server ID.
+	/// True when there is at least one pending SyncOperation for the given entity ID.
 	/// Used by SocketService to skip incoming events for locally-dirty entities.
-	func hasPendingOperation(serverID: String) -> Bool {
+	func hasPendingOperation(id: String) -> Bool {
 		guard let context = modelContext else { return false }
+		guard let uuid = UUID(uuidString: id) else { return false }
 		let all = (try? context.fetch(FetchDescriptor<SyncOperation>())) ?? []
-		return all.contains { $0.serverID == serverID }
+		return all.contains { $0.localID == uuid }
 	}
 
 	// MARK: - Local Reset
@@ -663,12 +650,12 @@ final class SyncEngine {
 		findLocal: (Server) -> Local?,
 		insertLocal: (Server) -> Local,
 		applyServerValues: (Local, Server) -> Void,
-		serverID: (Local) -> String?,
+		localID: (Local) -> UUID,
 		syncStatus: (Local) -> SyncStatus,
 		loadMerged: () -> [Output]
 	) -> [Output] where Server: Identifiable, Server.ID == String {
 		guard let context = modelContext else { return serverItems as? [Output] ?? [] }
-		let serverIDs = Set(serverItems.map(\.id))
+		let serverUUIDs = Set(serverItems.compactMap { UUID(uuidString: $0.id) })
 
 		for item in serverItems {
 			if let local = findLocal(item) {
@@ -681,9 +668,8 @@ final class SyncEngine {
 		}
 
 		for local in loadAll(Local.self) {
-			guard let id = serverID(local) else { continue }
 			guard syncStatus(local) == .synced else { continue }
-			if !serverIDs.contains(id) {
+			if !serverUUIDs.contains(localID(local)) {
 				context.delete(local)
 			}
 		}
@@ -716,7 +702,6 @@ final class SyncEngine {
 	/// Replacing prevents queue bloat when the user edits an entity multiple times offline.
 	private func upsertUpdateOp(
 		for localID: UUID,
-		serverID: String?,
 		entityType: SyncEntityType,
 		payloadDict: [String: Any]
 	) {
@@ -758,8 +743,7 @@ final class SyncEngine {
 					entityType: entityType,
 					operationType: .update,
 					payload: payloadData,
-					localID: localID,
-					serverID: serverID
+					localID: localID
 				))
 		}
 		persist()
@@ -768,7 +752,6 @@ final class SyncEngine {
 	private func enqueueDelete(for local: LocalGroceryItem, entityType: SyncEntityType) {
 		enqueueDelete(
 			localID: local.localID,
-			serverID: local.serverID,
 			syncStatus: local.syncStatus,
 			deleteLocal: { context in context.delete(local) },
 			markPendingDelete: { local.syncStatus = .pendingDelete },
@@ -779,7 +762,6 @@ final class SyncEngine {
 	private func enqueueDelete(for local: LocalMealPlan, entityType: SyncEntityType) {
 		enqueueDelete(
 			localID: local.localID,
-			serverID: local.serverID,
 			syncStatus: local.syncStatus,
 			deleteLocal: { context in context.delete(local) },
 			markPendingDelete: { local.syncStatus = .pendingDelete },
@@ -790,7 +772,6 @@ final class SyncEngine {
 	private func enqueueDelete(for local: LocalReceipt, entityType: SyncEntityType) {
 		enqueueDelete(
 			localID: local.localID,
-			serverID: local.serverID,
 			syncStatus: local.syncStatus,
 			deleteLocal: { context in context.delete(local) },
 			markPendingDelete: { local.syncStatus = .pendingDelete },
@@ -800,7 +781,6 @@ final class SyncEngine {
 
 	private func enqueueDelete(
 		localID: UUID,
-		serverID: String?,
 		syncStatus: SyncStatus,
 		deleteLocal: (ModelContext) -> Void,
 		markPendingDelete: () -> Void,
@@ -819,8 +799,7 @@ final class SyncEngine {
 					entityType: entityType,
 					operationType: .delete,
 					payload: Data(),
-					localID: localID,
-					serverID: serverID
+					localID: localID
 				))
 		}
 		persist()
@@ -843,11 +822,11 @@ final class SyncEngine {
 		return all.filter { $0.localID == localID && $0.createdAt > date }
 	}
 
-	private func markSynced(entityType: SyncEntityType, serverID: String) {
+	private func markSynced(entityType: SyncEntityType, localID: UUID) {
 		switch entityType {
-		case .grocery: findLocalGroceryItem(byServerID: serverID)?.syncStatus = .synced
-		case .meal: findLocalMealPlan(byServerID: serverID)?.syncStatus = .synced
-		case .receipt: findLocalReceipt(byServerID: serverID)?.syncStatus = .synced
+		case .grocery: findLocalGroceryItem(byLocalID: localID)?.syncStatus = .synced
+		case .meal: findLocalMealPlan(byLocalID: localID)?.syncStatus = .synced
+		case .receipt: findLocalReceipt(byLocalID: localID)?.syncStatus = .synced
 		}
 	}
 
@@ -889,48 +868,12 @@ final class SyncEngine {
 		fetchFirst(FetchDescriptor<LocalGroceryItem>(predicate: #Predicate { $0.localID == id }))
 	}
 
-	private func findLocalGroceryItem(byServerID id: String) -> LocalGroceryItem? {
-		let sid: String? = id
-		return fetchFirst(
-			FetchDescriptor<LocalGroceryItem>(predicate: #Predicate { $0.serverID == sid })
-		)
-	}
-
-	private func findLocalGroceryItem(byModelID id: String) -> LocalGroceryItem? {
-		findLocalGroceryItem(byServerID: id)
-			?? UUID(uuidString: id).flatMap { findLocalGroceryItem(byLocalID: $0) }
-	}
-
 	private func findLocalMealPlan(byLocalID id: UUID) -> LocalMealPlan? {
 		fetchFirst(FetchDescriptor<LocalMealPlan>(predicate: #Predicate { $0.localID == id }))
 	}
 
-	private func findLocalMealPlan(byServerID id: String) -> LocalMealPlan? {
-		let sid: String? = id
-		return fetchFirst(
-			FetchDescriptor<LocalMealPlan>(predicate: #Predicate { $0.serverID == sid })
-		)
-	}
-
-	private func findLocalMealPlan(byModelID id: String) -> LocalMealPlan? {
-		findLocalMealPlan(byServerID: id)
-			?? UUID(uuidString: id).flatMap { findLocalMealPlan(byLocalID: $0) }
-	}
-
 	private func findLocalReceipt(byLocalID id: UUID) -> LocalReceipt? {
 		fetchFirst(FetchDescriptor<LocalReceipt>(predicate: #Predicate { $0.localID == id }))
-	}
-
-	private func findLocalReceipt(byServerID id: String) -> LocalReceipt? {
-		let sid: String? = id
-		return fetchFirst(
-			FetchDescriptor<LocalReceipt>(predicate: #Predicate { $0.serverID == sid })
-		)
-	}
-
-	private func findLocalReceipt(byModelID id: String) -> LocalReceipt? {
-		findLocalReceipt(byServerID: id)
-			?? UUID(uuidString: id).flatMap { findLocalReceipt(byLocalID: $0) }
 	}
 
 	private func loadAll<T: PersistentModel>(_ type: T.Type) -> [T] {

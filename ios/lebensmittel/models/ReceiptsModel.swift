@@ -82,6 +82,7 @@ class ReceiptsModel {
 			} catch {
 				await MainActor.run {
 					self.errorMessage = UserFacingError.message(for: error)
+					self.receipts = self.syncEngine.loadAllReceipts()
 					self.isLoading = false
 				}
 			}

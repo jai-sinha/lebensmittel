@@ -306,7 +306,7 @@ final class SocketService: WebSocketDelegate {
 		case "grocery_item_created":
 			decode(payload, as: GroceryItem.self) { item in
 				if Self.verbose { print("grocery created:", item) }
-				guard !SyncEngine.shared.hasPendingOperation(serverID: item.id) else {
+				guard !SyncEngine.shared.hasPendingOperation(id: item.id) else {
 					if Self.verbose {
 						print("Skipping grocery create for pending entity:", item.id)
 					}
@@ -319,7 +319,7 @@ final class SocketService: WebSocketDelegate {
 		case "grocery_item_updated":
 			decode(payload, as: GroceryItem.self) { item in
 				if Self.verbose { print("grocery updated:", item) }
-				guard !SyncEngine.shared.hasPendingOperation(serverID: item.id) else {
+				guard !SyncEngine.shared.hasPendingOperation(id: item.id) else {
 					if Self.verbose {
 						print("Skipping grocery update for pending entity:", item.id)
 					}
@@ -333,7 +333,7 @@ final class SocketService: WebSocketDelegate {
 			decode(payload, as: [GroceryItem].self) { items in
 				if Self.verbose { print("groceries updated:", items) }
 				for item in items {
-					guard !SyncEngine.shared.hasPendingOperation(serverID: item.id) else {
+					guard !SyncEngine.shared.hasPendingOperation(id: item.id) else {
 						if Self.verbose {
 							print("Skipping grocery batch update for pending entity:", item.id)
 						}
@@ -346,11 +346,11 @@ final class SocketService: WebSocketDelegate {
 
 		case "grocery_item_deleted":
 			if let dict = payload as? [String: Any], let id = dict["id"] as? String {
-				guard !SyncEngine.shared.hasPendingOperation(serverID: id) else {
+				guard !SyncEngine.shared.hasPendingOperation(id: id) else {
 					if Self.verbose { print("Skipping grocery delete for pending entity:", id) }
 					return
 				}
-				SyncEngine.shared.deleteSyncedGroceryItem(serverID: id)
+				SyncEngine.shared.deleteSyncedGroceryItem(id: id)
 				self.groceriesModel.removeItem(withId: id)
 			}
 
@@ -358,7 +358,7 @@ final class SocketService: WebSocketDelegate {
 		case "meal_plan_created":
 			decode(payload, as: MealPlan.self) { meal in
 				if Self.verbose { print("meal created:", meal) }
-				guard !SyncEngine.shared.hasPendingOperation(serverID: meal.id) else {
+				guard !SyncEngine.shared.hasPendingOperation(id: meal.id) else {
 					if Self.verbose { print("Skipping meal create for pending entity:", meal.id) }
 					return
 				}
@@ -369,7 +369,7 @@ final class SocketService: WebSocketDelegate {
 		case "meal_plan_updated":
 			decode(payload, as: MealPlan.self) { meal in
 				if Self.verbose { print("meal updated:", meal) }
-				guard !SyncEngine.shared.hasPendingOperation(serverID: meal.id) else {
+				guard !SyncEngine.shared.hasPendingOperation(id: meal.id) else {
 					if Self.verbose { print("Skipping meal update for pending entity:", meal.id) }
 					return
 				}
@@ -379,11 +379,11 @@ final class SocketService: WebSocketDelegate {
 
 		case "meal_plan_deleted":
 			if let dict = payload as? [String: Any], let id = dict["id"] as? String {
-				guard !SyncEngine.shared.hasPendingOperation(serverID: id) else {
+				guard !SyncEngine.shared.hasPendingOperation(id: id) else {
 					if Self.verbose { print("Skipping meal delete for pending entity:", id) }
 					return
 				}
-				SyncEngine.shared.deleteSyncedMealPlan(serverID: id)
+				SyncEngine.shared.deleteSyncedMealPlan(id: id)
 				self.mealsModel.removeMealPlan(withId: id)
 			}
 
@@ -391,7 +391,7 @@ final class SocketService: WebSocketDelegate {
 		case "receipt_created":
 			decode(payload, as: Receipt.self) { receipt in
 				if Self.verbose { print("receipt created:", receipt) }
-				guard !SyncEngine.shared.hasPendingOperation(serverID: receipt.id) else {
+				guard !SyncEngine.shared.hasPendingOperation(id: receipt.id) else {
 					if Self.verbose {
 						print("Skipping receipt create for pending entity:", receipt.id)
 					}
@@ -404,7 +404,7 @@ final class SocketService: WebSocketDelegate {
 		case "receipt_updated":
 			decode(payload, as: Receipt.self) { receipt in
 				if Self.verbose { print("receipt updated:", receipt) }
-				guard !SyncEngine.shared.hasPendingOperation(serverID: receipt.id) else {
+				guard !SyncEngine.shared.hasPendingOperation(id: receipt.id) else {
 					if Self.verbose {
 						print("Skipping receipt update for pending entity:", receipt.id)
 					}
@@ -416,11 +416,11 @@ final class SocketService: WebSocketDelegate {
 
 		case "receipt_deleted":
 			if let dict = payload as? [String: Any], let id = dict["id"] as? String {
-				guard !SyncEngine.shared.hasPendingOperation(serverID: id) else {
+				guard !SyncEngine.shared.hasPendingOperation(id: id) else {
 					if Self.verbose { print("Skipping receipt delete for pending entity:", id) }
 					return
 				}
-				SyncEngine.shared.deleteSyncedReceipt(serverID: id)
+				SyncEngine.shared.deleteSyncedReceipt(id: id)
 				self.receiptsModel.deleteReceipt(withId: id)
 			}
 

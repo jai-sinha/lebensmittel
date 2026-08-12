@@ -21,6 +21,7 @@ struct lebensmittelApp: App {
 	@State private var shoppingModel: ShoppingModel
 	@State private var groupModel: GroupModel
 	@State private var hasStartedSession = false
+	@State private var isReconciling = false
 
 	init() {
 		do {
@@ -88,7 +89,10 @@ struct lebensmittelApp: App {
 	}
 
 	private func triggerBackgroundReconcile() {
+		guard !isReconciling else { return }
+		isReconciling = true
 		Task {
+			defer { isReconciling = false }
 			await groupModel.bootstrap()
 			SocketService.shared.ensureConnected()
 			await backgroundReconcile()
@@ -112,6 +116,7 @@ struct lebensmittelApp: App {
 
 			SyncEngine.shared.syncIfNeeded()
 		} catch {
+			print(error)
 			// Local state is already shown; no further action needed here.
 		}
 	}

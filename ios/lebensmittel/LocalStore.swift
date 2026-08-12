@@ -145,7 +145,6 @@ enum SyncOperationType: String, Codable {
 @Model
 final class LocalGroceryItem {
 	@Attribute(.unique) var localID: UUID
-	var serverID: String?
 	var syncStatus: SyncStatus
 
 	var name: String
@@ -155,7 +154,6 @@ final class LocalGroceryItem {
 
 	init(
 		localID: UUID = UUID(),
-		serverID: String? = nil,
 		syncStatus: SyncStatus = .pendingCreate,
 		name: String,
 		category: String,
@@ -163,7 +161,6 @@ final class LocalGroceryItem {
 		isShoppingChecked: Bool = false
 	) {
 		self.localID = localID
-		self.serverID = serverID
 		self.syncStatus = syncStatus
 		self.name = name
 		self.category = category
@@ -172,10 +169,9 @@ final class LocalGroceryItem {
 	}
 
 	/// Converts to the shared GroceryItem DTO used by views.
-	/// Pending-create items use localID.uuidString as a temporary id.
 	func toGroceryItem() -> GroceryItem {
 		GroceryItem(
-			id: serverID ?? localID.uuidString,
+			id: localID.uuidString,
 			name: name,
 			category: category,
 			isNeeded: isNeeded,
@@ -185,7 +181,6 @@ final class LocalGroceryItem {
 
 	/// Overwrites mutable fields from a server-fetched GroceryItem and marks as synced.
 	func applyServerValues(_ item: GroceryItem) {
-		serverID = item.id
 		name = item.name
 		category = item.category
 		isNeeded = item.isNeeded
@@ -199,7 +194,6 @@ final class LocalGroceryItem {
 @Model
 final class LocalMealPlan {
 	@Attribute(.unique) var localID: UUID
-	var serverID: String?
 	var syncStatus: SyncStatus
 
 	/// Stored as "yyyy-MM-dd", matching the server wire format.
@@ -208,13 +202,11 @@ final class LocalMealPlan {
 
 	init(
 		localID: UUID = UUID(),
-		serverID: String? = nil,
 		syncStatus: SyncStatus = .pendingCreate,
 		date: String,
 		mealDescription: String
 	) {
 		self.localID = localID
-		self.serverID = serverID
 		self.syncStatus = syncStatus
 		self.date = date
 		self.mealDescription = mealDescription
@@ -223,7 +215,7 @@ final class LocalMealPlan {
 	/// Converts to the shared MealPlan DTO used by views.
 	func toMealPlan() -> MealPlan {
 		MealPlan(
-			id: serverID ?? localID.uuidString,
+			id: localID.uuidString,
 			date: date,
 			mealDescription: mealDescription
 		)
@@ -231,7 +223,6 @@ final class LocalMealPlan {
 
 	/// Overwrites mutable fields from a server-fetched MealPlan and marks as synced.
 	func applyServerValues(_ plan: MealPlan) {
-		serverID = plan.id
 		date = plan.date
 		mealDescription = plan.mealDescription
 		syncStatus = .synced
@@ -243,7 +234,6 @@ final class LocalMealPlan {
 @Model
 final class LocalReceipt {
 	@Attribute(.unique) var localID: UUID
-	var serverID: String?
 	var syncStatus: SyncStatus
 
 	/// Stored as "yyyy-MM-dd", matching the server wire format.
@@ -255,7 +245,6 @@ final class LocalReceipt {
 
 	init(
 		localID: UUID = UUID(),
-		serverID: String? = nil,
 		syncStatus: SyncStatus = .pendingCreate,
 		date: String,
 		totalAmount: Double,
@@ -264,7 +253,6 @@ final class LocalReceipt {
 		notes: String? = nil
 	) {
 		self.localID = localID
-		self.serverID = serverID
 		self.syncStatus = syncStatus
 		self.date = date
 		self.totalAmount = totalAmount
@@ -276,7 +264,7 @@ final class LocalReceipt {
 	/// Converts to the shared Receipt DTO used by views.
 	func toReceipt() -> Receipt {
 		Receipt(
-			id: serverID ?? localID.uuidString,
+			id: localID.uuidString,
 			date: date,
 			totalAmount: totalAmount,
 			purchasedBy: purchasedBy,
@@ -287,7 +275,6 @@ final class LocalReceipt {
 
 	/// Overwrites mutable fields from a server-fetched Receipt and marks as synced.
 	func applyServerValues(_ receipt: Receipt) {
-		serverID = receipt.id
 		date = receipt.date
 		totalAmount = receipt.totalAmount
 		purchasedBy = receipt.purchasedBy
@@ -308,8 +295,6 @@ final class SyncOperation {
 	var payload: Data
 	/// References the LocalXxx entity that owns this operation.
 	var localID: UUID
-	/// nil for creates until the server response is received and remapped.
-	var serverID: String?
 	var createdAt: Date
 	var retryCount: Int
 	var lastError: String?
@@ -320,7 +305,6 @@ final class SyncOperation {
 		operationType: SyncOperationType,
 		payload: Data,
 		localID: UUID,
-		serverID: String? = nil,
 		createdAt: Date = Date(),
 		retryCount: Int = 0,
 		lastError: String? = nil
@@ -330,7 +314,6 @@ final class SyncOperation {
 		self.operationType = operationType
 		self.payload = payload
 		self.localID = localID
-		self.serverID = serverID
 		self.createdAt = createdAt
 		self.retryCount = retryCount
 		self.lastError = lastError
