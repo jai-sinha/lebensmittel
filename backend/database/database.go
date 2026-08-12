@@ -69,10 +69,20 @@ func GetAllGroceryItems(ctx context.Context, groupID string) ([]models.GroceryIt
 	return items, rows.Err()
 }
 
-func CreateGroceryItem(ctx context.Context, item *models.GroceryItem) error {
+func CreateGroceryItem(ctx context.Context, item *models.GroceryItem) (*models.GroceryItem, bool, error) {
+	// if this ID already exists, this is a retry of a create whose response was lost
+	if existing, err := GetGroceryItemByID(ctx, item.ID, item.GroupID); err != nil {
+		return nil, false, err
+	} else if existing != nil {
+		return existing, false, nil
+	}
+
 	query := `INSERT INTO grocery_items (id, name, category, is_needed, is_shopping_checked, group_id) VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := db.Exec(ctx, query, item.ID, item.Name, item.Category, item.IsNeeded, item.IsShoppingChecked, item.GroupID)
-	return err
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to create grocery item: %w", err)
+	}
+	return item, true, nil
 }
 
 func UpdateGroceryItem(ctx context.Context, id, groupID string, updates map[string]any) (*models.GroceryItem, error) {
@@ -156,13 +166,20 @@ func GetAllMealPlans(ctx context.Context, groupID string) ([]models.MealPlan, er
 	return meals, rows.Err()
 }
 
-func CreateMealPlan(ctx context.Context, meal *models.MealPlan) error {
+func CreateMealPlan(ctx context.Context, meal *models.MealPlan) (*models.MealPlan, bool, error) {
+	// if this ID already exists, this is a retry of a create whose response was lost
+	if existing, err := GetMealPlanByID(ctx, meal.ID, meal.GroupID); err != nil {
+		return nil, false, err
+	} else if existing != nil {
+		return existing, false, nil
+	}
+
 	query := `INSERT INTO meal_plans (id, date, meal_description, group_id) VALUES ($1, $2, $3, $4)`
 	_, err := db.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription, meal.GroupID)
 	if err != nil {
-		return fmt.Errorf("failed to create meal plan: %w", err)
+		return nil, false, fmt.Errorf("failed to create meal plan: %w", err)
 	}
-	return nil
+	return meal, true, nil
 }
 
 func UpdateMealPlan(ctx context.Context, id, groupID string, updates map[string]any) (*models.MealPlan, error) {
@@ -244,30 +261,37 @@ func GetAllReceipts(ctx context.Context, groupID string) ([]models.Receipt, erro
 	return receipts, rows.Err()
 }
 
-func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.GroceryItem, error) {
+func CreateReceipt(ctx context.Context, receipt *models.Receipt) (*models.Receipt, []models.GroceryItem, bool, error) {
+	// if this ID already exists, this is a retry of a create whose response was lost
+	if existing, err := GetReceiptByID(ctx, receipt.ID, receipt.GroupID); err != nil {
+		return nil, nil, false, err
+	} else if existing != nil {
+		return existing, []models.GroceryItem{}, false, nil
+	}
+
 	tx, err := db.Begin(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		return nil, nil, false, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
 	if len(receipt.ItemsList) == 0 {
 		// No items provided, skip grocery item updates
 		if err := receipt.SetItems(receipt.ItemsList); err != nil {
-			return nil, fmt.Errorf("failed to set receipt items: %w", err)
+			return nil, nil, false, fmt.Errorf("failed to set receipt items: %w", err)
 		}
 
 		query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 		_, err = tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create receipt: %w", err)
+			return nil, nil, false, fmt.Errorf("failed to create receipt: %w", err)
 		}
 
 		if err := tx.Commit(ctx); err != nil {
-			return nil, err
+			return nil, nil, false, err
 		}
 
-		return []models.GroceryItem{}, nil
+		return receipt, []models.GroceryItem{}, true, nil
 	}
 
 	// Get items that are needed and checked for the receipt.
@@ -276,7 +300,7 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 		WHERE is_needed = true AND is_shopping_checked = true AND group_id = $1`
 	rows, err := tx.Query(ctx, itemsQuery, receipt.GroupID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query grocery items for receipt: %w", err)
+		return nil, nil, false, fmt.Errorf("failed to query grocery items for receipt: %w", err)
 	}
 	defer rows.Close()
 
@@ -290,7 +314,7 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 		var item models.GroceryItem
 		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan grocery item for receipt: %w", err)
+			return nil, nil, false, fmt.Errorf("failed to scan grocery item for receipt: %w", err)
 		}
 
 		if _, ok := explicitItemSet[item.Name]; !ok {
@@ -302,11 +326,11 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 		updatedItems = append(updatedItems, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed iterating grocery items for receipt: %w", err)
+		return nil, nil, false, fmt.Errorf("failed iterating grocery items for receipt: %w", err)
 	}
 
 	if err := receipt.SetItems(receipt.ItemsList); err != nil {
-		return nil, fmt.Errorf("failed to set explicit receipt items: %w", err)
+		return nil, nil, false, fmt.Errorf("failed to set explicit receipt items: %w", err)
 	}
 
 	itemIDs := make([]string, 0, len(updatedItems))
@@ -319,21 +343,21 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) ([]models.Groce
 						WHERE id = ANY($1) AND group_id = $2`
 		_, err = tx.Exec(ctx, updateQuery, itemIDs, receipt.GroupID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update explicit grocery items: %w", err)
+			return nil, nil, false, fmt.Errorf("failed to update explicit grocery items: %w", err)
 		}
 	}
 
 	query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err = tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create receipt: %w", err)
+		return nil, nil, false, fmt.Errorf("failed to create receipt: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, nil, false, err
 	}
 
-	return updatedItems, nil
+	return receipt, updatedItems, true, nil
 }
 
 func UpdateReceipt(ctx context.Context, id, groupID string, updates map[string]any) (*models.Receipt, error) {

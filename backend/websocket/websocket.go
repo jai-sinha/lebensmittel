@@ -206,7 +206,7 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 	initialGroups := make(map[string]bool)
 
 	if requestedGroups != "" {
-		for _, gid := range strings.Split(requestedGroups, ",") {
+		for gid := range strings.SplitSeq(requestedGroups, ",") {
 			gid = strings.TrimSpace(gid)
 			if gid != "" {
 				initialGroups[gid] = true

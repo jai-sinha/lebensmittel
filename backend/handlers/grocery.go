@@ -34,6 +34,7 @@ func GetGroceryItems(c *gin.Context) {
 
 func CreateGroceryItem(c *gin.Context) {
 	var data struct {
+		ID                string `json:"id"`
 		Name              string `json:"name" binding:"required"`
 		Category          string `json:"category" binding:"required"`
 		IsNeeded          *bool  `json:"isNeeded"`
@@ -62,17 +63,30 @@ func CreateGroceryItem(c *gin.Context) {
 		isShoppingChecked = *data.IsShoppingChecked
 	}
 
-	newItem := models.NewGroceryItem(data.Name, data.Category, isNeeded, isShoppingChecked, groupID)
+	newItem := &models.GroceryItem{
+		ID:                data.ID,
+		Name:              data.Name,
+		Category:          data.Category,
+		IsNeeded:          isNeeded,
+		IsShoppingChecked: isShoppingChecked,
+		GroupID:           groupID,
+	}
 
-	if err := database.CreateGroceryItem(c.Request.Context(), newItem); err != nil {
+	created, isNew, err := database.CreateGroceryItem(c.Request.Context(), newItem)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Emit websocket event
-	websocket.EmitEvent("grocery_item_created", newItem, c.GetHeader("X-Client-ID"), groupID)
+	if !isNew {
+		// A previous attempt already created this item; return it without re-emitting.
+		c.JSON(http.StatusOK, created)
+		return
+	}
 
-	c.JSON(http.StatusCreated, newItem)
+	websocket.EmitEvent("grocery_item_created", created, c.GetHeader("X-Client-ID"), groupID)
+
+	c.JSON(http.StatusCreated, created)
 }
 
 func UpdateGroceryItem(c *gin.Context) {

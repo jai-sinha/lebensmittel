@@ -55,7 +55,7 @@ func GenerateExampleData(c *gin.Context, groupID string) error {
 
 	for _, item := range groceryItems {
 		newItem := models.NewGroceryItem(item.Name, item.Category, false, false, groupID)
-		if err := database.CreateGroceryItem(c, newItem); err != nil {
+		if _, _, err := database.CreateGroceryItem(c, newItem); err != nil {
 			return fmt.Errorf("failed to create grocery item %s: %w", item.Name, err)
 		}
 	}
@@ -69,12 +69,12 @@ func GenerateExampleData(c *gin.Context, groupID string) error {
 	}
 	notes := "Example receipt, feel free to delete me!"
 	receipt := models.NewReceipt(now, 42.67, "Default", receiptItems, &notes, groupID)
-	if _, err := database.CreateReceipt(c, receipt); err != nil {
+	if _, _, _, err := database.CreateReceipt(c, receipt); err != nil {
 		return fmt.Errorf("failed to create receipt: %w", err)
 	}
 
 	mealPlan := models.NewMealPlan(now, "Example Meal", groupID)
-	if err := database.CreateMealPlan(c, mealPlan); err != nil {
+	if _, _, err := database.CreateMealPlan(c, mealPlan); err != nil {
 		return fmt.Errorf("failed to create meal plan: %w", err)
 	}
 

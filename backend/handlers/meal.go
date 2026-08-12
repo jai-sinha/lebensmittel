@@ -35,6 +35,7 @@ func GetMealPlans(c *gin.Context) {
 
 func CreateMealPlan(c *gin.Context) {
 	var data struct {
+		ID              string `json:"id"`
 		Date            string `json:"date" binding:"required"`
 		MealDescription string `json:"mealDescription" binding:"required"`
 	}
@@ -57,17 +58,28 @@ func CreateMealPlan(c *gin.Context) {
 		return
 	}
 
-	newMeal := models.NewMealPlan(date, data.MealDescription, groupID)
+	newMeal := &models.MealPlan{
+		ID:              data.ID,
+		Date:            date,
+		MealDescription: data.MealDescription,
+		GroupID:         groupID,
+	}
 
-	if err := database.CreateMealPlan(c.Request.Context(), newMeal); err != nil {
+	created, isNew, err := database.CreateMealPlan(c.Request.Context(), newMeal)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Emit websocket event
-	websocket.EmitEvent("meal_plan_created", newMeal, c.GetHeader("X-Client-ID"), groupID)
+	if !isNew {
+		// A previous attempt already created this meal plan; return it without re-emitting.
+		c.JSON(http.StatusOK, created)
+		return
+	}
 
-	c.JSON(http.StatusCreated, newMeal)
+	websocket.EmitEvent("meal_plan_created", created, c.GetHeader("X-Client-ID"), groupID)
+
+	c.JSON(http.StatusCreated, created)
 }
 
 func UpdateMealPlan(c *gin.Context) {

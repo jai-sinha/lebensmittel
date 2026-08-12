@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/lebensmittel/backend/database"
 	"github.com/lebensmittel/backend/models"
 	"github.com/lebensmittel/backend/websocket"
@@ -37,6 +36,7 @@ func GetReceipts(c *gin.Context) {
 
 func CreateReceipt(c *gin.Context) {
 	var data struct {
+		ID          string   `json:"id"`
 		Date        string   `json:"date" binding:"required"`
 		TotalAmount *float64 `json:"totalAmount" binding:"required"`
 		PurchasedBy string   `json:"purchasedBy" binding:"required"`
@@ -68,7 +68,7 @@ func CreateReceipt(c *gin.Context) {
 	}
 
 	newReceipt := &models.Receipt{
-		ID:          uuid.New().String(),
+		ID:          data.ID,
 		Date:        date,
 		TotalAmount: *data.TotalAmount,
 		PurchasedBy: data.PurchasedBy,
@@ -77,19 +77,24 @@ func CreateReceipt(c *gin.Context) {
 		GroupID:     groupID,
 	}
 
-	updatedItems, err := database.CreateReceipt(c.Request.Context(), newReceipt)
+	created, updatedItems, isNew, err := database.CreateReceipt(c.Request.Context(), newReceipt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Emit websocket events
-	websocket.EmitEvent("receipt_created", newReceipt, c.GetHeader("X-Client-ID"), groupID)
+	if !isNew {
+		// A previous attempt already created this receipt; return it without re-emitting.
+		c.JSON(http.StatusOK, created)
+		return
+	}
+
+	websocket.EmitEvent("receipt_created", created, c.GetHeader("X-Client-ID"), groupID)
 	if len(updatedItems) > 0 {
 		websocket.EmitEvent("grocery_items_updated", updatedItems, c.GetHeader("X-Client-ID"), groupID)
 	}
 
-	c.JSON(http.StatusCreated, newReceipt)
+	c.JSON(http.StatusCreated, created)
 }
 
 func UpdateReceipt(c *gin.Context) {
