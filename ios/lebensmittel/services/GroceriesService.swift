@@ -19,8 +19,7 @@ struct GroceriesService: GroceriesServicing {
 		return response.groceryItems
 	}
 
-	func createGroceryItem(name: String, category: String) async throws -> GroceryItem {
-		let item = NewGroceryItem(name: name, category: category)
+	func createGroceryItem(_ item: NewGroceryItem) async throws -> GroceryItem {
 		return try await client.send(
 			path: "/grocery-items",
 			method: .POST,

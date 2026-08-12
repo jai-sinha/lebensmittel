@@ -142,6 +142,7 @@ final class SyncEngine {
 			let payload: NewGroceryItem
 			if let local = findLocalGroceryItem(byLocalID: op.localID) {
 				payload = NewGroceryItem(
+					id: op.localID.uuidString,
 					name: local.name,
 					category: local.category,
 					isNeeded: local.isNeeded,
@@ -151,10 +152,7 @@ final class SyncEngine {
 				payload = try JSONDecoder().decode(NewGroceryItem.self, from: op.payload)
 			}
 
-			let created = try await groceriesService.createGroceryItem(
-				name: payload.name,
-				category: payload.category
-			)
+			let created = try await groceriesService.createGroceryItem(payload)
 			serverID = created.id
 			findLocalGroceryItem(byLocalID: op.localID)?.applyServerValues(created)
 
@@ -162,15 +160,16 @@ final class SyncEngine {
 			guard let mealsService else { throw SyncError.notConfigured }
 			let payload: NewMealPlan
 			if let local = findLocalMealPlan(byLocalID: op.localID) {
-				payload = NewMealPlan(date: local.date, mealDescription: local.mealDescription)
+				payload = NewMealPlan(
+					id: op.localID.uuidString,
+					date: local.date,
+					mealDescription: local.mealDescription
+				)
 			} else {
 				payload = try JSONDecoder().decode(NewMealPlan.self, from: op.payload)
 			}
 
-			let created = try await mealsService.createMealPlan(
-				date: payload.date,
-				mealDescription: payload.mealDescription
-			)
+			let created = try await mealsService.createMealPlan(payload)
 			serverID = created.id
 			findLocalMealPlan(byLocalID: op.localID)?.applyServerValues(created)
 
@@ -179,6 +178,7 @@ final class SyncEngine {
 			let payload = try JSONDecoder().decode(ReceiptCreatePayload.self, from: op.payload)
 			let created = try await receiptsService.createReceipt(
 				NewReceipt(
+					id: op.localID.uuidString,
 					date: payload.date,
 					totalAmount: payload.totalAmount,
 					purchasedBy: payload.purchasedBy,
@@ -266,7 +266,11 @@ final class SyncEngine {
 			local,
 			entityType: .grocery,
 			localID: local.localID,
-			encodable: NewGroceryItem(name: name, category: category)
+			encodable: NewGroceryItem(
+				id: local.localID.uuidString,
+				name: name,
+				category: category
+			)
 		)
 		return local.toGroceryItem()
 	}
@@ -316,7 +320,11 @@ final class SyncEngine {
 			local,
 			entityType: .meal,
 			localID: local.localID,
-			encodable: NewMealPlan(date: date, mealDescription: mealDescription)
+			encodable: NewMealPlan(
+				id: local.localID.uuidString,
+				date: date,
+				mealDescription: mealDescription
+			)
 		)
 		return local.toMealPlan()
 	}

@@ -19,6 +19,7 @@ struct Receipt: Identifiable, Codable {
 }
 
 struct NewReceipt: Codable {
+	var id: String
 	var date: String
 	var totalAmount: Double
 	var purchasedBy: String
@@ -54,6 +55,7 @@ struct GroceryItemsResponse: Codable {
 }
 
 struct NewGroceryItem: Codable {
+	var id: String
 	var name: String
 	var category: String
 	var isNeeded: Bool = true
@@ -69,6 +71,7 @@ struct MealPlan: Identifiable, Codable, Equatable {
 }
 
 struct NewMealPlan: Codable {
+	var id: String
 	var date: String
 	var mealDescription: String
 }
@@ -126,13 +129,15 @@ struct AuthGroup: Identifiable, Codable, Hashable, Sendable {
 		from container: KeyedDecodingContainer<CodingKeys>
 	) throws -> [String] {
 		if let values = try container.decodeIfPresent([String].self, forKey: key) {
-			return values
+			return
+				values
 				.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
 				.filter { !$0.isEmpty }
 		}
 
 		if let value = try container.decodeIfPresent(String.self, forKey: key) {
-			return value
+			return
+				value
 				.components(separatedBy: ",")
 				.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
 				.filter { !$0.isEmpty }

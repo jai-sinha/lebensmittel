@@ -9,7 +9,7 @@ import Foundation
 
 protocol GroceriesServicing: Sendable {
 	func fetchGroceries() async throws -> [GroceryItem]
-	func createGroceryItem(name: String, category: String) async throws -> GroceryItem
+	func createGroceryItem(_ item: NewGroceryItem) async throws -> GroceryItem
 	func updateGroceryItem(
 		id: String,
 		isNeeded: Bool,
@@ -20,7 +20,7 @@ protocol GroceriesServicing: Sendable {
 
 protocol MealsServicing: Sendable {
 	func fetchMealPlans() async throws -> [MealPlan]
-	func createMealPlan(date: String, mealDescription: String) async throws -> MealPlan
+	func createMealPlan(_ plan: NewMealPlan) async throws -> MealPlan
 	func updateMealPlan(id: String, mealDescription: String) async throws
 	func deleteMealPlan(id: String) async throws
 }
