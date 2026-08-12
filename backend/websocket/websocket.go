@@ -169,13 +169,10 @@ func (manager *WebSocketManager) Run() {
 }
 
 // EmitEvent sends an event to connected WebSocket clients, scoped by groupID
-func (manager *WebSocketManager) EmitEvent(event string, payload any, clientID string, groupID string) {
+func (manager *WebSocketManager) EmitEvent(event string, payload any, groupID string) {
 	message := map[string]any{
 		"event": event,
 		"data":  payload,
-	}
-	if clientID != "" {
-		message["clientId"] = clientID
 	}
 
 	msgBytes, err := json.Marshal(message)
@@ -326,9 +323,9 @@ func InitWebSocketManager() {
 }
 
 // EmitEvent is a helper function to emit events using the global manager
-func EmitEvent(event string, payload any, clientID string, groupID string) {
+func EmitEvent(event string, payload any, groupID string) {
 	if wsManager != nil {
-		wsManager.EmitEvent(event, payload, clientID, groupID)
+		wsManager.EmitEvent(event, payload, groupID)
 	}
 }
 
