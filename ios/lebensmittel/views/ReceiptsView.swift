@@ -35,15 +35,32 @@ struct ReceiptsView: View {
 						.foregroundStyle(.secondary)
 						.frame(maxWidth: .infinity, maxHeight: .infinity)
 						.background(Color(.systemBackground))
-				} else if model.receipts.isEmpty {
-					Text("No receipts yet. Create one from the Shopping tab to get started!")
-						.foregroundStyle(.secondary)
 				} else {
 					ScrollViewReader { proxy in
 					List {
-						ForEach(model.groupReceiptsByMonthWithPersonTotals()) { group in
-							MonthGroup(
-								group: group,
+						if model.receipts.isEmpty {
+							Section {
+								HStack {
+									Spacer()
+									VStack(spacing: 8) {
+										Image(systemName: "receipt")
+											.imageScale(.large)
+											.font(.largeTitle)
+											.foregroundStyle(.gray)
+										Text("No receipts yet!")
+											.foregroundStyle(.gray)
+										Text("Create one from the Shopping tab to get started")
+											.font(.caption)
+											.foregroundStyle(.gray)
+									}
+									Spacer()
+								}
+								.padding(.vertical, 40)
+							}
+						} else {
+							ForEach(model.groupReceiptsByMonthWithPersonTotals()) { group in
+								MonthGroup(
+									group: group,
 								expandedMonths: $expandedMonths,
 								expandedReceiptIDs: $expandedReceiptIDs,
 								showEditSheet: $showEditSheet,
@@ -53,7 +70,8 @@ struct ReceiptsView: View {
 								editNotes: $editNotes,
 								editError: $editError
 							)
-							.id(group.month)
+								.id(group.month)
+							}
 						}
 					}
 					.onAppear {
