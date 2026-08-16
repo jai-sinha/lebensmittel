@@ -14,6 +14,9 @@ import SwiftData
 /// Feature models call the enqueueXxx methods; SyncEngine handles persistence,
 /// the durable operation queue, conflict resolution, ID remapping, and retries.
 ///
+/// The per-entity lifecycle lives in three generic `EntityStore` instances
+/// (grocery / meal / receipt); this shell owns the operation queue drain and
+/// routes each operation to the store for its entity type.
 
 @MainActor
 final class SyncEngine {
@@ -26,15 +29,12 @@ final class SyncEngine {
 	private var groceriesService: (any GroceriesServicing)?
 	private var mealsService: (any MealsServicing)?
 	private var receiptsService: (any ReceiptsServicing)?
-	private(set) var isSyncing = false
 
-	private struct ReceiptCreatePayload: Codable {
-		let date: String
-		let totalAmount: Double
-		let purchasedBy: String
-		let notes: String?
-		let items: [String]
-	}
+	private var groceryStore: EntityStore<GroceryItem, LocalGroceryItem>?
+	private var mealStore: EntityStore<MealPlan, LocalMealPlan>?
+	private var receiptStore: EntityStore<Receipt, LocalReceipt>?
+
+	private(set) var isSyncing = false
 
 	private init() {}
 
@@ -50,6 +50,98 @@ final class SyncEngine {
 		self.groceriesService = groceriesService
 		self.mealsService = mealsService
 		self.receiptsService = receiptsService
+
+		let onMutate: () -> Void = { [weak self] in self?.syncIfNeeded() }
+
+		groceryStore = EntityStore(
+			entityType: .grocery,
+			modelContext: modelContext,
+			makeCreatePayload: { local in
+				Self.encode(
+					NewGroceryItem(
+						id: local.localID.uuidString,
+						name: local.name,
+						category: local.category,
+						isNeeded: local.isNeeded,
+						isShoppingChecked: local.isShoppingChecked
+					))
+			},
+			createRemote: { data in
+				let payload = try JSONDecoder().decode(NewGroceryItem.self, from: data)
+				return try await groceriesService.createGroceryItem(payload)
+			},
+			updateRemote: { id, data in
+				let payload = try JSONDecoder().decode(GroceryPatchPayload.self, from: data)
+				try await groceriesService.updateGroceryItem(
+					id: id,
+					isNeeded: payload.isNeeded,
+					isShoppingChecked: payload.isShoppingChecked
+				)
+			},
+			deleteRemote: { id in
+				try await groceriesService.deleteGroceryItem(id: id)
+			},
+			onMutate: onMutate
+		)
+
+		mealStore = EntityStore(
+			entityType: .meal,
+			modelContext: modelContext,
+			makeCreatePayload: { local in
+				Self.encode(
+					NewMealPlan(
+						id: local.localID.uuidString,
+						date: local.date,
+						mealDescription: local.mealDescription
+					))
+			},
+			createRemote: { data in
+				let payload = try JSONDecoder().decode(NewMealPlan.self, from: data)
+				return try await mealsService.createMealPlan(payload)
+			},
+			updateRemote: { id, data in
+				let payload = try JSONDecoder().decode(MealPatchPayload.self, from: data)
+				try await mealsService.updateMealPlan(id: id, mealDescription: payload.mealDescription)
+			},
+			deleteRemote: { id in
+				try await mealsService.deleteMealPlan(id: id)
+			},
+			onMutate: onMutate
+		)
+
+		receiptStore = EntityStore(
+			entityType: .receipt,
+			modelContext: modelContext,
+			makeCreatePayload: { local in
+				Self.encode(
+					NewReceipt(
+						id: local.localID.uuidString,
+						date: local.date,
+						totalAmount: local.totalAmount,
+						purchasedBy: local.purchasedBy,
+						items: local.items,
+						notes: local.notes
+					))
+			},
+			createRemote: { data in
+				let payload = try JSONDecoder().decode(NewReceipt.self, from: data)
+				return try await receiptsService.createReceipt(payload)
+			},
+			updateRemote: { id, data in
+				let payload = try JSONDecoder().decode(ReceiptPatchPayload.self, from: data)
+				try await receiptsService.updateReceipt(
+					id: id,
+					price: payload.totalAmount,
+					purchasedBy: payload.purchasedBy,
+					notes: payload.notes ?? ""
+				)
+			},
+			deleteRemote: { id in
+				try await receiptsService.deleteReceipt(id: id)
+			},
+			onMutate: onMutate
+		)
+
 		log("Configured")
 	}
 
@@ -125,126 +217,17 @@ final class SyncEngine {
 	// MARK: - Operation Processing
 
 	private func process(_ op: SyncOperation) async throws {
-		switch op.operationType {
-		case .create: try await processCreate(op)
-		case .update: try await processUpdate(op)
-		case .delete: try await processDelete(op)
-		}
-	}
-
-	private func processCreate(_ op: SyncOperation) async throws {
-		guard let context = modelContext else { return }
-
 		switch op.entityType {
 		case .grocery:
-			guard let groceriesService else { throw SyncError.notConfigured }
-			let payload: NewGroceryItem
-			if let local = findLocalGroceryItem(byLocalID: op.localID) {
-				payload = NewGroceryItem(
-					id: op.localID.uuidString,
-					name: local.name,
-					category: local.category,
-					isNeeded: local.isNeeded,
-					isShoppingChecked: local.isShoppingChecked
-				)
-			} else {
-				payload = try JSONDecoder().decode(NewGroceryItem.self, from: op.payload)
-			}
-
-			let created = try await groceriesService.createGroceryItem(payload)
-			findLocalGroceryItem(byLocalID: op.localID)?.applyServerValues(created)
-
+			guard let groceryStore else { throw SyncError.notConfigured }
+			try await groceryStore.process(op)
 		case .meal:
-			guard let mealsService else { throw SyncError.notConfigured }
-			let payload: NewMealPlan
-			if let local = findLocalMealPlan(byLocalID: op.localID) {
-				payload = NewMealPlan(
-					id: op.localID.uuidString,
-					date: local.date,
-					mealDescription: local.mealDescription
-				)
-			} else {
-				payload = try JSONDecoder().decode(NewMealPlan.self, from: op.payload)
-			}
-
-			let created = try await mealsService.createMealPlan(payload)
-			findLocalMealPlan(byLocalID: op.localID)?.applyServerValues(created)
-
+			guard let mealStore else { throw SyncError.notConfigured }
+			try await mealStore.process(op)
 		case .receipt:
-			guard let receiptsService else { throw SyncError.notConfigured }
-			let payload = try JSONDecoder().decode(ReceiptCreatePayload.self, from: op.payload)
-			let created = try await receiptsService.createReceipt(
-				NewReceipt(
-					id: op.localID.uuidString,
-					date: payload.date,
-					totalAmount: payload.totalAmount,
-					purchasedBy: payload.purchasedBy,
-					items: payload.items,
-					notes: payload.notes
-				)
-			)
-			findLocalReceipt(byLocalID: op.localID)?.applyServerValues(created)
+			guard let receiptStore else { throw SyncError.notConfigured }
+			try await receiptStore.process(op)
 		}
-
-		try? context.save()
-	}
-
-	private func processUpdate(_ op: SyncOperation) async throws {
-		guard let context = modelContext else { return }
-		let id = op.localID.uuidString
-
-		switch op.entityType {
-		case .grocery:
-			guard let groceriesService else { throw SyncError.notConfigured }
-			let payload = try JSONDecoder().decode(GroceryPatchPayload.self, from: op.payload)
-			try await groceriesService.updateGroceryItem(
-				id: id,
-				isNeeded: payload.isNeeded,
-				isShoppingChecked: payload.isShoppingChecked
-			)
-
-		case .meal:
-			guard let mealsService else { throw SyncError.notConfigured }
-			let payload = try JSONDecoder().decode(MealPatchPayload.self, from: op.payload)
-			try await mealsService.updateMealPlan(
-				id: id,
-				mealDescription: payload.mealDescription
-			)
-
-		case .receipt:
-			guard let receiptsService else { throw SyncError.notConfigured }
-			let payload = try JSONDecoder().decode(ReceiptPatchPayload.self, from: op.payload)
-			try await receiptsService.updateReceipt(
-				id: id,
-				price: payload.totalAmount,
-				purchasedBy: payload.purchasedBy,
-				notes: payload.notes ?? ""
-			)
-		}
-
-		markSynced(entityType: op.entityType, localID: op.localID)
-		try? context.save()
-	}
-
-	private func processDelete(_ op: SyncOperation) async throws {
-		guard let context = modelContext else { return }
-
-		let id = op.localID.uuidString
-
-		switch op.entityType {
-		case .grocery:
-			guard let groceriesService else { throw SyncError.notConfigured }
-			try await groceriesService.deleteGroceryItem(id: id)
-		case .meal:
-			guard let mealsService else { throw SyncError.notConfigured }
-			try await mealsService.deleteMealPlan(id: id)
-		case .receipt:
-			guard let receiptsService else { throw SyncError.notConfigured }
-			try await receiptsService.deleteReceipt(id: id)
-		}
-
-		deleteLocalEntity(entityType: op.entityType, localID: op.localID)
-		try? context.save()
 	}
 
 	// MARK: - Enqueue: Groceries
@@ -252,17 +235,7 @@ final class SyncEngine {
 	@discardableResult
 	func enqueueGroceryCreate(name: String, category: String) -> GroceryItem {
 		let local = LocalGroceryItem(name: name, category: category)
-		insertCreate(
-			local,
-			entityType: .grocery,
-			localID: local.localID,
-			encodable: NewGroceryItem(
-				id: local.localID.uuidString,
-				name: name,
-				category: category
-			)
-		)
-		return local.toGroceryItem()
+		return groceryStore?.enqueueCreate(local: local) ?? local.toGroceryItem()
 	}
 
 	/// `isNeeded` and `isShoppingChecked` are the desired final values.
@@ -275,29 +248,19 @@ final class SyncEngine {
 		isNeeded: Bool,
 		isShoppingChecked: Bool
 	) -> GroceryItem? {
-		guard let local = findLocalGroceryItem(byLocalID: UUID(uuidString: itemID)!) else { return nil }
-
-		local.isNeeded = isNeeded
-		local.isShoppingChecked = isShoppingChecked
-
-		if local.syncStatus == .pendingCreate {
-			// Pending-create: just update local fields. processCreate regenerates
-			// the payload from the current entity state at sync time.
-			try? modelContext?.save()
-		} else {
-			local.syncStatus = .pendingUpdate
-			upsertUpdateOp(
-				for: local.localID,
-				entityType: .grocery,
-				payloadDict: ["isNeeded": isNeeded, "isShoppingChecked": isShoppingChecked]
-			)
-		}
-		return local.toGroceryItem()
+		groceryStore?.enqueueUpdate(
+			id: itemID,
+			mutate: { local in
+				local.isNeeded = isNeeded
+				local.isShoppingChecked = isShoppingChecked
+			},
+			patch: Self.encode(
+				GroceryPatchPayload(isNeeded: isNeeded, isShoppingChecked: isShoppingChecked)
+			))
 	}
 
 	func enqueueGroceryDelete(itemID: String) {
-		guard let local = findLocalGroceryItem(byLocalID: UUID(uuidString: itemID)!) else { return }
-		enqueueDelete(for: local, entityType: .grocery)
+		groceryStore?.enqueueDelete(id: itemID)
 	}
 
 	// MARK: - Enqueue: Meals
@@ -305,17 +268,7 @@ final class SyncEngine {
 	@discardableResult
 	func enqueueMealCreate(date: String, mealDescription: String) -> MealPlan {
 		let local = LocalMealPlan(date: date, mealDescription: mealDescription)
-		insertCreate(
-			local,
-			entityType: .meal,
-			localID: local.localID,
-			encodable: NewMealPlan(
-				id: local.localID.uuidString,
-				date: date,
-				mealDescription: mealDescription
-			)
-		)
-		return local.toMealPlan()
+		return mealStore?.enqueueCreate(local: local) ?? local.toMealPlan()
 	}
 
 	@discardableResult
@@ -323,28 +276,16 @@ final class SyncEngine {
 		mealID: String,
 		mealDescription: String
 	) -> MealPlan? {
-		guard let local = findLocalMealPlan(byLocalID: UUID(uuidString: mealID)!) else { return nil }
-
-		local.mealDescription = mealDescription
-
-		if local.syncStatus == .pendingCreate {
-			// Pending-create: just update local fields. processCreate regenerates
-			// the payload from the current entity state at sync time.
-			try? modelContext?.save()
-		} else {
-			local.syncStatus = .pendingUpdate
-			upsertUpdateOp(
-				for: local.localID,
-				entityType: .meal,
-				payloadDict: ["mealDescription": mealDescription]
-			)
-		}
-		return local.toMealPlan()
+		mealStore?.enqueueUpdate(
+			id: mealID,
+			mutate: { local in
+				local.mealDescription = mealDescription
+			},
+			patch: Self.encode(MealPatchPayload(mealDescription: mealDescription)))
 	}
 
 	func enqueueMealDelete(mealID: String) {
-		guard let local = findLocalMealPlan(byLocalID: UUID(uuidString: mealID)!) else { return }
-		enqueueDelete(for: local, entityType: .meal)
+		mealStore?.enqueueDelete(id: mealID)
 	}
 
 	// MARK: - Enqueue: Receipts
@@ -362,58 +303,31 @@ final class SyncEngine {
 		notes: String?,
 		checkedItems: [GroceryItem]
 	) -> Receipt {
-		guard let context = modelContext else {
+		let itemNames = checkedItems.map { $0.name }
+
+		guard let groceryStore, let receiptStore else {
 			return Receipt(
 				id: UUID().uuidString, date: date,
 				totalAmount: totalAmount, purchasedBy: purchasedBy,
-				items: [], notes: notes
+				items: itemNames, notes: notes
 			)
 		}
 
-		let itemNames = checkedItems.map { $0.name }
+		for item in checkedItems {
+			groceryStore.enqueueUpdate(
+				id: item.id,
+				mutate: { grocery in
+					grocery.isNeeded = false
+					grocery.isShoppingChecked = false
+				},
+				patch: Self.encode(GroceryPatchPayload(isNeeded: false, isShoppingChecked: false)))
+		}
 
 		let local = LocalReceipt(
 			date: date, totalAmount: totalAmount,
 			purchasedBy: purchasedBy, items: itemNames, notes: notes
 		)
-		context.insert(local)
-
-		// Reset grocery flags locally and queue follow-up updates for already-synced
-		// groceries. The server applies these resets when the receipt is created,
-		// but websocket ordering is not guaranteed, so we still need queued PATCHes
-		// to clear the local pending state deterministically after reconnect.
-		for item in checkedItems {
-			guard let grocery = findLocalGroceryItem(byLocalID: UUID(uuidString: item.id)!) else { continue }
-			grocery.isNeeded = false
-			grocery.isShoppingChecked = false
-			if grocery.syncStatus == .synced {
-				grocery.syncStatus = .pendingUpdate
-				upsertUpdateOp(
-					for: grocery.localID,
-					entityType: .grocery,
-					payloadDict: ["isNeeded": false, "isShoppingChecked": false]
-				)
-			}
-		}
-
-		// Payload includes explicit items list (requires backend change to POST /api/receipts).
-		let payload =
-			(try? JSONEncoder().encode(
-				ReceiptCreatePayload(
-					date: date, totalAmount: totalAmount,
-					purchasedBy: purchasedBy, notes: notes, items: itemNames
-				)
-			)) ?? Data()
-
-		context.insert(
-			SyncOperation(
-				entityType: .receipt,
-				operationType: .create,
-				payload: payload,
-				localID: local.localID
-			))
-		persist()
-		return local.toReceipt()
+		return receiptStore.enqueueCreate(local: local)
 	}
 
 	@discardableResult
@@ -423,198 +337,80 @@ final class SyncEngine {
 		purchasedBy: String,
 		notes: String
 	) -> Receipt? {
-		guard let local = findLocalReceipt(byLocalID: UUID(uuidString: receiptID)!) else { return nil }
-
-		local.totalAmount = totalAmount
-		local.purchasedBy = purchasedBy
-		local.notes = notes
-
-		if local.syncStatus == .pendingCreate {
-			try? modelContext?.save()
-		} else {
-			local.syncStatus = .pendingUpdate
-			upsertUpdateOp(
-				for: local.localID,
-				entityType: .receipt,
-				payloadDict: [
-					"totalAmount": totalAmount,
-					"purchasedBy": purchasedBy,
-					"notes": notes,
-				]
-			)
-		}
-		return local.toReceipt()
+		receiptStore?.enqueueUpdate(
+			id: receiptID,
+			mutate: { local in
+				local.totalAmount = totalAmount
+				local.purchasedBy = purchasedBy
+				local.notes = notes
+			},
+			patch: Self.encode(
+				ReceiptPatchPayload(
+					totalAmount: totalAmount,
+					purchasedBy: purchasedBy,
+					notes: notes
+				)))
 	}
 
 	func enqueueReceiptDelete(receiptID: String) {
-		guard let local = findLocalReceipt(byLocalID: UUID(uuidString: receiptID)!) else { return }
-		enqueueDelete(for: local, entityType: .receipt)
+		receiptStore?.enqueueDelete(id: receiptID)
 	}
 
 	// MARK: - Merge (online fetch → upsert into SwiftData → return refreshed array)
 
 	@discardableResult
 	func mergeGroceries(_ serverItems: [GroceryItem]) -> [GroceryItem] {
-		mergeServerItems(
-			serverItems,
-			findLocal: { self.findLocalGroceryItem(byLocalID: UUID(uuidString: $0.id)!) },
-			insertLocal: { item in
-				LocalGroceryItem(
-					localID: UUID(uuidString: item.id)!,
-					syncStatus: .synced,
-					name: item.name,
-					category: item.category,
-					isNeeded: item.isNeeded,
-					isShoppingChecked: item.isShoppingChecked
-				)
-			},
-			applyServerValues: { local, item in local.applyServerValues(item) },
-			localID: { $0.localID },
-			syncStatus: { $0.syncStatus },
-			loadMerged: loadAllGroceryItems
-		)
+		groceryStore?.merge(serverItems) ?? serverItems
 	}
 
 	@discardableResult
 	func mergeMealPlans(_ serverPlans: [MealPlan]) -> [MealPlan] {
-		mergeServerItems(
-			serverPlans,
-			findLocal: { self.findLocalMealPlan(byLocalID: UUID(uuidString: $0.id)!) },
-			insertLocal: { plan in
-				LocalMealPlan(
-					localID: UUID(uuidString: plan.id)!,
-					syncStatus: .synced,
-					date: plan.date,
-					mealDescription: plan.mealDescription
-				)
-			},
-			applyServerValues: { local, plan in local.applyServerValues(plan) },
-			localID: { $0.localID },
-			syncStatus: { $0.syncStatus },
-			loadMerged: loadAllMealPlans
-		)
+		mealStore?.merge(serverPlans) ?? serverPlans
 	}
 
 	@discardableResult
 	func mergeReceipts(_ serverReceipts: [Receipt]) -> [Receipt] {
-		mergeServerItems(
-			serverReceipts,
-			findLocal: { self.findLocalReceipt(byLocalID: UUID(uuidString: $0.id)!) },
-			insertLocal: { receipt in
-				LocalReceipt(
-					localID: UUID(uuidString: receipt.id)!,
-					syncStatus: .synced,
-					date: receipt.date,
-					totalAmount: receipt.totalAmount,
-					purchasedBy: receipt.purchasedBy,
-					items: receipt.items,
-					notes: receipt.notes
-				)
-			},
-			applyServerValues: { local, receipt in local.applyServerValues(receipt) },
-			localID: { $0.localID },
-			syncStatus: { $0.syncStatus },
-			loadMerged: loadAllReceipts
-		)
+		receiptStore?.merge(serverReceipts) ?? serverReceipts
 	}
 
 	// MARK: - Single-Item Upsert (WebSocket)
 
 	func upsertGroceryItem(_ item: GroceryItem) {
-		guard let context = modelContext else { return }
-		if let local = findLocalGroceryItem(byLocalID: UUID(uuidString: item.id)!) {
-			if local.syncStatus == .synced {
-				local.applyServerValues(item)
-			}
-		} else {
-			context.insert(
-				LocalGroceryItem(
-					localID: UUID(uuidString: item.id)!,
-					syncStatus: .synced,
-					name: item.name,
-					category: item.category,
-					isNeeded: item.isNeeded,
-					isShoppingChecked: item.isShoppingChecked
-				))
-		}
-		try? context.save()
+		groceryStore?.upsert(item)
 	}
 
 	func upsertMealPlan(_ plan: MealPlan) {
-		guard let context = modelContext else { return }
-		if let local = findLocalMealPlan(byLocalID: UUID(uuidString: plan.id)!) {
-			if local.syncStatus == .synced {
-				local.applyServerValues(plan)
-			}
-		} else {
-			context.insert(
-				LocalMealPlan(
-					localID: UUID(uuidString: plan.id)!,
-					syncStatus: .synced,
-					date: plan.date,
-					mealDescription: plan.mealDescription
-				))
-		}
-		try? context.save()
+		mealStore?.upsert(plan)
 	}
 
 	func upsertReceipt(_ receipt: Receipt) {
-		guard let context = modelContext else { return }
-		if let local = findLocalReceipt(byLocalID: UUID(uuidString: receipt.id)!) {
-			if local.syncStatus == .synced {
-				local.applyServerValues(receipt)
-			}
-		} else {
-			context.insert(
-				LocalReceipt(
-					localID: UUID(uuidString: receipt.id)!,
-					syncStatus: .synced,
-					date: receipt.date,
-					totalAmount: receipt.totalAmount,
-					purchasedBy: receipt.purchasedBy,
-					items: receipt.items,
-					notes: receipt.notes
-				))
-		}
-		try? context.save()
+		receiptStore?.upsert(receipt)
 	}
 
 	func deleteSyncedGroceryItem(id: String) {
-		guard let context = modelContext else { return }
-		findLocalGroceryItem(byLocalID: UUID(uuidString: id)!).map { context.delete($0) }
-		try? context.save()
+		groceryStore?.deleteSynced(id: id)
 	}
 
 	func deleteSyncedMealPlan(id: String) {
-		guard let context = modelContext else { return }
-		findLocalMealPlan(byLocalID: UUID(uuidString: id)!).map { context.delete($0) }
-		try? context.save()
+		mealStore?.deleteSynced(id: id)
 	}
 
 	func deleteSyncedReceipt(id: String) {
-		guard let context = modelContext else { return }
-		findLocalReceipt(byLocalID: UUID(uuidString: id)!).map { context.delete($0) }
-		try? context.save()
+		receiptStore?.deleteSynced(id: id)
 	}
 
 	// MARK: - Load All (offline read path)
 
 	func loadAllGroceryItems() -> [GroceryItem] {
-		loadAll(LocalGroceryItem.self)
-			.filter { $0.syncStatus != .pendingDelete }
-			.map { $0.toGroceryItem() }
+		groceryStore?.loadAll() ?? []
 	}
 
 	func loadAllMealPlans() -> [MealPlan] {
-		loadAll(LocalMealPlan.self)
-			.filter { $0.syncStatus != .pendingDelete }
-			.map { $0.toMealPlan() }
+		mealStore?.loadAll() ?? []
 	}
 
 	func loadAllReceipts() -> [Receipt] {
-		loadAll(LocalReceipt.self)
-			.filter { $0.syncStatus != .pendingDelete }
-			.map { $0.toReceipt() }
+		receiptStore?.loadAll() ?? []
 	}
 
 	// MARK: - WebSocket Filter
@@ -643,208 +439,6 @@ final class SyncEngine {
 		log("Local store cleared")
 	}
 
-	// MARK: - Private Helpers
-
-	private func mergeServerItems<Server, Local: PersistentModel, Output>(
-		_ serverItems: [Server],
-		findLocal: (Server) -> Local?,
-		insertLocal: (Server) -> Local,
-		applyServerValues: (Local, Server) -> Void,
-		localID: (Local) -> UUID,
-		syncStatus: (Local) -> SyncStatus,
-		loadMerged: () -> [Output]
-	) -> [Output] where Server: Identifiable, Server.ID == String {
-		guard let context = modelContext else { return serverItems as? [Output] ?? [] }
-		let serverUUIDs = Set(serverItems.compactMap { UUID(uuidString: $0.id) })
-
-		for item in serverItems {
-			if let local = findLocal(item) {
-				if syncStatus(local) == .synced {
-					applyServerValues(local, item)
-				}
-			} else {
-				context.insert(insertLocal(item))
-			}
-		}
-
-		for local in loadAll(Local.self) {
-			guard syncStatus(local) == .synced else { continue }
-			if !serverUUIDs.contains(localID(local)) {
-				context.delete(local)
-			}
-		}
-
-		try? context.save()
-		return loadMerged()
-	}
-
-	/// Inserts a local entity and its create SyncOperation, then persists and flushes.
-	private func insertCreate<T: Encodable>(
-		_ local: some PersistentModel,
-		entityType: SyncEntityType,
-		localID: UUID,
-		encodable: T
-	) {
-		guard let context = modelContext else { return }
-		context.insert(local)
-		let payload = (try? JSONEncoder().encode(encodable)) ?? Data()
-		context.insert(
-			SyncOperation(
-				entityType: entityType,
-				operationType: .create,
-				payload: payload,
-				localID: localID
-			))
-		persist()
-	}
-
-	/// Creates or replaces the pending update op for a given local entity.
-	/// Replacing prevents queue bloat when the user edits an entity multiple times offline.
-	private func upsertUpdateOp(
-		for localID: UUID,
-		entityType: SyncEntityType,
-		payloadDict: [String: Any]
-	) {
-		guard let context = modelContext else { return }
-		let payloadData: Data
-		switch entityType {
-		case .grocery:
-			let payload = GroceryPatchPayload(
-				isNeeded: payloadDict["isNeeded"] as? Bool ?? true,
-				isShoppingChecked: payloadDict["isShoppingChecked"] as? Bool ?? false
-			)
-			payloadData = (try? JSONEncoder().encode(payload)) ?? Data()
-		case .meal:
-			let payload = MealPatchPayload(
-				mealDescription: payloadDict["mealDescription"] as? String ?? ""
-			)
-			payloadData = (try? JSONEncoder().encode(payload)) ?? Data()
-		case .receipt:
-			let payload = ReceiptPatchPayload(
-				totalAmount: payloadDict["totalAmount"] as? Double ?? 0,
-				purchasedBy: payloadDict["purchasedBy"] as? String ?? "",
-				notes: payloadDict["notes"] as? String
-			)
-			payloadData = (try? JSONEncoder().encode(payload)) ?? Data()
-		}
-
-		// Fetch all ops for this entity and filter in memory to avoid predicating
-		// on the SyncOperationType enum property, which SwiftData stores as Codable.
-		let all = (try? context.fetch(FetchDescriptor<SyncOperation>())) ?? []
-		let existing = all.first { $0.localID == localID && $0.operationType == .update }
-
-		if let op = existing {
-			op.payload = payloadData
-			op.retryCount = 0
-			op.lastError = nil
-		} else {
-			context.insert(
-				SyncOperation(
-					entityType: entityType,
-					operationType: .update,
-					payload: payloadData,
-					localID: localID
-				))
-		}
-		persist()
-	}
-
-	private func enqueueDelete(for local: LocalGroceryItem, entityType: SyncEntityType) {
-		enqueueDelete(
-			localID: local.localID,
-			syncStatus: local.syncStatus,
-			deleteLocal: { context in context.delete(local) },
-			markPendingDelete: { local.syncStatus = .pendingDelete },
-			entityType: entityType
-		)
-	}
-
-	private func enqueueDelete(for local: LocalMealPlan, entityType: SyncEntityType) {
-		enqueueDelete(
-			localID: local.localID,
-			syncStatus: local.syncStatus,
-			deleteLocal: { context in context.delete(local) },
-			markPendingDelete: { local.syncStatus = .pendingDelete },
-			entityType: entityType
-		)
-	}
-
-	private func enqueueDelete(for local: LocalReceipt, entityType: SyncEntityType) {
-		enqueueDelete(
-			localID: local.localID,
-			syncStatus: local.syncStatus,
-			deleteLocal: { context in context.delete(local) },
-			markPendingDelete: { local.syncStatus = .pendingDelete },
-			entityType: entityType
-		)
-	}
-
-	private func enqueueDelete(
-		localID: UUID,
-		syncStatus: SyncStatus,
-		deleteLocal: (ModelContext) -> Void,
-		markPendingDelete: () -> Void,
-		entityType: SyncEntityType
-	) {
-		guard let context = modelContext else { return }
-
-		if syncStatus == .pendingCreate {
-			cancelOps(for: localID)
-			deleteLocal(context)
-		} else {
-			cancelOps(for: localID)
-			markPendingDelete()
-			context.insert(
-				SyncOperation(
-					entityType: entityType,
-					operationType: .delete,
-					payload: Data(),
-					localID: localID
-				))
-		}
-		persist()
-	}
-
-	/// Deletes all SyncOperations for a given localID (used when purging a pending-create entity).
-	private func cancelOps(for localID: UUID) {
-		guard let context = modelContext else { return }
-		let all = (try? context.fetch(FetchDescriptor<SyncOperation>())) ?? []
-		all.filter { $0.localID == localID }.forEach { context.delete($0) }
-	}
-
-	private func fetchOps(for localID: UUID, after date: Date) -> [SyncOperation] {
-		guard let context = modelContext else { return [] }
-		let all =
-			(try? context.fetch(
-				FetchDescriptor<SyncOperation>(
-					sortBy: [SortDescriptor(\.createdAt)]
-				))) ?? []
-		return all.filter { $0.localID == localID && $0.createdAt > date }
-	}
-
-	private func markSynced(entityType: SyncEntityType, localID: UUID) {
-		switch entityType {
-		case .grocery: findLocalGroceryItem(byLocalID: localID)?.syncStatus = .synced
-		case .meal: findLocalMealPlan(byLocalID: localID)?.syncStatus = .synced
-		case .receipt: findLocalReceipt(byLocalID: localID)?.syncStatus = .synced
-		}
-	}
-
-	private func deleteLocalEntity(entityType: SyncEntityType, localID: UUID) {
-		guard let context = modelContext else { return }
-		switch entityType {
-		case .grocery: findLocalGroceryItem(byLocalID: localID).map { context.delete($0) }
-		case .meal: findLocalMealPlan(byLocalID: localID).map { context.delete($0) }
-		case .receipt: findLocalReceipt(byLocalID: localID).map { context.delete($0) }
-		}
-	}
-
-	/// Saves to SwiftData and immediately attempts a sync if online.
-	private func persist() {
-		try? modelContext?.save()
-		syncIfNeeded()
-	}
-
 	// MARK: - Payloads
 
 	private struct GroceryPatchPayload: Codable {
@@ -862,28 +456,8 @@ final class SyncEngine {
 		let notes: String?
 	}
 
-	// MARK: - Lookups
-
-	private func findLocalGroceryItem(byLocalID id: UUID) -> LocalGroceryItem? {
-		fetchFirst(FetchDescriptor<LocalGroceryItem>(predicate: #Predicate { $0.localID == id }))
-	}
-
-	private func findLocalMealPlan(byLocalID id: UUID) -> LocalMealPlan? {
-		fetchFirst(FetchDescriptor<LocalMealPlan>(predicate: #Predicate { $0.localID == id }))
-	}
-
-	private func findLocalReceipt(byLocalID id: UUID) -> LocalReceipt? {
-		fetchFirst(FetchDescriptor<LocalReceipt>(predicate: #Predicate { $0.localID == id }))
-	}
-
-	private func loadAll<T: PersistentModel>(_ type: T.Type) -> [T] {
-		guard let context = modelContext else { return [] }
-		return (try? context.fetch(FetchDescriptor<T>())) ?? []
-	}
-
-	private func fetchFirst<T: PersistentModel>(_ descriptor: FetchDescriptor<T>) -> T? {
-		guard let context = modelContext else { return nil }
-		return try? context.fetch(descriptor).first
+	private static func encode<T: Encodable>(_ value: T) -> Data {
+		(try? JSONEncoder().encode(value)) ?? Data()
 	}
 
 	private func log(_ msg: String) {

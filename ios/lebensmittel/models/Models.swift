@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: Receipts
 
-struct Receipt: Identifiable, Codable {
+nonisolated struct Receipt: Identifiable, Codable, Sendable {
 	var id: String
 	var date: String
 	var totalAmount: Double
@@ -41,7 +41,7 @@ struct MonthlyReceiptsGroup: Identifiable {
 
 // MARK: Grocery Items
 
-struct GroceryItem: Identifiable, Codable {
+nonisolated struct GroceryItem: Identifiable, Codable, Sendable {
 	var id: String
 	var name: String
 	var category: String
@@ -64,7 +64,7 @@ struct NewGroceryItem: Codable {
 
 // MARK: Meal Plans
 
-struct MealPlan: Identifiable, Codable, Equatable {
+nonisolated struct MealPlan: Identifiable, Codable, Equatable, Sendable {
 	var id: String
 	var date: String
 	var mealDescription: String

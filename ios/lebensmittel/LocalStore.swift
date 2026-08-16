@@ -319,3 +319,285 @@ final class SyncOperation {
 		self.lastError = lastError
 	}
 }
+
+// MARK: - Generic Entity Store
+
+/// Common lifecycle contract for a local SwiftData entity and its wire DTO.
+/// Conformance lives in extensions below, so each model keeps its own fields.
+protocol LocalEntity: PersistentModel {
+	associatedtype DTO: Codable & Identifiable where DTO.ID == String
+	var localID: UUID { get set }
+	var syncStatus: SyncStatus { get set }
+	func toDTO() -> DTO
+	func applyServerValues(_ dto: DTO)
+	static func make(from dto: DTO, syncStatus: SyncStatus) -> Self?
+}
+
+extension LocalGroceryItem: LocalEntity {
+	func toDTO() -> GroceryItem { toGroceryItem() }
+
+	static func make(from dto: GroceryItem, syncStatus: SyncStatus) -> LocalGroceryItem? {
+		guard let localID = UUID(uuidString: dto.id) else { return nil }
+		return LocalGroceryItem(
+			localID: localID,
+			syncStatus: syncStatus,
+			name: dto.name,
+			category: dto.category,
+			isNeeded: dto.isNeeded,
+			isShoppingChecked: dto.isShoppingChecked
+		)
+	}
+}
+
+extension LocalMealPlan: LocalEntity {
+	func toDTO() -> MealPlan { toMealPlan() }
+
+	static func make(from dto: MealPlan, syncStatus: SyncStatus) -> LocalMealPlan? {
+		guard let localID = UUID(uuidString: dto.id) else { return nil }
+		return LocalMealPlan(
+			localID: localID,
+			syncStatus: syncStatus,
+			date: dto.date,
+			mealDescription: dto.mealDescription
+		)
+	}
+}
+
+extension LocalReceipt: LocalEntity {
+	func toDTO() -> Receipt { toReceipt() }
+
+	static func make(from dto: Receipt, syncStatus: SyncStatus) -> LocalReceipt? {
+		guard let localID = UUID(uuidString: dto.id) else { return nil }
+		return LocalReceipt(
+			localID: localID,
+			syncStatus: syncStatus,
+			date: dto.date,
+			totalAmount: dto.totalAmount,
+			purchasedBy: dto.purchasedBy,
+			items: dto.items,
+			notes: dto.notes
+		)
+	}
+}
+
+/// One generic entity store: owns all SwiftData writes, the durable operation
+/// queue, and outbound sync for a single entity type. The three concrete
+/// instances (grocery / meal / receipt) differ only in configuration.
+@MainActor
+final class EntityStore<DTO, Local>
+where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.DTO == DTO {
+
+	private let entityType: SyncEntityType
+	private let modelContext: ModelContext
+	private let makeCreatePayload: (Local) -> Data
+	private let createRemote: (Data) async throws -> DTO
+	private let updateRemote: (String, Data) async throws -> Void
+	private let deleteRemote: (String) async throws -> Void
+	private let onMutate: () -> Void
+
+	init(
+		entityType: SyncEntityType,
+		modelContext: ModelContext,
+		makeCreatePayload: @escaping (Local) -> Data,
+		createRemote: @escaping (Data) async throws -> DTO,
+		updateRemote: @escaping (String, Data) async throws -> Void,
+		deleteRemote: @escaping (String) async throws -> Void,
+		onMutate: @escaping () -> Void
+	) {
+		self.entityType = entityType
+		self.modelContext = modelContext
+		self.makeCreatePayload = makeCreatePayload
+		self.createRemote = createRemote
+		self.updateRemote = updateRemote
+		self.deleteRemote = deleteRemote
+		self.onMutate = onMutate
+	}
+
+	// MARK: - Enqueue
+
+	@discardableResult
+	func enqueueCreate(local: Local) -> DTO {
+		modelContext.insert(local)
+		modelContext.insert(
+			SyncOperation(
+				entityType: entityType,
+				operationType: .create,
+				payload: makeCreatePayload(local),
+				localID: local.localID
+			))
+		persist()
+		return local.toDTO()
+	}
+
+	@discardableResult
+	func enqueueUpdate(id: String, mutate: (Local) -> Void, patch: Data) -> DTO? {
+		guard let uuid = UUID(uuidString: id), let local = find(localID: uuid) else { return nil }
+		mutate(local)
+		if local.syncStatus == .pendingCreate {
+			// Pending-create: just update local fields. processCreate regenerates
+			// the payload from the current entity state at sync time.
+			try? modelContext.save()
+		} else {
+			local.syncStatus = .pendingUpdate
+			upsertUpdateOp(for: local.localID, patch: patch)
+		}
+		return local.toDTO()
+	}
+
+	func enqueueDelete(id: String) {
+		guard let uuid = UUID(uuidString: id), let local = find(localID: uuid) else { return }
+		if local.syncStatus == .pendingCreate {
+			cancelOps(for: local.localID)
+			modelContext.delete(local)
+		} else {
+			cancelOps(for: local.localID)
+			local.syncStatus = .pendingDelete
+			modelContext.insert(
+				SyncOperation(
+					entityType: entityType,
+					operationType: .delete,
+					payload: Data(),
+					localID: local.localID
+				))
+		}
+		persist()
+	}
+
+	// MARK: - Operation Processing
+
+	func process(_ op: SyncOperation) async throws {
+		switch op.operationType {
+		case .create: try await processCreate(op)
+		case .update: try await processUpdate(op)
+		case .delete: try await processDelete(op)
+		}
+	}
+
+	private func processCreate(_ op: SyncOperation) async throws {
+		let local = find(localID: op.localID)
+		// Rebuild the payload from current local state so offline edits made
+		// while pending are reflected; fall back to the stored payload.
+		let payload = local.map(makeCreatePayload) ?? op.payload
+		let created = try await createRemote(payload)
+		if let local {
+			local.applyServerValues(created)
+			try? modelContext.save()
+		}
+	}
+
+	private func processUpdate(_ op: SyncOperation) async throws {
+		try await updateRemote(op.localID.uuidString, op.payload)
+		find(localID: op.localID)?.syncStatus = .synced
+		try? modelContext.save()
+	}
+
+	private func processDelete(_ op: SyncOperation) async throws {
+		try await deleteRemote(op.localID.uuidString)
+		find(localID: op.localID).map { modelContext.delete($0) }
+		try? modelContext.save()
+	}
+
+	// MARK: - Merge (online fetch → upsert into SwiftData → return refreshed array)
+
+	@discardableResult
+	func merge(_ items: [DTO]) -> [DTO] {
+		let serverUUIDs = Set(items.compactMap { UUID(uuidString: $0.id) })
+
+		for item in items {
+			guard let localID = UUID(uuidString: item.id) else { continue }
+			if let local = find(localID: localID) {
+				if local.syncStatus == .synced {
+					local.applyServerValues(item)
+				}
+			} else if let made = Local.make(from: item, syncStatus: .synced) {
+				modelContext.insert(made)
+			}
+		}
+
+		for local in loadAllLocal() {
+			guard local.syncStatus == .synced else { continue }
+			if !serverUUIDs.contains(local.localID) {
+				modelContext.delete(local)
+			}
+		}
+
+		try? modelContext.save()
+		return loadAll()
+	}
+
+	// MARK: - Single-Item Upsert (WebSocket)
+
+	func upsert(_ dto: DTO) {
+		guard let localID = UUID(uuidString: dto.id) else { return }
+		if let local = find(localID: localID) {
+			if local.syncStatus == .synced {
+				local.applyServerValues(dto)
+			}
+		} else if let made = Local.make(from: dto, syncStatus: .synced) {
+			modelContext.insert(made)
+		}
+		try? modelContext.save()
+	}
+
+	func deleteSynced(id: String) {
+		guard let uuid = UUID(uuidString: id) else { return }
+		find(localID: uuid).map { modelContext.delete($0) }
+		try? modelContext.save()
+	}
+
+	// MARK: - Load All (offline read path)
+
+	func loadAll() -> [DTO] {
+		loadAllLocal()
+			.filter { $0.syncStatus != .pendingDelete }
+			.map { $0.toDTO() }
+	}
+
+	// MARK: - Lookups
+
+	func find(localID: UUID) -> Local? {
+		loadAllLocal().first { $0.localID == localID }
+	}
+
+	private func loadAllLocal() -> [Local] {
+		(try? modelContext.fetch(FetchDescriptor<Local>())) ?? []
+	}
+
+	// MARK: - Private Helpers
+
+	/// Creates or replaces the pending update op for a given local entity.
+	/// Replacing prevents queue bloat when the user edits an entity multiple times offline.
+	private func upsertUpdateOp(for localID: UUID, patch: Data) {
+		// Fetch all ops and filter in memory to avoid predicating on the
+		// SyncOperationType enum property, which SwiftData stores as Codable.
+		let all = (try? modelContext.fetch(FetchDescriptor<SyncOperation>())) ?? []
+		let existing = all.first { $0.localID == localID && $0.operationType == .update }
+
+		if let op = existing {
+			op.payload = patch
+			op.retryCount = 0
+			op.lastError = nil
+		} else {
+			modelContext.insert(
+				SyncOperation(
+					entityType: entityType,
+					operationType: .update,
+					payload: patch,
+					localID: localID
+				))
+		}
+		persist()
+	}
+
+	/// Deletes all SyncOperations for a given localID (used when purging a pending-create entity).
+	private func cancelOps(for localID: UUID) {
+		let all = (try? modelContext.fetch(FetchDescriptor<SyncOperation>())) ?? []
+		all.filter { $0.localID == localID }.forEach { modelContext.delete($0) }
+	}
+
+	/// Saves to SwiftData and immediately attempts a sync if online.
+	private func persist() {
+		try? modelContext.save()
+		onMutate()
+	}
+}
