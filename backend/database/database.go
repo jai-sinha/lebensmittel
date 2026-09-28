@@ -41,10 +41,72 @@ func InitDB() error {
 	return nil
 }
 
+// EnsureSchema creates the change-ledger table and index if they do not exist.
+// It never alters or backfills existing tables.
+func EnsureSchema() error {
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS group_change_log (
+			seq BIGSERIAL PRIMARY KEY,
+			group_id TEXT NOT NULL,
+			entity_type TEXT NOT NULL,  -- 'receipt' | 'meal' | 'grocery'
+			entity_id  TEXT NOT NULL,   -- no FK: hard-deletes keep only the id
+			change_type TEXT NOT NULL,  -- 'create' | 'update' | 'delete'
+			changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		)`,
+		`CREATE INDEX IF NOT EXISTS group_change_log_group_seq ON group_change_log(group_id, seq)`,
+	}
+	for _, query := range queries {
+		if _, err := db.Exec(context.Background(), query); err != nil {
+			return fmt.Errorf("failed to ensure schema: %w", err)
+		}
+	}
+	log.Println("Schema ensured")
+	return nil
+}
+
+// EnsurePruneJob schedules a nightly pg_cron job that prunes ledger rows older
+// than 30 days. Best-effort: production runs pg_cron; local dev may not have it.
+func EnsurePruneJob() {
+	if _, err := db.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS pg_cron"); err != nil {
+		log.Printf("pg_cron unavailable, skipping ledger prune job: %v", err)
+		return
+	}
+	if _, err := db.Exec(context.Background(), `SELECT cron.schedule(
+		'prune_group_change_log', '0 3 * * *',
+		$$DELETE FROM group_change_log WHERE changed_at < now() - interval '30 days'$$
+	)`); err != nil {
+		log.Printf("failed to schedule ledger prune job: %v", err)
+	}
+}
+
 func CloseDB() {
 	if db != nil {
 		db.Close()
 	}
+}
+
+// appendChangeRecord records a change in the group ledger inside the caller's
+// transaction, so a mutation and its ledger record commit atomically.
+func appendChangeRecord(ctx context.Context, tx pgx.Tx, groupID, entityType, entityID, changeType string) error {
+	_, err := tx.Exec(ctx,
+		`INSERT INTO group_change_log (group_id, entity_type, entity_id, change_type) VALUES ($1, $2, $3, $4)`,
+		groupID, entityType, entityID, changeType)
+	return err
+}
+
+var errNoRows = errors.New("no rows")
+
+// withTx wraps the begin failure for context.
+func withTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // GroceryItems
@@ -77,10 +139,17 @@ func CreateGroceryItem(ctx context.Context, item *models.GroceryItem) (*models.G
 		return existing, false, nil
 	}
 
-	query := `INSERT INTO grocery_items (id, name, category, is_needed, is_shopping_checked, group_id) VALUES ($1, $2, $3, $4, $5, $6)`
-	_, err := db.Exec(ctx, query, item.ID, item.Name, item.Category, item.IsNeeded, item.IsShoppingChecked, item.GroupID)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to create grocery item: %w", err)
+	if err := withTx(ctx, func(tx pgx.Tx) error {
+		query := `INSERT INTO grocery_items (id, name, category, is_needed, is_shopping_checked, group_id) VALUES ($1, $2, $3, $4, $5, $6)`
+		if _, err := tx.Exec(ctx, query, item.ID, item.Name, item.Category, item.IsNeeded, item.IsShoppingChecked, item.GroupID); err != nil {
+			return fmt.Errorf("failed to create grocery item: %w", err)
+		}
+		if err := appendChangeRecord(ctx, tx, item.GroupID, "grocery", item.ID, "create"); err != nil {
+			return fmt.Errorf("failed to log grocery item change: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, false, err
 	}
 	return item, true, nil
 }
@@ -110,11 +179,23 @@ func UpdateGroceryItem(ctx context.Context, id, groupID string, updates map[stri
 	query := fmt.Sprintf("UPDATE grocery_items SET %s WHERE id = $1 AND group_id = $2 RETURNING id, name, category, is_needed, is_shopping_checked, group_id", strings.Join(setParts, ", "))
 
 	var item models.GroceryItem
-	err := db.QueryRow(ctx, query, args...).Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
-	if err != nil {
+	err := withTx(ctx, func(tx pgx.Tx) error {
+		err := tx.QueryRow(ctx, query, args...).Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
 		if err == pgx.ErrNoRows {
-			return nil, nil
+			return errNoRows
 		}
+		if err != nil {
+			return err
+		}
+		if err := appendChangeRecord(ctx, tx, groupID, "grocery", id, "update"); err != nil {
+			return fmt.Errorf("failed to log grocery item change: %w", err)
+		}
+		return nil
+	})
+	if errors.Is(err, errNoRows) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, err
 	}
 	return &item, nil
@@ -134,14 +215,20 @@ func GetGroceryItemByID(ctx context.Context, id, groupID string) (*models.Grocer
 }
 
 func DeleteGroceryItem(ctx context.Context, id, groupID string) error {
-	tag, err := db.Exec(ctx, "DELETE FROM grocery_items WHERE id = $1 AND group_id = $2", id, groupID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("grocery item not found")
-	}
-	return nil
+	err := withTx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, "DELETE FROM grocery_items WHERE id = $1 AND group_id = $2", id, groupID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return fmt.Errorf("grocery item not found")
+		}
+		if err := appendChangeRecord(ctx, tx, groupID, "grocery", id, "delete"); err != nil {
+			return fmt.Errorf("failed to log grocery item change: %w", err)
+		}
+		return nil
+	})
+	return err
 }
 
 // MealPlans
@@ -174,10 +261,17 @@ func CreateMealPlan(ctx context.Context, meal *models.MealPlan) (*models.MealPla
 		return existing, false, nil
 	}
 
-	query := `INSERT INTO meal_plans (id, date, meal_description, group_id) VALUES ($1, $2, $3, $4)`
-	_, err := db.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription, meal.GroupID)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to create meal plan: %w", err)
+	if err := withTx(ctx, func(tx pgx.Tx) error {
+		query := `INSERT INTO meal_plans (id, date, meal_description, group_id) VALUES ($1, $2, $3, $4)`
+		if _, err := tx.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription, meal.GroupID); err != nil {
+			return fmt.Errorf("failed to create meal plan: %w", err)
+		}
+		if err := appendChangeRecord(ctx, tx, meal.GroupID, "meal", meal.ID, "create"); err != nil {
+			return fmt.Errorf("failed to log meal plan change: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, false, err
 	}
 	return meal, true, nil
 }
@@ -202,12 +296,25 @@ func UpdateMealPlan(ctx context.Context, id, groupID string, updates map[string]
 	}
 
 	query := fmt.Sprintf("UPDATE meal_plans SET %s WHERE id = $1 AND group_id = $2 RETURNING id, date, meal_description, group_id", strings.Join(setParts, ", "))
+
 	var meal models.MealPlan
-	err := db.QueryRow(ctx, query, args...).Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID)
-	if err != nil {
+	err := withTx(ctx, func(tx pgx.Tx) error {
+		err := tx.QueryRow(ctx, query, args...).Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID)
 		if err == pgx.ErrNoRows {
-			return nil, nil
+			return errNoRows
 		}
+		if err != nil {
+			return err
+		}
+		if err := appendChangeRecord(ctx, tx, groupID, "meal", id, "update"); err != nil {
+			return fmt.Errorf("failed to log meal plan change: %w", err)
+		}
+		return nil
+	})
+	if errors.Is(err, errNoRows) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, err
 	}
 	return &meal, nil
@@ -227,14 +334,20 @@ func GetMealPlanByID(ctx context.Context, id, groupID string) (*models.MealPlan,
 }
 
 func DeleteMealPlan(ctx context.Context, id, groupID string) error {
-	tag, err := db.Exec(ctx, "DELETE FROM meal_plans WHERE id = $1 AND group_id = $2", id, groupID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("meal plan not found")
-	}
-	return nil
+	err := withTx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, "DELETE FROM meal_plans WHERE id = $1 AND group_id = $2", id, groupID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return fmt.Errorf("meal plan not found")
+		}
+		if err := appendChangeRecord(ctx, tx, groupID, "meal", id, "delete"); err != nil {
+			return fmt.Errorf("failed to log meal plan change: %w", err)
+		}
+		return nil
+	})
+	return err
 }
 
 // Receipts
@@ -269,91 +382,93 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) (*models.Receip
 		return existing, []models.GroceryItem{}, false, nil
 	}
 
-	tx, err := db.Begin(ctx)
-	if err != nil {
-		return nil, nil, false, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
+	updatedItems := []models.GroceryItem{}
+	err := withTx(ctx, func(tx pgx.Tx) error {
+		if len(receipt.ItemsList) == 0 {
+			// No items provided, skip grocery item updates
+			if err := receipt.SetItems(receipt.ItemsList); err != nil {
+				return fmt.Errorf("failed to set receipt items: %w", err)
+			}
 
-	if len(receipt.ItemsList) == 0 {
-		// No items provided, skip grocery item updates
+			query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+			if _, err := tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID); err != nil {
+				return fmt.Errorf("failed to create receipt: %w", err)
+			}
+
+			if err := appendChangeRecord(ctx, tx, receipt.GroupID, "receipt", receipt.ID, "create"); err != nil {
+				return fmt.Errorf("failed to log receipt change: %w", err)
+			}
+			return nil
+		}
+
+		// Get items that are needed and checked for the receipt.
+		itemsQuery := `SELECT id, name, category, is_needed, is_shopping_checked, group_id
+			FROM grocery_items
+			WHERE is_needed = true AND is_shopping_checked = true AND group_id = $1`
+		rows, err := tx.Query(ctx, itemsQuery, receipt.GroupID)
+		if err != nil {
+			return fmt.Errorf("failed to query grocery items for receipt: %w", err)
+		}
+		defer rows.Close()
+
+		explicitItemSet := map[string]struct{}{}
+		for _, name := range receipt.ItemsList {
+			explicitItemSet[name] = struct{}{}
+		}
+
+		for rows.Next() {
+			var item models.GroceryItem
+			err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
+			if err != nil {
+				return fmt.Errorf("failed to scan grocery item for receipt: %w", err)
+			}
+
+			if _, ok := explicitItemSet[item.Name]; !ok {
+				continue
+			}
+
+			item.IsNeeded = false
+			item.IsShoppingChecked = false
+			updatedItems = append(updatedItems, item)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("failed iterating grocery items for receipt: %w", err)
+		}
+
 		if err := receipt.SetItems(receipt.ItemsList); err != nil {
-			return nil, nil, false, fmt.Errorf("failed to set receipt items: %w", err)
+			return fmt.Errorf("failed to set explicit receipt items: %w", err)
+		}
+
+		itemIDs := make([]string, 0, len(updatedItems))
+		for _, item := range updatedItems {
+			itemIDs = append(itemIDs, item.ID)
+		}
+
+		if len(itemIDs) > 0 {
+			updateQuery := `UPDATE grocery_items SET is_needed = false, is_shopping_checked = false
+							WHERE id = ANY($1) AND group_id = $2`
+			if _, err := tx.Exec(ctx, updateQuery, itemIDs, receipt.GroupID); err != nil {
+				return fmt.Errorf("failed to update explicit grocery items: %w", err)
+			}
+
+			for _, itemID := range itemIDs {
+				if err := appendChangeRecord(ctx, tx, receipt.GroupID, "grocery", itemID, "update"); err != nil {
+					return fmt.Errorf("failed to log grocery item change: %w", err)
+				}
+			}
 		}
 
 		query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`
-		_, err = tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID)
-		if err != nil {
-			return nil, nil, false, fmt.Errorf("failed to create receipt: %w", err)
+		if _, err := tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID); err != nil {
+			return fmt.Errorf("failed to create receipt: %w", err)
 		}
 
-		if err := tx.Commit(ctx); err != nil {
-			return nil, nil, false, err
+		if err := appendChangeRecord(ctx, tx, receipt.GroupID, "receipt", receipt.ID, "create"); err != nil {
+			return fmt.Errorf("failed to log receipt change: %w", err)
 		}
-
-		return receipt, []models.GroceryItem{}, true, nil
-	}
-
-	// Get items that are needed and checked for the receipt.
-	itemsQuery := `SELECT id, name, category, is_needed, is_shopping_checked, group_id
-		FROM grocery_items
-		WHERE is_needed = true AND is_shopping_checked = true AND group_id = $1`
-	rows, err := tx.Query(ctx, itemsQuery, receipt.GroupID)
+		return nil
+	})
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("failed to query grocery items for receipt: %w", err)
-	}
-	defer rows.Close()
-
-	explicitItemSet := map[string]struct{}{}
-	for _, name := range receipt.ItemsList {
-		explicitItemSet[name] = struct{}{}
-	}
-
-	updatedItems := []models.GroceryItem{}
-	for rows.Next() {
-		var item models.GroceryItem
-		err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
-		if err != nil {
-			return nil, nil, false, fmt.Errorf("failed to scan grocery item for receipt: %w", err)
-		}
-
-		if _, ok := explicitItemSet[item.Name]; !ok {
-			continue
-		}
-
-		item.IsNeeded = false
-		item.IsShoppingChecked = false
-		updatedItems = append(updatedItems, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, false, fmt.Errorf("failed iterating grocery items for receipt: %w", err)
-	}
-
-	if err := receipt.SetItems(receipt.ItemsList); err != nil {
-		return nil, nil, false, fmt.Errorf("failed to set explicit receipt items: %w", err)
-	}
-
-	itemIDs := make([]string, 0, len(updatedItems))
-	for _, item := range updatedItems {
-		itemIDs = append(itemIDs, item.ID)
-	}
-
-	if len(itemIDs) > 0 {
-		updateQuery := `UPDATE grocery_items SET is_needed = false, is_shopping_checked = false
-						WHERE id = ANY($1) AND group_id = $2`
-		_, err = tx.Exec(ctx, updateQuery, itemIDs, receipt.GroupID)
-		if err != nil {
-			return nil, nil, false, fmt.Errorf("failed to update explicit grocery items: %w", err)
-		}
-	}
-
-	query := `INSERT INTO receipts (id, date, total_amount, purchased_by, items, notes, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	_, err = tx.Exec(ctx, query, receipt.ID, receipt.Date, receipt.TotalAmount, receipt.PurchasedBy, receipt.Items, receipt.Notes, receipt.GroupID)
-	if err != nil {
-		return nil, nil, false, fmt.Errorf("failed to create receipt: %w", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, nil, false, err
 	}
 
@@ -389,16 +504,29 @@ func UpdateReceipt(ctx context.Context, id, groupID string, updates map[string]a
 	}
 
 	query := fmt.Sprintf("UPDATE receipts SET %s WHERE id = $1 AND group_id = $2 RETURNING id, date, total_amount, purchased_by, items, notes, group_id", strings.Join(setParts, ", "))
+
 	var receipt models.Receipt
 	var notes *string
-	err := db.QueryRow(ctx, query, args...).Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID)
-	if err != nil {
+	err := withTx(ctx, func(tx pgx.Tx) error {
+		err := tx.QueryRow(ctx, query, args...).Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &notes, &receipt.GroupID)
 		if err == pgx.ErrNoRows {
-			return nil, nil
+			return errNoRows
 		}
+		if err != nil {
+			return err
+		}
+		receipt.Notes = notes
+		if err := appendChangeRecord(ctx, tx, groupID, "receipt", id, "update"); err != nil {
+			return fmt.Errorf("failed to log receipt change: %w", err)
+		}
+		return nil
+	})
+	if errors.Is(err, errNoRows) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, err
 	}
-	receipt.Notes = notes
 	return &receipt, nil
 }
 
@@ -418,14 +546,20 @@ func GetReceiptByID(ctx context.Context, id, groupID string) (*models.Receipt, e
 }
 
 func DeleteReceipt(ctx context.Context, id, groupID string) error {
-	tag, err := db.Exec(ctx, "DELETE FROM receipts WHERE id = $1 AND group_id = $2", id, groupID)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("receipt not found")
-	}
-	return nil
+	err := withTx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, "DELETE FROM receipts WHERE id = $1 AND group_id = $2", id, groupID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return fmt.Errorf("receipt not found")
+		}
+		if err := appendChangeRecord(ctx, tx, groupID, "receipt", id, "delete"); err != nil {
+			return fmt.Errorf("failed to log receipt change: %w", err)
+		}
+		return nil
+	})
+	return err
 }
 
 // Groups
@@ -491,32 +625,29 @@ func UpdateGroup(ctx context.Context, id string, updates map[string]any) (*model
 }
 
 func DeleteGroup(ctx context.Context, groupID string) error {
-	tx, err := db.Begin(ctx)
+	err := withTx(ctx, func(tx pgx.Tx) error {
+		// TODO: i think delete cascades automatically. can we remove this?
+		queries := []string{
+			`DELETE FROM grocery_items WHERE group_id = $1`,
+			`DELETE FROM meal_plans WHERE group_id = $1`,
+			`DELETE FROM receipts WHERE group_id = $1`,
+			`DELETE FROM group_change_log WHERE group_id = $1`,
+			`DELETE FROM groups WHERE id = $1`,
+		}
+
+		for i, query := range queries {
+			tag, err := tx.Exec(ctx, query, groupID)
+			if err != nil {
+				return fmt.Errorf("failed to execute query %d: %w", i, err)
+			}
+			// If the last query (deleting the group) affects no rows, return group not found
+			if i == len(queries)-1 && tag.RowsAffected() == 0 {
+				return fmt.Errorf("group not found")
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	// TODO: i think delete cascades automatically. can we remove this?
-	queries := []string{
-		`DELETE FROM grocery_items WHERE group_id = $1`,
-		`DELETE FROM meal_plans WHERE group_id = $1`,
-		`DELETE FROM receipts WHERE group_id = $1`,
-		`DELETE FROM groups WHERE id = $1`,
-	}
-
-	for i, query := range queries {
-		tag, err := tx.Exec(ctx, query, groupID)
-		if err != nil {
-			return fmt.Errorf("failed to execute query %d: %w", i, err)
-		}
-		// If the last query (deleting the group) affects no rows, return group not found
-		if i == len(queries)-1 && tag.RowsAffected() == 0 {
-			return fmt.Errorf("group not found")
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
