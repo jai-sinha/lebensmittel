@@ -22,6 +22,11 @@ func main() {
 	}
 	defer database.CloseDB()
 
+	if err := database.EnsureSchema(); err != nil {
+		log.Fatalf("Failed to ensure schema: %v", err)
+	}
+	database.EnsurePruneJob()
+
 	websocket.InitWebSocketManager()
 
 	gin.SetMode(gin.ReleaseMode)
@@ -43,6 +48,8 @@ func main() {
 	r.GET("/ws", websocket.HandleWebSocket)
 
 	api := r.Group("/api")
+
+	api.GET("/changes", handlers.GetChanges)
 
 	api.GET("/grocery-items", handlers.GetGroceryItems)
 	api.POST("/grocery-items", handlers.CreateGroceryItem)

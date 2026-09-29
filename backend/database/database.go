@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -14,6 +15,16 @@ import (
 )
 
 var db *pgxpool.Pool
+
+const (
+	entityGrocery = "grocery"
+	entityMeal    = "meal"
+	entityReceipt = "receipt"
+
+	changeCreate = "create"
+	changeUpdate = "update"
+	changeDelete = "delete"
+)
 
 func InitDB() error {
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -38,45 +49,8 @@ func InitDB() error {
 
 	db = pool
 	log.Println("Database connection established")
-	return nil
-}
 
-// EnsureSchema creates the change-ledger table and index if they do not exist.
-// It never alters or backfills existing tables.
-func EnsureSchema() error {
-	queries := []string{
-		`CREATE TABLE IF NOT EXISTS group_change_log (
-			seq BIGSERIAL PRIMARY KEY,
-			group_id TEXT NOT NULL,
-			entity_type TEXT NOT NULL,  -- 'receipt' | 'meal' | 'grocery'
-			entity_id  TEXT NOT NULL,   -- no FK: hard-deletes keep only the id
-			change_type TEXT NOT NULL,  -- 'create' | 'update' | 'delete'
-			changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
-		)`,
-		`CREATE INDEX IF NOT EXISTS group_change_log_group_seq ON group_change_log(group_id, seq)`,
-	}
-	for _, query := range queries {
-		if _, err := db.Exec(context.Background(), query); err != nil {
-			return fmt.Errorf("failed to ensure schema: %w", err)
-		}
-	}
-	log.Println("Schema ensured")
 	return nil
-}
-
-// EnsurePruneJob schedules a nightly pg_cron job that prunes ledger rows older
-// than 30 days. Best-effort: production runs pg_cron; local dev may not have it.
-func EnsurePruneJob() {
-	if _, err := db.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS pg_cron"); err != nil {
-		log.Printf("pg_cron unavailable, skipping ledger prune job: %v", err)
-		return
-	}
-	if _, err := db.Exec(context.Background(), `SELECT cron.schedule(
-		'prune_group_change_log', '0 3 * * *',
-		$$DELETE FROM group_change_log WHERE changed_at < now() - interval '30 days'$$
-	)`); err != nil {
-		log.Printf("failed to schedule ledger prune job: %v", err)
-	}
 }
 
 func CloseDB() {
@@ -144,7 +118,7 @@ func CreateGroceryItem(ctx context.Context, item *models.GroceryItem) (*models.G
 		if _, err := tx.Exec(ctx, query, item.ID, item.Name, item.Category, item.IsNeeded, item.IsShoppingChecked, item.GroupID); err != nil {
 			return fmt.Errorf("failed to create grocery item: %w", err)
 		}
-		if err := appendChangeRecord(ctx, tx, item.GroupID, "grocery", item.ID, "create"); err != nil {
+		if err := appendChangeRecord(ctx, tx, item.GroupID, entityGrocery, item.ID, changeCreate); err != nil {
 			return fmt.Errorf("failed to log grocery item change: %w", err)
 		}
 		return nil
@@ -187,7 +161,7 @@ func UpdateGroceryItem(ctx context.Context, id, groupID string, updates map[stri
 		if err != nil {
 			return err
 		}
-		if err := appendChangeRecord(ctx, tx, groupID, "grocery", id, "update"); err != nil {
+		if err := appendChangeRecord(ctx, tx, groupID, entityGrocery, id, changeUpdate); err != nil {
 			return fmt.Errorf("failed to log grocery item change: %w", err)
 		}
 		return nil
@@ -223,7 +197,7 @@ func DeleteGroceryItem(ctx context.Context, id, groupID string) error {
 		if tag.RowsAffected() == 0 {
 			return fmt.Errorf("grocery item not found")
 		}
-		if err := appendChangeRecord(ctx, tx, groupID, "grocery", id, "delete"); err != nil {
+		if err := appendChangeRecord(ctx, tx, groupID, entityGrocery, id, changeDelete); err != nil {
 			return fmt.Errorf("failed to log grocery item change: %w", err)
 		}
 		return nil
@@ -266,7 +240,7 @@ func CreateMealPlan(ctx context.Context, meal *models.MealPlan) (*models.MealPla
 		if _, err := tx.Exec(ctx, query, meal.ID, meal.Date, meal.MealDescription, meal.GroupID); err != nil {
 			return fmt.Errorf("failed to create meal plan: %w", err)
 		}
-		if err := appendChangeRecord(ctx, tx, meal.GroupID, "meal", meal.ID, "create"); err != nil {
+		if err := appendChangeRecord(ctx, tx, meal.GroupID, entityMeal, meal.ID, changeCreate); err != nil {
 			return fmt.Errorf("failed to log meal plan change: %w", err)
 		}
 		return nil
@@ -306,7 +280,7 @@ func UpdateMealPlan(ctx context.Context, id, groupID string, updates map[string]
 		if err != nil {
 			return err
 		}
-		if err := appendChangeRecord(ctx, tx, groupID, "meal", id, "update"); err != nil {
+		if err := appendChangeRecord(ctx, tx, groupID, entityMeal, id, changeUpdate); err != nil {
 			return fmt.Errorf("failed to log meal plan change: %w", err)
 		}
 		return nil
@@ -342,7 +316,7 @@ func DeleteMealPlan(ctx context.Context, id, groupID string) error {
 		if tag.RowsAffected() == 0 {
 			return fmt.Errorf("meal plan not found")
 		}
-		if err := appendChangeRecord(ctx, tx, groupID, "meal", id, "delete"); err != nil {
+		if err := appendChangeRecord(ctx, tx, groupID, entityMeal, id, changeDelete); err != nil {
 			return fmt.Errorf("failed to log meal plan change: %w", err)
 		}
 		return nil
@@ -395,7 +369,7 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) (*models.Receip
 				return fmt.Errorf("failed to create receipt: %w", err)
 			}
 
-			if err := appendChangeRecord(ctx, tx, receipt.GroupID, "receipt", receipt.ID, "create"); err != nil {
+			if err := appendChangeRecord(ctx, tx, receipt.GroupID, entityReceipt, receipt.ID, changeCreate); err != nil {
 				return fmt.Errorf("failed to log receipt change: %w", err)
 			}
 			return nil
@@ -452,7 +426,7 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) (*models.Receip
 			}
 
 			for _, itemID := range itemIDs {
-				if err := appendChangeRecord(ctx, tx, receipt.GroupID, "grocery", itemID, "update"); err != nil {
+				if err := appendChangeRecord(ctx, tx, receipt.GroupID, entityGrocery, itemID, changeUpdate); err != nil {
 					return fmt.Errorf("failed to log grocery item change: %w", err)
 				}
 			}
@@ -463,7 +437,7 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) (*models.Receip
 			return fmt.Errorf("failed to create receipt: %w", err)
 		}
 
-		if err := appendChangeRecord(ctx, tx, receipt.GroupID, "receipt", receipt.ID, "create"); err != nil {
+		if err := appendChangeRecord(ctx, tx, receipt.GroupID, entityReceipt, receipt.ID, changeCreate); err != nil {
 			return fmt.Errorf("failed to log receipt change: %w", err)
 		}
 		return nil
@@ -516,7 +490,7 @@ func UpdateReceipt(ctx context.Context, id, groupID string, updates map[string]a
 			return err
 		}
 		receipt.Notes = notes
-		if err := appendChangeRecord(ctx, tx, groupID, "receipt", id, "update"); err != nil {
+		if err := appendChangeRecord(ctx, tx, groupID, entityReceipt, id, changeUpdate); err != nil {
 			return fmt.Errorf("failed to log receipt change: %w", err)
 		}
 		return nil
@@ -554,7 +528,7 @@ func DeleteReceipt(ctx context.Context, id, groupID string) error {
 		if tag.RowsAffected() == 0 {
 			return fmt.Errorf("receipt not found")
 		}
-		if err := appendChangeRecord(ctx, tx, groupID, "receipt", id, "delete"); err != nil {
+		if err := appendChangeRecord(ctx, tx, groupID, entityReceipt, id, changeDelete); err != nil {
 			return fmt.Errorf("failed to log receipt change: %w", err)
 		}
 		return nil
