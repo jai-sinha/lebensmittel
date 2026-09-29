@@ -29,14 +29,23 @@ final class SyncEngine {
 	private var groceriesService: (any GroceriesServicing)?
 	private var mealsService: (any MealsServicing)?
 	private var receiptsService: (any ReceiptsServicing)?
+	private var changesService: (any ChangesServicing)?
 
 	private var groceryStore: EntityStore<GroceryItem, LocalGroceryItem>?
 	private var mealStore: EntityStore<MealPlan, LocalMealPlan>?
 	private var receiptStore: EntityStore<Receipt, LocalReceipt>?
 
-	private(set) var isSyncing = false
+	private var groceriesModel: GroceriesModel?
+	private var mealsModel: MealsModel?
+	private var receiptsModel: ReceiptsModel?
+	private let groupModel: GroupModel
 
-	private init() {}
+	private(set) var isSyncing = false
+	private var reconcileTask: Task<Void, Error>?
+
+	private init() {
+		groupModel = .shared
+	}
 
 	// MARK: - Configuration
 
@@ -44,12 +53,20 @@ final class SyncEngine {
 		modelContext: ModelContext,
 		groceriesService: any GroceriesServicing,
 		mealsService: any MealsServicing,
-		receiptsService: any ReceiptsServicing
+		receiptsService: any ReceiptsServicing,
+		groceriesModel: GroceriesModel,
+		mealsModel: MealsModel,
+		receiptsModel: ReceiptsModel,
+		changesService: any ChangesServicing
 	) {
 		self.modelContext = modelContext
 		self.groceriesService = groceriesService
 		self.mealsService = mealsService
 		self.receiptsService = receiptsService
+		self.changesService = changesService
+		self.groceriesModel = groceriesModel
+		self.mealsModel = mealsModel
+		self.receiptsModel = receiptsModel
 
 		let onMutate: () -> Void = { [weak self] in self?.syncIfNeeded() }
 
@@ -234,7 +251,11 @@ final class SyncEngine {
 
 	@discardableResult
 	func enqueueGroceryCreate(name: String, category: String) -> GroceryItem {
-		let local = LocalGroceryItem(name: name, category: category)
+		let local = LocalGroceryItem(
+			groupId: groupModel.getActiveGroupId() ?? "",
+			name: name,
+			category: category
+		)
 		return groceryStore?.enqueueCreate(local: local) ?? local.toGroceryItem()
 	}
 
@@ -267,7 +288,11 @@ final class SyncEngine {
 
 	@discardableResult
 	func enqueueMealCreate(date: String, mealDescription: String) -> MealPlan {
-		let local = LocalMealPlan(date: date, mealDescription: mealDescription)
+		let local = LocalMealPlan(
+			groupId: groupModel.getActiveGroupId() ?? "",
+			date: date,
+			mealDescription: mealDescription
+		)
 		return mealStore?.enqueueCreate(local: local) ?? local.toMealPlan()
 	}
 
@@ -304,12 +329,14 @@ final class SyncEngine {
 		checkedItems: [GroceryItem]
 	) -> Receipt {
 		let itemNames = checkedItems.map { $0.name }
+		let activeGroupID = groupModel.getActiveGroupId() ?? ""
 
 		guard let groceryStore, let receiptStore else {
 			return Receipt(
 				id: UUID().uuidString, date: date,
 				totalAmount: totalAmount, purchasedBy: purchasedBy,
-				items: itemNames, notes: notes
+				items: itemNames, notes: notes,
+				groupId: activeGroupID
 			)
 		}
 
@@ -324,6 +351,7 @@ final class SyncEngine {
 		}
 
 		let local = LocalReceipt(
+			groupId: activeGroupID,
 			date: date, totalAmount: totalAmount,
 			purchasedBy: purchasedBy, items: itemNames, notes: notes
 		)
@@ -356,87 +384,129 @@ final class SyncEngine {
 		receiptStore?.enqueueDelete(id: receiptID)
 	}
 
-	// MARK: - Merge (online fetch → upsert into SwiftData → return refreshed array)
+	// MARK: - Apply (server-originated changes)
 
-	@discardableResult
-	func mergeGroceries(_ serverItems: [GroceryItem]) -> [GroceryItem] {
-		groceryStore?.merge(serverItems) ?? serverItems
+	/// Apply upserts, ignore echoes
+	func applyServerUpsert(_ item: GroceryItem) {
+		guard groceryStore?.applyServerChange(item) == true else { return }
+		groceriesModel?.addItem(item)
 	}
 
-	@discardableResult
-	func mergeMealPlans(_ serverPlans: [MealPlan]) -> [MealPlan] {
-		mealStore?.merge(serverPlans) ?? serverPlans
+	func applyServerUpsert(_ plan: MealPlan) {
+		guard mealStore?.applyServerChange(plan) == true else { return }
+		mealsModel?.addMealPlan(plan)
 	}
 
-	@discardableResult
-	func mergeReceipts(_ serverReceipts: [Receipt]) -> [Receipt] {
-		receiptStore?.merge(serverReceipts) ?? serverReceipts
+	func applyServerUpsert(_ receipt: Receipt) {
+		guard receiptStore?.applyServerChange(receipt) == true else { return }
+		receiptsModel?.addReceipt(receipt)
 	}
 
-	// MARK: - Single-Item Upsert (WebSocket)
-
-	func upsertGroceryItem(_ item: GroceryItem) {
-		groceryStore?.upsert(item)
+	func applyServerDelete(type: SyncEntityType, id: String) {
+		switch type {
+		case .grocery:
+			guard groceryStore?.applyServerDelete(id: id) == true else { return }
+			groceriesModel?.removeItem(withId: id)
+		case .meal:
+			guard mealStore?.applyServerDelete(id: id) == true else { return }
+			mealsModel?.removeMealPlan(withId: id)
+		case .receipt:
+			guard receiptStore?.applyServerDelete(id: id) == true else { return }
+			receiptsModel?.deleteReceipt(withId: id)
+		}
 	}
 
-	func upsertMealPlan(_ plan: MealPlan) {
-		mealStore?.upsert(plan)
+	// MARK: - Reconcile (cursor-based catch-up)
+
+	/// Bring the local copy up to date with the server for the active group
+	func reconcile(forceSnapshot: Bool = false) async throws {
+		// concurrent calls share a result
+		if let running = reconcileTask {
+			try await running.value
+			guard forceSnapshot else { return }
+		}
+		let task = Task { [weak self] in
+			guard let self else { return }
+			try await self.performReconcile(forceSnapshot: forceSnapshot)
+		}
+		reconcileTask = task
+		defer { reconcileTask = nil }
+		try await task.value
 	}
 
-	func upsertReceipt(_ receipt: Receipt) {
-		receiptStore?.upsert(receipt)
+	private func performReconcile(forceSnapshot: Bool) async throws {
+		guard let groupID = groupModel.getActiveGroupId() else { return }
+		guard let changesService else { throw SyncError.notConfigured }
+
+		let response = try await changesService.fetchChanges(
+			afterSeq: forceSnapshot ? nil : cursor(for: groupID)
+		)
+
+		// The group can change while the request is in flight; applying another
+		// group's entities now would show the wrong data on screen.
+		guard groupID == groupModel.getActiveGroupId() else { return }
+
+		if response.isFull {
+			// A full set is authoritative: the merge drops the rows it no longer
+			// lists, and the models are replaced with what survives.
+			groceriesModel?.replaceAll(
+				with: groceryStore?.merge(response.grocery, for: groupID) ?? [])
+			mealsModel?.replaceAll(with: mealStore?.merge(response.meal, for: groupID) ?? [])
+			receiptsModel?.replaceAll(
+				with: receiptStore?.merge(response.receipt, for: groupID) ?? [])
+		} else {
+			response.grocery.forEach { applyServerUpsert($0) }
+			response.deletedIds.grocery.forEach { applyServerDelete(type: .grocery, id: $0) }
+			response.meal.forEach { applyServerUpsert($0) }
+			response.deletedIds.meal.forEach { applyServerDelete(type: .meal, id: $0) }
+			response.receipt.forEach { applyServerUpsert($0) }
+			response.deletedIds.receipt.forEach { applyServerDelete(type: .receipt, id: $0) }
+		}
+
+		setCursor(response.nextSeq, for: groupID)
+		_ = try? await groupModel.refreshActiveGroup()
+		log("Reconciled to seq \(response.nextSeq)")
 	}
 
-	func deleteSyncedGroceryItem(id: String) {
-		groceryStore?.deleteSynced(id: id)
+	// MARK: - Cursor (per-group sync position)
+
+	private static func cursorKey(for groupID: String) -> String {
+		"syncSeq.\(groupID)"
 	}
 
-	func deleteSyncedMealPlan(id: String) {
-		mealStore?.deleteSynced(id: id)
+	private func cursor(for groupID: String) -> Int64? {
+		guard let raw = UserDefaults.standard.object(forKey: Self.cursorKey(for: groupID)) as? NSNumber
+		else { return nil }
+		return raw.int64Value
 	}
 
-	func deleteSyncedReceipt(id: String) {
-		receiptStore?.deleteSynced(id: id)
+	private func setCursor(_ seq: Int64, for groupID: String) {
+		UserDefaults.standard.set(seq, forKey: Self.cursorKey(for: groupID))
 	}
 
 	// MARK: - Load All (offline read path)
 
+	/// Loads the active group's local entities from SwiftData.
 	func loadAllGroceryItems() -> [GroceryItem] {
-		groceryStore?.loadAll() ?? []
+		guard let groupID = groupModel.getActiveGroupId() else { return [] }
+		return groceryStore?.loadAll(for: groupID) ?? []
 	}
 
 	func loadAllMealPlans() -> [MealPlan] {
-		mealStore?.loadAll() ?? []
+		guard let groupID = groupModel.getActiveGroupId() else { return [] }
+		return mealStore?.loadAll(for: groupID) ?? []
 	}
 
 	func loadAllReceipts() -> [Receipt] {
-		receiptStore?.loadAll() ?? []
+		guard let groupID = groupModel.getActiveGroupId() else { return [] }
+		return receiptStore?.loadAll(for: groupID) ?? []
 	}
 
-	// MARK: - WebSocket Filter
-
-	/// True when there is at least one pending SyncOperation for the given entity ID.
-	/// Used by SocketService to skip incoming events for locally-dirty entities.
-	func hasPendingOperation(id: String) -> Bool {
-		guard let context = modelContext else { return false }
-		guard let uuid = UUID(uuidString: id) else { return false }
-		let all = (try? context.fetch(FetchDescriptor<SyncOperation>())) ?? []
-		return all.contains { $0.localID == uuid }
-	}
-
-	// MARK: - Local Reset
-
-	/// Clears all persisted entity snapshots and pending sync work.
-	/// Used when the active group context changes so stale local data does not
-	/// bleed across groups.
-	func clearLocalData() {
-		guard let context = modelContext else { return }
-		try? context.delete(model: LocalGroceryItem.self)
-		try? context.delete(model: LocalMealPlan.self)
-		try? context.delete(model: LocalReceipt.self)
-		try? context.delete(model: SyncOperation.self)
-		try? context.save()
-		log("Local store cleared")
+	/// Republish the local store into the feature models, for when it changed locally
+	func reloadModels() {
+		groceriesModel?.replaceAll(with: loadAllGroceryItems())
+		mealsModel?.replaceAll(with: loadAllMealPlans())
+		receiptsModel?.replaceAll(with: loadAllReceipts())
 	}
 
 	// MARK: - Payloads

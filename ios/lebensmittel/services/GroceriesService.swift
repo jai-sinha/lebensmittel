@@ -14,11 +14,6 @@ struct GroceriesService: GroceriesServicing {
 		self.client = client
 	}
 
-	func fetchGroceries() async throws -> [GroceryItem] {
-		let response: GroceryItemsResponse = try await client.send(path: "/grocery-items")
-		return response.groceryItems
-	}
-
 	func createGroceryItem(_ item: NewGroceryItem) async throws -> GroceryItem {
 		return try await client.send(
 			path: "/grocery-items",

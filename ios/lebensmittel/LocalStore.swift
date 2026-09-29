@@ -146,6 +146,7 @@ enum SyncOperationType: String, Codable {
 final class LocalGroceryItem {
 	@Attribute(.unique) var localID: UUID
 	var syncStatus: SyncStatus
+	var groupId: String = ""
 
 	var name: String
 	var category: String
@@ -155,6 +156,7 @@ final class LocalGroceryItem {
 	init(
 		localID: UUID = UUID(),
 		syncStatus: SyncStatus = .pendingCreate,
+		groupId: String = "",
 		name: String,
 		category: String,
 		isNeeded: Bool = true,
@@ -162,6 +164,7 @@ final class LocalGroceryItem {
 	) {
 		self.localID = localID
 		self.syncStatus = syncStatus
+		self.groupId = groupId
 		self.name = name
 		self.category = category
 		self.isNeeded = isNeeded
@@ -175,7 +178,8 @@ final class LocalGroceryItem {
 			name: name,
 			category: category,
 			isNeeded: isNeeded,
-			isShoppingChecked: isShoppingChecked
+			isShoppingChecked: isShoppingChecked,
+			groupId: groupId
 		)
 	}
 
@@ -185,6 +189,7 @@ final class LocalGroceryItem {
 		category = item.category
 		isNeeded = item.isNeeded
 		isShoppingChecked = item.isShoppingChecked
+		groupId = item.groupId
 		syncStatus = .synced
 	}
 }
@@ -195,6 +200,7 @@ final class LocalGroceryItem {
 final class LocalMealPlan {
 	@Attribute(.unique) var localID: UUID
 	var syncStatus: SyncStatus
+	var groupId: String = ""
 
 	/// Stored as "yyyy-MM-dd", matching the server wire format.
 	var date: String
@@ -203,11 +209,13 @@ final class LocalMealPlan {
 	init(
 		localID: UUID = UUID(),
 		syncStatus: SyncStatus = .pendingCreate,
+		groupId: String = "",
 		date: String,
 		mealDescription: String
 	) {
 		self.localID = localID
 		self.syncStatus = syncStatus
+		self.groupId = groupId
 		self.date = date
 		self.mealDescription = mealDescription
 	}
@@ -217,7 +225,8 @@ final class LocalMealPlan {
 		MealPlan(
 			id: localID.uuidString,
 			date: date,
-			mealDescription: mealDescription
+			mealDescription: mealDescription,
+			groupId: groupId
 		)
 	}
 
@@ -225,6 +234,7 @@ final class LocalMealPlan {
 	func applyServerValues(_ plan: MealPlan) {
 		date = plan.date
 		mealDescription = plan.mealDescription
+		groupId = plan.groupId
 		syncStatus = .synced
 	}
 }
@@ -235,8 +245,8 @@ final class LocalMealPlan {
 final class LocalReceipt {
 	@Attribute(.unique) var localID: UUID
 	var syncStatus: SyncStatus
+	var groupId: String = ""
 
-	/// Stored as "yyyy-MM-dd", matching the server wire format.
 	var date: String
 	var totalAmount: Double
 	var purchasedBy: String
@@ -246,6 +256,7 @@ final class LocalReceipt {
 	init(
 		localID: UUID = UUID(),
 		syncStatus: SyncStatus = .pendingCreate,
+		groupId: String = "",
 		date: String,
 		totalAmount: Double,
 		purchasedBy: String,
@@ -254,6 +265,7 @@ final class LocalReceipt {
 	) {
 		self.localID = localID
 		self.syncStatus = syncStatus
+		self.groupId = groupId
 		self.date = date
 		self.totalAmount = totalAmount
 		self.purchasedBy = purchasedBy
@@ -269,7 +281,8 @@ final class LocalReceipt {
 			totalAmount: totalAmount,
 			purchasedBy: purchasedBy,
 			items: items,
-			notes: notes
+			notes: notes,
+			groupId: groupId
 		)
 	}
 
@@ -280,6 +293,7 @@ final class LocalReceipt {
 		purchasedBy = receipt.purchasedBy
 		items = receipt.items
 		notes = receipt.notes
+		groupId = receipt.groupId
 		syncStatus = .synced
 	}
 }
@@ -328,6 +342,7 @@ protocol LocalEntity: PersistentModel {
 	associatedtype DTO: Codable & Identifiable where DTO.ID == String
 	var localID: UUID { get set }
 	var syncStatus: SyncStatus { get set }
+	var groupId: String { get set }
 	func toDTO() -> DTO
 	func applyServerValues(_ dto: DTO)
 	static func make(from dto: DTO, syncStatus: SyncStatus) -> Self?
@@ -341,6 +356,7 @@ extension LocalGroceryItem: LocalEntity {
 		return LocalGroceryItem(
 			localID: localID,
 			syncStatus: syncStatus,
+			groupId: dto.groupId,
 			name: dto.name,
 			category: dto.category,
 			isNeeded: dto.isNeeded,
@@ -357,6 +373,7 @@ extension LocalMealPlan: LocalEntity {
 		return LocalMealPlan(
 			localID: localID,
 			syncStatus: syncStatus,
+			groupId: dto.groupId,
 			date: dto.date,
 			mealDescription: dto.mealDescription
 		)
@@ -371,6 +388,7 @@ extension LocalReceipt: LocalEntity {
 		return LocalReceipt(
 			localID: localID,
 			syncStatus: syncStatus,
+			groupId: dto.groupId,
 			date: dto.date,
 			totalAmount: dto.totalAmount,
 			purchasedBy: dto.purchasedBy,
@@ -497,59 +515,73 @@ where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.D
 		try? modelContext.save()
 	}
 
-	// MARK: - Merge (online fetch → upsert into SwiftData → return refreshed array)
+	// MARK: - Server-originated changes
 
+	/// Applies the server's copy of one row and reports whether the store took
+	/// it. False means this was an echo of one of this device's own pending
+	/// operations, so in-memory state must be left alone as well.
 	@discardableResult
-	func merge(_ items: [DTO]) -> [DTO] {
-		let serverUUIDs = Set(items.compactMap { UUID(uuidString: $0.id) })
+	func applyServerChange(_ dto: DTO) -> Bool {
+		let applied = storeServerCopy(of: dto)
+		try? modelContext.save()
+		return applied
+	}
 
+	/// Applies a row the server no longer has, under the same echo rule.
+	@discardableResult
+	func applyServerDelete(id: String) -> Bool {
+		guard let uuid = UUID(uuidString: id), let local = find(localID: uuid),
+			local.syncStatus == .synced
+		else { return false }
+		modelContext.delete(local)
+		try? modelContext.save()
+		return true
+	}
+
+	/// Writes the server's copy of one row: updates the local row, unless this
+	/// device has pending changes for it, otherwise inserts it.
+	private func storeServerCopy(of dto: DTO) -> Bool {
+		guard let localID = UUID(uuidString: dto.id) else { return false }
+		if let local = find(localID: localID) {
+			guard local.syncStatus == .synced else { return false }
+			local.applyServerValues(dto)
+		} else if let made = Local.make(from: dto, syncStatus: .synced) {
+			modelContext.insert(made)
+		}
+		return true
+	}
+
+	// MARK: - Merge (server's full set → reconcile the local store → refreshed array)
+
+	/// Reconciles the local store against the group's full set and returns the
+	/// group's local entities.
+	@discardableResult
+	func merge(_ items: [DTO], for groupID: String) -> [DTO] {
 		for item in items {
-			guard let localID = UUID(uuidString: item.id) else { continue }
-			if let local = find(localID: localID) {
-				if local.syncStatus == .synced {
-					local.applyServerValues(item)
-				}
-			} else if let made = Local.make(from: item, syncStatus: .synced) {
-				modelContext.insert(made)
-			}
+			_ = storeServerCopy(of: item)
 		}
 
-		for local in loadAllLocal() {
-			guard local.syncStatus == .synced else { continue }
-			if !serverUUIDs.contains(local.localID) {
+		// delete rows the server no longer has
+		let serverUUIDs = Set(items.compactMap { UUID(uuidString: $0.id) })
+		for local in loadAllLocal() where local.syncStatus == .synced {
+			if local.groupId == groupID || local.groupId.isEmpty,
+				!serverUUIDs.contains(local.localID)
+			{
 				modelContext.delete(local)
 			}
 		}
 
 		try? modelContext.save()
-		return loadAll()
-	}
-
-	// MARK: - Single-Item Upsert (WebSocket)
-
-	func upsert(_ dto: DTO) {
-		guard let localID = UUID(uuidString: dto.id) else { return }
-		if let local = find(localID: localID) {
-			if local.syncStatus == .synced {
-				local.applyServerValues(dto)
-			}
-		} else if let made = Local.make(from: dto, syncStatus: .synced) {
-			modelContext.insert(made)
-		}
-		try? modelContext.save()
-	}
-
-	func deleteSynced(id: String) {
-		guard let uuid = UUID(uuidString: id) else { return }
-		find(localID: uuid).map { modelContext.delete($0) }
-		try? modelContext.save()
+		return loadAll(for: groupID)
 	}
 
 	// MARK: - Load All (offline read path)
 
-	func loadAll() -> [DTO] {
+	/// Load the active group's local entities
+	func loadAll(for groupID: String) -> [DTO] {
 		loadAllLocal()
 			.filter { $0.syncStatus != .pendingDelete }
+			.filter { $0.groupId == groupID || $0.groupId.isEmpty }
 			.map { $0.toDTO() }
 	}
 

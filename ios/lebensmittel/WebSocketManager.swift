@@ -81,25 +81,11 @@ final class SocketService: WebSocketDelegate {
 	private var reconnectTask: Task<Void, Never>?
 	private let reconnectDelay: TimeInterval = 3.0
 
-	public private(set) var groceriesModel: GroceriesModel!
-	public private(set) var shoppingModel: ShoppingModel!
-	public private(set) var mealsModel: MealsModel!
-	public private(set) var receiptsModel: ReceiptsModel!
 	public private(set) var groupsModel: GroupModel!
 
 	private init() {}
 
-	func start(
-		with groceriesModel: GroceriesModel,
-		mealsModel: MealsModel,
-		receiptsModel: ReceiptsModel,
-		shoppingModel: ShoppingModel,
-		groupsModel: GroupModel
-	) {
-		self.groceriesModel = groceriesModel
-		self.mealsModel = mealsModel
-		self.receiptsModel = receiptsModel
-		self.shoppingModel = shoppingModel
+	func start(with groupsModel: GroupModel) {
 		self.groupsModel = groupsModel
 
 		// Prevent double-starting
@@ -111,7 +97,7 @@ final class SocketService: WebSocketDelegate {
 	/// Call from willEnterForeground to guarantee the socket is alive.
 	func ensureConnected() {
 		guard ConnectivityMonitor.shared.isOnline else { return }
-		guard groceriesModel != nil, !isConnectedForSync else { return }
+		guard groupsModel != nil, !isConnectedForSync else { return }
 		reconnectTask?.cancel()
 		reconnectTask = nil
 		resetSocketState()
@@ -181,6 +167,8 @@ final class SocketService: WebSocketDelegate {
 				reconnectTask?.cancel()
 				reconnectTask = nil
 				SyncEngine.shared.syncIfNeeded()
+				// Anything missed while disconnected is recovered here.
+				try? await SyncEngine.shared.reconcile()
 				if Self.verbose { print("WebSocket connected:", headers) }
 			}
 
@@ -291,125 +279,45 @@ final class SocketService: WebSocketDelegate {
 			}
 
 		// MARK: Grocery Item Events
-		case "grocery_item_created":
+		case "grocery_item_created", "grocery_item_updated":
 			decode(payload, as: GroceryItem.self) { item in
-				if Self.verbose { print("grocery created:", item) }
-				guard !SyncEngine.shared.hasPendingOperation(id: item.id) else {
-					if Self.verbose {
-						print("Skipping grocery create for pending entity:", item.id)
-					}
-					return
-				}
-				SyncEngine.shared.upsertGroceryItem(item)
-				self.groceriesModel.addItem(item)
-			}
-
-		case "grocery_item_updated":
-			decode(payload, as: GroceryItem.self) { item in
-				if Self.verbose { print("grocery updated:", item) }
-				guard !SyncEngine.shared.hasPendingOperation(id: item.id) else {
-					if Self.verbose {
-						print("Skipping grocery update for pending entity:", item.id)
-					}
-					return
-				}
-				SyncEngine.shared.upsertGroceryItem(item)
-				self.groceriesModel.updateItem(item)
+				if Self.verbose { print("grocery upsert:", item.id) }
+				SyncEngine.shared.applyServerUpsert(item)
 			}
 
 		case "grocery_items_updated":
 			decode(payload, as: [GroceryItem].self) { items in
-				if Self.verbose { print("groceries updated:", items) }
-				for item in items {
-					guard !SyncEngine.shared.hasPendingOperation(id: item.id) else {
-						if Self.verbose {
-							print("Skipping grocery batch update for pending entity:", item.id)
-						}
-						continue
-					}
-					SyncEngine.shared.upsertGroceryItem(item)
-					self.groceriesModel.updateItem(item)
-				}
+				if Self.verbose { print("groceries upsert:", items.count) }
+				items.forEach { SyncEngine.shared.applyServerUpsert($0) }
 			}
 
 		case "grocery_item_deleted":
-			if let dict = payload as? [String: Any], let id = dict["id"] as? String {
-				guard !SyncEngine.shared.hasPendingOperation(id: id) else {
-					if Self.verbose { print("Skipping grocery delete for pending entity:", id) }
-					return
-				}
-				SyncEngine.shared.deleteSyncedGroceryItem(id: id)
-				self.groceriesModel.removeItem(withId: id)
+			if let id = (payload as? [String: Any])?["id"] as? String {
+				SyncEngine.shared.applyServerDelete(type: .grocery, id: id)
 			}
 
 		// MARK: Meal Plan Events
-		case "meal_plan_created":
+		case "meal_plan_created", "meal_plan_updated":
 			decode(payload, as: MealPlan.self) { meal in
-				if Self.verbose { print("meal created:", meal) }
-				guard !SyncEngine.shared.hasPendingOperation(id: meal.id) else {
-					if Self.verbose { print("Skipping meal create for pending entity:", meal.id) }
-					return
-				}
-				SyncEngine.shared.upsertMealPlan(meal)
-				self.mealsModel.addMealPlan(meal)
-			}
-
-		case "meal_plan_updated":
-			decode(payload, as: MealPlan.self) { meal in
-				if Self.verbose { print("meal updated:", meal) }
-				guard !SyncEngine.shared.hasPendingOperation(id: meal.id) else {
-					if Self.verbose { print("Skipping meal update for pending entity:", meal.id) }
-					return
-				}
-				SyncEngine.shared.upsertMealPlan(meal)
-				self.mealsModel.updateMealPlan(meal)
+				if Self.verbose { print("meal upsert:", meal.id) }
+				SyncEngine.shared.applyServerUpsert(meal)
 			}
 
 		case "meal_plan_deleted":
-			if let dict = payload as? [String: Any], let id = dict["id"] as? String {
-				guard !SyncEngine.shared.hasPendingOperation(id: id) else {
-					if Self.verbose { print("Skipping meal delete for pending entity:", id) }
-					return
-				}
-				SyncEngine.shared.deleteSyncedMealPlan(id: id)
-				self.mealsModel.removeMealPlan(withId: id)
+			if let id = (payload as? [String: Any])?["id"] as? String {
+				SyncEngine.shared.applyServerDelete(type: .meal, id: id)
 			}
 
 		// MARK: Receipt Events
-		case "receipt_created":
+		case "receipt_created", "receipt_updated":
 			decode(payload, as: Receipt.self) { receipt in
-				if Self.verbose { print("receipt created:", receipt) }
-				guard !SyncEngine.shared.hasPendingOperation(id: receipt.id) else {
-					if Self.verbose {
-						print("Skipping receipt create for pending entity:", receipt.id)
-					}
-					return
-				}
-				SyncEngine.shared.upsertReceipt(receipt)
-				self.receiptsModel.addReceipt(receipt)
-			}
-
-		case "receipt_updated":
-			decode(payload, as: Receipt.self) { receipt in
-				if Self.verbose { print("receipt updated:", receipt) }
-				guard !SyncEngine.shared.hasPendingOperation(id: receipt.id) else {
-					if Self.verbose {
-						print("Skipping receipt update for pending entity:", receipt.id)
-					}
-					return
-				}
-				SyncEngine.shared.upsertReceipt(receipt)
-				self.receiptsModel.updateReceipt(receipt)
+				if Self.verbose { print("receipt upsert:", receipt.id) }
+				SyncEngine.shared.applyServerUpsert(receipt)
 			}
 
 		case "receipt_deleted":
-			if let dict = payload as? [String: Any], let id = dict["id"] as? String {
-				guard !SyncEngine.shared.hasPendingOperation(id: id) else {
-					if Self.verbose { print("Skipping receipt delete for pending entity:", id) }
-					return
-				}
-				SyncEngine.shared.deleteSyncedReceipt(id: id)
-				self.receiptsModel.deleteReceipt(withId: id)
+			if let id = (payload as? [String: Any])?["id"] as? String {
+				SyncEngine.shared.applyServerDelete(type: .receipt, id: id)
 			}
 
 		default:

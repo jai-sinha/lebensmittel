@@ -16,6 +16,7 @@ nonisolated struct Receipt: Identifiable, Codable, Sendable {
 	var purchasedBy: String
 	var items: [String]
 	var notes: String?
+	var groupId: String
 }
 
 struct NewReceipt: Codable {
@@ -25,11 +26,6 @@ struct NewReceipt: Codable {
 	var purchasedBy: String
 	var items: [String]?
 	var notes: String?
-}
-
-struct ReceiptsResponse: Codable {
-	let count: Int
-	let receipts: [Receipt]
 }
 
 struct MonthlyReceiptsGroup: Identifiable {
@@ -47,11 +43,7 @@ nonisolated struct GroceryItem: Identifiable, Codable, Sendable {
 	var category: String
 	var isNeeded: Bool = true  // true = need to buy, false = have it
 	var isShoppingChecked: Bool = false  // checked off in shopping list
-}
-
-struct GroceryItemsResponse: Codable {
-	let count: Int
-	let groceryItems: [GroceryItem]
+	var groupId: String
 }
 
 struct NewGroceryItem: Codable {
@@ -68,17 +60,13 @@ nonisolated struct MealPlan: Identifiable, Codable, Equatable, Sendable {
 	var id: String
 	var date: String
 	var mealDescription: String
+	var groupId: String
 }
 
 struct NewMealPlan: Codable {
 	var id: String
 	var date: String
 	var mealDescription: String
-}
-
-struct MealPlansResponse: Codable {
-	let count: Int
-	let mealPlans: [MealPlan]
 }
 
 // MARK: Groups

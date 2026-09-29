@@ -28,7 +28,7 @@ struct ReceiptsView: View {
 					InlineErrorView(message: errorMessage)
 						.refreshable {
 							model.errorMessage = nil
-							model.fetchReceipts()
+							await model.fetchReceipts()
 						}
 				} else if !groupModel.hasActiveGroup {
 					Text("Set a group ID from the top-right menu to start tracking receipts.")
@@ -81,7 +81,7 @@ struct ReceiptsView: View {
 					.scrollContentBackground(.hidden)
 					.refreshable {
 						model.errorMessage = nil
-						model.fetchReceipts()
+						await model.fetchReceipts()
 					}
 				}
 			}

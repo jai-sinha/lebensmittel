@@ -10,16 +10,11 @@ import Foundation
 @MainActor
 @Observable
 class MealsModel {
-	private let service: any MealsServicing
 	private let syncEngine: SyncEngine
 	var mealPlans: [String: MealPlan] = [:]  // Keyed by date string
 	var errorMessage: String? = nil
 
-	init(
-		service: any MealsServicing = MealsService(),
-		syncEngine: SyncEngine = .shared
-	) {
-		self.service = service
+	init(syncEngine: SyncEngine = .shared) {
 		self.syncEngine = syncEngine
 	}
 
@@ -42,13 +37,6 @@ class MealsModel {
 		mealPlans[plan.date] = plan
 	}
 
-	func updateMealPlan(_ plan: MealPlan) {
-		if var existingPlan = mealPlans[plan.date] {
-			existingPlan.mealDescription = plan.mealDescription
-			mealPlans[plan.date] = existingPlan
-		}
-	}
-
 	func removeMealPlan(withId id: String) {
 		if let key = mealPlans.first(where: { $0.value.id == id })?.key {
 			mealPlans.removeValue(forKey: key)
@@ -64,29 +52,15 @@ class MealsModel {
 
 	// MARK: CRUD Operations
 
-	func fetchMealPlans() {
+	func fetchMealPlans() async {
 		errorMessage = nil
 
-		if !ConnectivityMonitor.shared.isOnline {
-			let localPlans = syncEngine.loadAllMealPlans()
-			self.mealPlans.removeAll()
-			for mealPlan in localPlans {
-				self.mealPlans[mealPlan.date] = mealPlan
-			}
-			return
-		}
+		guard ConnectivityMonitor.shared.isOnline else { return }
 
-		Task {
-			do {
-				let mealPlans = try await service.fetchMealPlans()
-				let mergedPlans = syncEngine.mergeMealPlans(mealPlans)
-				self.mealPlans.removeAll()
-				for mealPlan in mergedPlans {
-					self.mealPlans[mealPlan.date] = mealPlan
-				}
-			} catch {
-				self.errorMessage = UserFacingError.message(for: error)
-			}
+		do {
+			try await syncEngine.reconcile(forceSnapshot: true)
+		} catch {
+			errorMessage = UserFacingError.message(for: error)
 		}
 	}
 

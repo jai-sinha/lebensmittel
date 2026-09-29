@@ -23,7 +23,7 @@ struct GroceriesView: View {
 					InlineErrorView(message: errorMessage)
 						.refreshable {
 							model.errorMessage = nil
-							model.fetchGroceries()
+							await model.fetchGroceries()
 						}
 				} else {
 					if !groupModel.hasActiveGroup {
@@ -61,7 +61,7 @@ struct GroceriesView: View {
 							// 2-col item grid
 							GroceriesGridView()
 								.refreshable {
-									model.fetchGroceries()
+									await model.fetchGroceries()
 								}
 						}
 						.background(

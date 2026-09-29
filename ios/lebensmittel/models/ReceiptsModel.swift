@@ -10,18 +10,13 @@ import Foundation
 @MainActor
 @Observable
 class ReceiptsModel {
-	private let service: any ReceiptsServicing
 	private let syncEngine: SyncEngine
 
 	var receipts: [Receipt] = []
 	var isLoading = false
 	var errorMessage: String? = nil
 
-	init(
-		service: any ReceiptsServicing = ReceiptsService(),
-		syncEngine: SyncEngine = .shared
-	) {
-		self.service = service
+	init(syncEngine: SyncEngine = .shared) {
 		self.syncEngine = syncEngine
 	}
 
@@ -41,12 +36,6 @@ class ReceiptsModel {
 		}
 	}
 
-	func updateReceipt(_ receipt: Receipt) {
-		if let index = receipts.firstIndex(where: { $0.id == receipt.id }) {
-			receipts[index] = receipt
-		}
-	}
-
 	func deleteReceipt(withId id: String) {
 		receipts.removeAll { $0.id == id }
 	}
@@ -57,35 +46,18 @@ class ReceiptsModel {
 
 	// MARK: CRUD Operations
 
-	func fetchReceipts() {
-		isLoading = true
+	func fetchReceipts() async {
 		errorMessage = nil
 
-		if !ConnectivityMonitor.shared.isOnline {
-			receipts = syncEngine.loadAllReceipts()
-			isLoading = false
-			return
-		}
+		guard ConnectivityMonitor.shared.isOnline else { return }
 
-		let service = service
+		isLoading = true
+		defer { isLoading = false }
 
-		Task {
-			do {
-				let fetchedReceipts = try await service.fetchReceipts()
-				let mergedReceipts = await MainActor.run {
-					syncEngine.mergeReceipts(fetchedReceipts)
-				}
-				await MainActor.run {
-					self.receipts = mergedReceipts
-					self.isLoading = false
-				}
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-					self.receipts = self.syncEngine.loadAllReceipts()
-					self.isLoading = false
-				}
-			}
+		do {
+			try await syncEngine.reconcile(forceSnapshot: true)
+		} catch {
+			errorMessage = UserFacingError.message(for: error)
 		}
 	}
 
@@ -97,7 +69,9 @@ class ReceiptsModel {
 			purchasedBy: purchasedBy,
 			notes: notes
 		) {
-			updateReceipt(updatedReceipt)
+			if let index = receipts.firstIndex(where: { $0.id == updatedReceipt.id }) {
+				receipts[index] = updatedReceipt
+			}
 		}
 	}
 

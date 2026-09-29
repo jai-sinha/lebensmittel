@@ -55,13 +55,15 @@ struct APIClient {
 		path: String,
 		method: HTTPMethod = .GET,
 		body: (any Encodable)? = nil,
-		includeGroupHeader: Bool = true
+		includeGroupHeader: Bool = true,
+		queryItems: [URLQueryItem]? = nil
 	) async throws -> Response {
 		let request = try await makeRequest(
 			path: path,
 			method: method,
 			body: body,
-			includeGroupHeader: includeGroupHeader
+			includeGroupHeader: includeGroupHeader,
+			queryItems: queryItems
 		)
 		let (data, response) = try await perform(request)
 		return try decode(Response.self, from: data, response: response)
@@ -71,13 +73,15 @@ struct APIClient {
 		path: String,
 		method: HTTPMethod,
 		body: (any Encodable)? = nil,
-		includeGroupHeader: Bool = true
+		includeGroupHeader: Bool = true,
+		queryItems: [URLQueryItem]? = nil
 	) async throws {
 		let request = try await makeRequest(
 			path: path,
 			method: method,
 			body: body,
-			includeGroupHeader: includeGroupHeader
+			includeGroupHeader: includeGroupHeader,
+			queryItems: queryItems
 		)
 		let (_, response) = try await perform(request)
 		try validate(response: response)
@@ -87,10 +91,18 @@ struct APIClient {
 		path: String,
 		method: HTTPMethod,
 		body: (any Encodable)?,
-		includeGroupHeader: Bool
+		includeGroupHeader: Bool,
+		queryItems: [URLQueryItem]?
 	) async throws -> URLRequest {
 		let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-		let url = AppConfig.apiBaseURL.appendingPathComponent(trimmedPath)
+		var urlComponents = URLComponents(
+			url: AppConfig.apiBaseURL.appendingPathComponent(trimmedPath),
+			resolvingAgainstBaseURL: false
+		)
+		if let queryItems {
+			urlComponents?.queryItems = queryItems
+		}
+		guard let url = urlComponents?.url else { throw APIError.invalidURL }
 		var request = URLRequest(url: url)
 		request.httpMethod = method.rawValue
 		request.setValue(ClientIdentity.id, forHTTPHeaderField: "X-Client-ID")

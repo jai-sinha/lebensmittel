@@ -29,7 +29,7 @@ struct ShoppingView: View {
 						InlineErrorView(message: errorMessage)
 							.refreshable {
 								model.errorMessage = nil
-								model.fetchGroceries()
+								await model.fetchGroceries()
 							}
 					} else {
 List {
@@ -38,7 +38,7 @@ List {
 					.scrollContentBackground(.hidden)
 					.refreshable {
 							model.errorMessage = nil
-							model.fetchGroceries()
+							await model.fetchGroceries()
 						}
 					}
 					Spacer()

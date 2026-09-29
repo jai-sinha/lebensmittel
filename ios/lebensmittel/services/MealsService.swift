@@ -14,11 +14,6 @@ struct MealsService: MealsServicing {
 		self.client = client
 	}
 
-	func fetchMealPlans() async throws -> [MealPlan] {
-		let response: MealPlansResponse = try await client.send(path: "/meal-plans")
-		return response.mealPlans
-	}
-
 	func createMealPlan(_ plan: NewMealPlan) async throws -> MealPlan {
 		return try await client.send(
 			path: "/meal-plans",

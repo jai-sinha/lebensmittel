@@ -45,9 +45,9 @@ struct lebensmittelApp: App {
 		self.mealsService = mealsService
 		self.receiptsService = receiptsService
 
-		let groceries = GroceriesModel(service: groceriesService)
-		let meals = MealsModel(service: mealsService)
-		let receipts = ReceiptsModel(service: receiptsService)
+		let groceries = GroceriesModel()
+		let meals = MealsModel()
+		let receipts = ReceiptsModel()
 		let group = GroupModel.shared
 		group.configure(modelContext: ModelContext(modelContainer))
 		let shopping = ShoppingModel(groceriesModel: groceries)
@@ -62,7 +62,11 @@ struct lebensmittelApp: App {
 			modelContext: ModelContext(modelContainer),
 			groceriesService: groceriesService,
 			mealsService: mealsService,
-			receiptsService: receiptsService
+			receiptsService: receiptsService,
+			groceriesModel: groceries,
+			mealsModel: meals,
+			receiptsModel: receipts,
+			changesService: ChangesService(client: apiClient)
 		)
 	}
 
@@ -70,17 +74,9 @@ struct lebensmittelApp: App {
 		guard !hasStartedSession else { return }
 		hasStartedSession = true
 
-		groceriesModel.replaceAll(with: SyncEngine.shared.loadAllGroceryItems())
-		mealsModel.replaceAll(with: SyncEngine.shared.loadAllMealPlans())
-		receiptsModel.replaceAll(with: SyncEngine.shared.loadAllReceipts())
+		SyncEngine.shared.reloadModels()
 
-		SocketService.shared.start(
-			with: groceriesModel,
-			mealsModel: mealsModel,
-			receiptsModel: receiptsModel,
-			shoppingModel: shoppingModel,
-			groupsModel: groupModel
-		)
+		SocketService.shared.start(with: groupModel)
 
 		Task {
 			await groupModel.bootstrap()
@@ -104,16 +100,7 @@ struct lebensmittelApp: App {
 		guard groupModel.hasActiveGroup else { return }
 
 		do {
-			async let g = groceriesService.fetchGroceries()
-			async let m = mealsService.fetchMealPlans()
-			async let r = receiptsService.fetchReceipts()
-			async let group = groupModel.refreshActiveGroup()
-			let (groceries, meals, receipts, _) = try await (g, m, r, group)
-
-			groceriesModel.replaceAll(with: SyncEngine.shared.mergeGroceries(groceries))
-			mealsModel.replaceAll(with: SyncEngine.shared.mergeMealPlans(meals))
-			receiptsModel.replaceAll(with: SyncEngine.shared.mergeReceipts(receipts))
-
+			try await SyncEngine.shared.reconcile()
 			SyncEngine.shared.syncIfNeeded()
 		} catch {
 			print(error)
@@ -152,10 +139,7 @@ struct lebensmittelApp: App {
 						for: Notification.Name("GroupChanged")
 					)
 				) { _ in
-					SyncEngine.shared.clearLocalData()
-					groceriesModel.replaceAll(with: [])
-					mealsModel.replaceAll(with: [])
-					receiptsModel.replaceAll(with: [])
+					SyncEngine.shared.reloadModels()
 					SocketService.shared.restart()
 					triggerBackgroundReconcile()
 				}

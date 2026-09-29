@@ -49,8 +49,8 @@ class ShoppingModel {
 	}
 
 	// Delegate methods to GroceriesModel
-	func fetchGroceries() {
-		groceriesModel.fetchGroceries()
+	func fetchGroceries() async {
+		await groceriesModel.fetchGroceries()
 	}
 
 	func updateGroceryItem(item: GroceryItem, field: GroceriesModel.GroceryItemField) {
@@ -73,9 +73,6 @@ class ShoppingModel {
 			checkedItems: checkedItems
 		)
 
-		groceriesModel.groceryItems = syncEngine.loadAllGroceryItems()
-		if let receiptsModel = SocketService.shared.receiptsModel {
-			receiptsModel.receipts = syncEngine.loadAllReceipts()
-		}
+		syncEngine.reloadModels()
 	}
 }

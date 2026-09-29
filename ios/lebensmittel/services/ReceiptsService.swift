@@ -14,11 +14,6 @@ struct ReceiptsService: ReceiptsServicing {
 		self.client = client
 	}
 
-	func fetchReceipts() async throws -> [Receipt] {
-		let response: ReceiptsResponse = try await client.send(path: "/receipts")
-		return response.receipts.sorted { $0.date < $1.date }
-	}
-
 	func createReceipt(_ receipt: NewReceipt) async throws -> Receipt {
 		try await client.send(
 			path: "/receipts",

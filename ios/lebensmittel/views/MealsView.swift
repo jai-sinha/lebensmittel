@@ -38,7 +38,7 @@ struct MealsView: View {
 					InlineErrorView(message: errorMessage)
 						.refreshable {
 							model.errorMessage = nil
-							model.fetchMealPlans()
+							await model.fetchMealPlans()
 						}
 				} else {
 					ScrollViewReader { proxy in
@@ -55,7 +55,7 @@ struct MealsView: View {
 						.scrollDismissesKeyboard(.interactively)
 						.refreshable {
 							model.errorMessage = nil
-							model.fetchMealPlans()
+							await model.fetchMealPlans()
 						}
 						.onAppear {
 							proxy.scrollTo("today", anchor: .top)

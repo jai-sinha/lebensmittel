@@ -23,7 +23,6 @@ class GroceriesModel {
 		case isShoppingChecked(Bool)
 	}
 
-	private let service: any GroceriesServicing
 	private let syncEngine: SyncEngine
 
 	var groceryItems: [GroceryItem] = []
@@ -38,11 +37,9 @@ class GroceriesModel {
 	}
 
 	init(
-		service: any GroceriesServicing = GroceriesService(),
 		groupModel: GroupModel = .shared,
 		syncEngine: SyncEngine = .shared
 	) {
-		self.service = service
 		self.groupModel = groupModel
 		self.syncEngine = syncEngine
 	}
@@ -111,17 +108,6 @@ class GroceriesModel {
 		}
 	}
 
-	func updateItem(_ updatedItem: GroceryItem) {
-		if let index = groceryItems.firstIndex(where: { $0.id == updatedItem.id }) {
-			groceryItems[index] = updatedItem
-		}
-		if updatedItem.name.caseInsensitiveCompare(
-			newItemName.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
-		{
-			newItemName = ""
-		}
-	}
-
 	func removeItem(withId id: String) {
 		groceryItems.removeAll { $0.id == id }
 	}
@@ -132,34 +118,18 @@ class GroceriesModel {
 
 	// MARK: CRUD Operations
 
-	func fetchGroceries() {
-		isLoading = true
+	func fetchGroceries() async {
 		errorMessage = nil
 
-		if !ConnectivityMonitor.shared.isOnline {
-			groceryItems = syncEngine.loadAllGroceryItems()
-			isLoading = false
-			return
-		}
+		guard ConnectivityMonitor.shared.isOnline else { return }
 
-		Task {
-			do {
-				let groceries = try await service.fetchGroceries()
-				let merged = await MainActor.run {
-					syncEngine.mergeGroceries(groceries)
-				}
+		isLoading = true
+		defer { isLoading = false }
 
-				await MainActor.run {
-					self.groceryItems = merged
-					self.isLoading = false
-				}
-			} catch {
-				await MainActor.run {
-					self.errorMessage = UserFacingError.message(for: error)
-					self.groceryItems = self.syncEngine.loadAllGroceryItems()
-					self.isLoading = false
-				}
-			}
+		do {
+			try await syncEngine.reconcile(forceSnapshot: true)
+		} catch {
+			errorMessage = UserFacingError.message(for: error)
 		}
 	}
 
@@ -197,7 +167,9 @@ class GroceriesModel {
 			return
 		}
 
-		updateItem(updated)
+		if let index = groceryItems.firstIndex(where: { $0.id == updated.id }) {
+			groceryItems[index] = updated
+		}
 	}
 
 	func deleteGroceryItem(item: GroceryItem) {
