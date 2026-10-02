@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/lebensmittel/backend/models"
 )
@@ -82,7 +83,8 @@ func deltaChanges(ctx context.Context, groupID string, afterSeq, nextSeq int64) 
 		if rec.changeType != changeDelete {
 			ids = &wanted
 		}
-		if err := ids.add(rec.entityType, rec.entityID); err != nil {
+		// very important toLower normalization here
+		if err := ids.add(rec.entityType, strings.ToLower(rec.entityID)); err != nil {
 			return Changes{}, err
 		}
 	}
@@ -121,7 +123,7 @@ func resolve[T any](wanted []string, found map[string]T, deleted *[]string, upse
 // ledgerRows reads the group's change records in the window (afterSeq, nextSeq].
 func ledgerRows(ctx context.Context, groupID string, afterSeq, nextSeq int64) ([]changeRecord, error) {
 	rows, err := db.Query(ctx,
-		`SELECT seq, entity_type, entity_id, change_type FROM group_change_log
+		`SELECT seq, entity_type, entity_id, change_type FROM group_changelog
 		 WHERE group_id = $1 AND seq > $2 AND seq <= $3 ORDER BY seq`,
 		groupID, afterSeq, nextSeq)
 	if err != nil {
@@ -228,7 +230,7 @@ func emptyChanges(isFull bool, nextSeq int64) Changes {
 func ledgerBounds(ctx context.Context, groupID string) (nextSeq int64, oldest *int64, err error) {
 	var newest *int64
 	if err := db.QueryRow(ctx,
-		`SELECT MAX(seq), MIN(seq) FROM group_change_log WHERE group_id = $1`, groupID,
+		`SELECT MAX(seq), MIN(seq) FROM group_changelog WHERE group_id = $1`, groupID,
 	).Scan(&newest, &oldest); err != nil {
 		return 0, nil, err
 	}

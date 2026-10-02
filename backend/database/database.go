@@ -63,8 +63,9 @@ func CloseDB() {
 // transaction, so a mutation and its ledger record commit atomically.
 func appendChangeRecord(ctx context.Context, tx pgx.Tx, groupID, entityType, entityID, changeType string) error {
 	_, err := tx.Exec(ctx,
-		`INSERT INTO group_change_log (group_id, entity_type, entity_id, change_type) VALUES ($1, $2, $3, $4)`,
-		groupID, entityType, entityID, changeType)
+		`INSERT INTO group_changelog (group_id, entity_type, entity_id, change_type) VALUES ($1, $2, $3, $4)`,
+		// very important toLower call here to normalize old rows
+		groupID, entityType, strings.ToLower(entityID), changeType)
 	return err
 }
 
@@ -605,7 +606,7 @@ func DeleteGroup(ctx context.Context, groupID string) error {
 			`DELETE FROM grocery_items WHERE group_id = $1`,
 			`DELETE FROM meal_plans WHERE group_id = $1`,
 			`DELETE FROM receipts WHERE group_id = $1`,
-			`DELETE FROM group_change_log WHERE group_id = $1`,
+			`DELETE FROM group_changelog WHERE group_id = $1`,
 			`DELETE FROM groups WHERE id = $1`,
 		}
 

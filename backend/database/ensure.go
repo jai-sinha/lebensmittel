@@ -11,7 +11,7 @@ import (
 // create the change-ledger table and index
 func EnsureSchema() error {
 	statements := []string{
-		`CREATE TABLE IF NOT EXISTS group_change_log (
+		`CREATE TABLE IF NOT EXISTS group_changelog (
 			seq BIGSERIAL PRIMARY KEY,
 			group_id TEXT NOT NULL,
 			entity_type TEXT NOT NULL,
@@ -19,7 +19,7 @@ func EnsureSchema() error {
 			change_type TEXT NOT NULL,
 			changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)`,
-		`CREATE INDEX IF NOT EXISTS group_change_log_group_seq ON group_change_log(group_id, seq)`,
+		`CREATE INDEX IF NOT EXISTS group_changelog_group_seq ON group_changelog(group_id, seq)`,
 	}
 	for _, statement := range statements {
 		if _, err := db.Exec(context.Background(), statement); err != nil {
@@ -37,8 +37,8 @@ func EnsurePruneJob() {
 		return
 	}
 	if _, err := db.Exec(context.Background(), `SELECT cron.schedule(
-		'prune_group_change_log', '0 3 * * *',
-		$$DELETE FROM group_change_log WHERE changed_at < now() - interval '30 days'$$
+		'prune_group_changelog', '0 3 * * *',
+		$$DELETE FROM group_changelog WHERE changed_at < now() - interval '30 days'$$
 	)`); err != nil {
 		// workaround for dev
 		log.Printf("failed to schedule ledger prune job: %v", err)
