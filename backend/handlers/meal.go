@@ -11,13 +11,9 @@ import (
 )
 
 func GetMealPlans(c *gin.Context) {
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
-	meals, err := database.GetAllMealPlans(c.Request.Context(), groupID)
+	meals, err := database.GetAllMealPlans(c.Request.Context(), gid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -40,7 +36,7 @@ func CreateMealPlan(c *gin.Context) {
 		return
 	}
 
-	groupID, err := getRequestedGroupID(c)
+	meal, err := data.toModel(groupID(c))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -52,15 +48,7 @@ func CreateMealPlan(c *gin.Context) {
 		return
 	}
 
-	if !isNew {
-		// A previous attempt already created this meal plan; return it without re-emitting.
-		c.JSON(http.StatusOK, created)
-		return
-	}
-
-	websocket.EmitEvent("meal_plan_created", created, groupID)
-
-	c.JSON(http.StatusCreated, created)
+	createdOnce(c, created, isNew, groupID(c), "meal_plan_created")
 }
 
 func UpdateMealPlan(c *gin.Context) {
@@ -82,13 +70,9 @@ func UpdateMealPlan(c *gin.Context) {
 		data["date"] = date
 	}
 
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
-	meal, err := database.UpdateMealPlan(c.Request.Context(), mealID, groupID, data)
+	meal, err := database.UpdateMealPlan(c.Request.Context(), mealID, gid, data)
 	if err != nil {
 		if meal == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Meal plan not found"})
@@ -107,13 +91,9 @@ func UpdateMealPlan(c *gin.Context) {
 func DeleteMealPlan(c *gin.Context) {
 	mealID := c.Param("meal_id")
 
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
-	if err := database.DeleteMealPlan(c.Request.Context(), mealID, groupID); err != nil {
+	if err := database.DeleteMealPlan(c.Request.Context(), mealID, gid); err != nil {
 		if err.Error() == "meal plan not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Meal plan not found"})
 		} else {
@@ -123,7 +103,7 @@ func DeleteMealPlan(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("meal_plan_deleted", gin.H{"id": mealID}, groupID)
+	websocket.EmitEvent("meal_plan_deleted", gin.H{"id": mealID}, gid)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Meal plan deleted successfully"})
 }

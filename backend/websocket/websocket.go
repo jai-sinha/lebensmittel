@@ -39,7 +39,7 @@ const (
 type Client struct {
 	Conn    *websocket.Conn
 	Groups  map[string]bool // Set of group IDs
-	writeMu sync.Mutex      // Serializes data-frame writes (broadcasts, welcome, echo)
+	writeMu sync.Mutex      // Serializes data-frame writes (broadcasts, welcome)
 }
 
 // BroadcastMessage represents a message to be sent to clients
@@ -286,20 +286,6 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 										manager.subscribe <- Subscription{Client: conn, GroupIDs: requested}
 									}
 								}
-							}
-						case "echo":
-							// Echo message back to client
-							if _, ok := msg["data"]; ok {
-								echoMsg := map[string]any{
-									"event": "echo",
-									"data":  msg["data"],
-								}
-								echoBytes, _ := json.Marshal(echoMsg)
-								client.writeMu.Lock()
-								conn.SetWriteDeadline(time.Now().Add(writeWait))
-								conn.WriteMessage(websocket.TextMessage, echoBytes)
-								client.writeMu.Unlock()
-								log.Printf("Echoed message: %v", msg["data"])
 							}
 						default:
 							log.Printf("Received unknown event: %s", event)

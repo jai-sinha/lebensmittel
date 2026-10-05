@@ -10,11 +10,7 @@ import (
 )
 
 func GetChanges(c *gin.Context) {
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
 	afterSeq, err := parseAfterSeq(c)
 	if err != nil {
@@ -22,7 +18,7 @@ func GetChanges(c *gin.Context) {
 		return
 	}
 
-	changes, err := database.GetGroupChanges(c.Request.Context(), groupID, afterSeq)
+	changes, err := database.GetGroupChanges(c.Request.Context(), gid, afterSeq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

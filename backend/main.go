@@ -49,23 +49,29 @@ func main() {
 
 	api := r.Group("/api")
 
-	api.GET("/changes", handlers.GetChanges)
+	// entity routes resolve their group from the X-Group-ID header
+	auth := api.Group("", handlers.RequireGroup)
 
-	api.GET("/grocery-items", handlers.GetGroceryItems)
-	api.POST("/grocery-items", handlers.CreateGroceryItem)
-	api.PATCH("/grocery-items/:item_id", handlers.UpdateGroceryItem)
-	api.DELETE("/grocery-items/:item_id", handlers.DeleteGroceryItem)
+	auth.GET("/changes", handlers.GetChanges)
 
-	api.GET("/meal-plans", handlers.GetMealPlans)
-	api.POST("/meal-plans", handlers.CreateMealPlan)
-	api.PATCH("/meal-plans/:meal_id", handlers.UpdateMealPlan)
-	api.DELETE("/meal-plans/:meal_id", handlers.DeleteMealPlan)
+	auth.GET("/grocery-items", handlers.GetGroceryItems)
+	auth.POST("/grocery-items", handlers.CreateGroceryItem)
+	auth.PATCH("/grocery-items/:item_id", handlers.UpdateGroceryItem)
+	auth.DELETE("/grocery-items/:item_id", handlers.DeleteGroceryItem)
 
-	api.GET("/receipts", handlers.GetReceipts)
-	api.POST("/receipts", handlers.CreateReceipt)
-	api.PATCH("/receipts/:receipt_id", handlers.UpdateReceipt)
-	api.DELETE("/receipts/:receipt_id", handlers.DeleteReceipt)
+	auth.GET("/meal-plans", handlers.GetMealPlans)
+	auth.POST("/meal-plans", handlers.CreateMealPlan)
+	auth.PATCH("/meal-plans/:meal_id", handlers.UpdateMealPlan)
+	auth.DELETE("/meal-plans/:meal_id", handlers.DeleteMealPlan)
 
+	auth.GET("/receipts", handlers.GetReceipts)
+	auth.POST("/receipts", handlers.CreateReceipt)
+	auth.PATCH("/receipts/:receipt_id", handlers.UpdateReceipt)
+	auth.DELETE("/receipts/:receipt_id", handlers.DeleteReceipt)
+
+	auth.POST("/groups/seed", handlers.SeedGroup)
+
+	// these name their group in the path or body, so they run without a header.
 	api.POST("/groups", handlers.CreateGroup)
 	api.GET("/groups/:group_id", handlers.GetGroup)
 	api.PATCH("/groups/:group_id", handlers.UpdateGroup)

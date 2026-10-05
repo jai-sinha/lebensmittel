@@ -37,6 +37,10 @@ func SeedGroup(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if group == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Group not found"})
+		return
+	}
 
 	var data struct {
 		Grocery []CreateGroceryItemRequest `json:"grocery"`

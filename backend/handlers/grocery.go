@@ -10,13 +10,9 @@ import (
 )
 
 func GetGroceryItems(c *gin.Context) {
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
-	items, err := database.GetAllGroceryItems(c.Request.Context(), groupID)
+	items, err := database.GetAllGroceryItems(c.Request.Context(), gid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -39,11 +35,7 @@ func CreateGroceryItem(c *gin.Context) {
 		return
 	}
 
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	item := data.toModel(groupID(c))
 
 	created, isNew, err := database.CreateGroceryItem(c.Request.Context(), &item)
 	if err != nil {
@@ -63,13 +55,9 @@ func UpdateGroceryItem(c *gin.Context) {
 		return
 	}
 
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
-	item, err := database.UpdateGroceryItem(c.Request.Context(), itemID, groupID, data)
+	item, err := database.UpdateGroceryItem(c.Request.Context(), itemID, gid, data)
 	if err != nil {
 		if item == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Grocery item not found"})
@@ -88,13 +76,9 @@ func UpdateGroceryItem(c *gin.Context) {
 func DeleteGroceryItem(c *gin.Context) {
 	itemID := c.Param("item_id")
 
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
-	if err := database.DeleteGroceryItem(c.Request.Context(), itemID, groupID); err != nil {
+	if err := database.DeleteGroceryItem(c.Request.Context(), itemID, gid); err != nil {
 		if err.Error() == "grocery item not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Grocery item not found"})
 		} else {
@@ -104,7 +88,7 @@ func DeleteGroceryItem(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("grocery_item_deleted", gin.H{"id": itemID}, groupID)
+	websocket.EmitEvent("grocery_item_deleted", gin.H{"id": itemID}, gid)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Grocery item deleted successfully"})
 }

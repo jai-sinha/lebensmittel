@@ -12,13 +12,9 @@ import (
 )
 
 func GetReceipts(c *gin.Context) {
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
-	receipts, err := database.GetAllReceipts(c.Request.Context(), groupID)
+	receipts, err := database.GetAllReceipts(c.Request.Context(), gid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -58,12 +54,7 @@ func CreateReceipt(c *gin.Context) {
 		websocket.EmitEvent("grocery_items_updated", updatedItems, groupID(c))
 	}
 
-	websocket.EmitEvent("receipt_created", created, groupID)
-	if len(updatedItems) > 0 {
-		websocket.EmitEvent("grocery_items_updated", updatedItems, groupID)
-	}
-
-	c.JSON(http.StatusCreated, created)
+	createdOnce(c, created, isNew, groupID(c), "receipt_created")
 }
 
 func UpdateReceipt(c *gin.Context) {
@@ -94,13 +85,9 @@ func UpdateReceipt(c *gin.Context) {
 		}
 	}
 
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
-	receipt, err := database.UpdateReceipt(c.Request.Context(), receiptID, groupID, data)
+	receipt, err := database.UpdateReceipt(c.Request.Context(), receiptID, gid, data)
 	if err != nil {
 		if receipt == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
@@ -119,13 +106,9 @@ func UpdateReceipt(c *gin.Context) {
 func DeleteReceipt(c *gin.Context) {
 	receiptID := c.Param("receipt_id")
 
-	groupID, err := getRequestedGroupID(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	gid := groupID(c)
 
-	if err := database.DeleteReceipt(c.Request.Context(), receiptID, groupID); err != nil {
+	if err := database.DeleteReceipt(c.Request.Context(), receiptID, gid); err != nil {
 		if err.Error() == "receipt not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		} else {
@@ -135,7 +118,7 @@ func DeleteReceipt(c *gin.Context) {
 	}
 
 	// Emit websocket event
-	websocket.EmitEvent("receipt_deleted", gin.H{"id": receiptID}, groupID)
+	websocket.EmitEvent("receipt_deleted", gin.H{"id": receiptID}, gid)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Receipt deleted successfully"})
 }
