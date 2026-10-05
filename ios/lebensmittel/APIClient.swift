@@ -105,7 +105,6 @@ struct APIClient {
 		guard let url = urlComponents?.url else { throw APIError.invalidURL }
 		var request = URLRequest(url: url)
 		request.httpMethod = method.rawValue
-		request.setValue(ClientIdentity.id, forHTTPHeaderField: "X-Client-ID")
 
 		if let body {
 			request.setValue("application/json", forHTTPHeaderField: "Content-Type")

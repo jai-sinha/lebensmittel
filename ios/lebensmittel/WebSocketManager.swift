@@ -355,8 +355,4 @@ final class SocketService: WebSocketDelegate {
 			if Self.verbose { print("WebSocket send error:", error) }
 		}
 	}
-
-	func emitEcho(_ object: [String: Any]) {
-		send(event: "echo", data: object)
-	}
 }
