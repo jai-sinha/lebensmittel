@@ -35,58 +35,27 @@ func GetReceipts(c *gin.Context) {
 }
 
 func CreateReceipt(c *gin.Context) {
-	var data struct {
-		ID          string   `json:"id"`
-		Date        string   `json:"date" binding:"required"`
-		TotalAmount *float64 `json:"totalAmount" binding:"required"`
-		PurchasedBy string   `json:"purchasedBy" binding:"required"`
-		Notes       *string  `json:"notes"`
-		Items       []string `json:"items"`
-	}
-
+	var data CreateReceiptRequest
 	if err := c.ShouldBindJSON(&data); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "date, totalAmount, and purchasedBy are required"})
 		return
 	}
 
-	if data.TotalAmount == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "totalAmount is required"})
-		return
-	}
-
-	groupID, err := getRequestedGroupID(c)
+	receipt, err := data.toModel(groupID(c))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Parse date
-	date, err := time.Parse("2006-01-02", data.Date)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format. Use YYYY-MM-DD"})
-		return
-	}
-
-	newReceipt := &models.Receipt{
-		ID:          data.ID,
-		Date:        date,
-		TotalAmount: *data.TotalAmount,
-		PurchasedBy: data.PurchasedBy,
-		ItemsList:   data.Items,
-		Notes:       data.Notes,
-		GroupID:     groupID,
-	}
-
-	created, updatedItems, isNew, err := database.CreateReceipt(c.Request.Context(), newReceipt)
+	created, updatedItems, isNew, err := database.CreateReceipt(c.Request.Context(), &receipt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	if !isNew {
-		// A previous attempt already created this receipt; return it without re-emitting.
-		c.JSON(http.StatusOK, created)
-		return
+	// emit grocery items changed before receipt is created
+	if isNew && len(updatedItems) > 0 {
+		websocket.EmitEvent("grocery_items_updated", updatedItems, groupID(c))
 	}
 
 	websocket.EmitEvent("receipt_created", created, groupID)

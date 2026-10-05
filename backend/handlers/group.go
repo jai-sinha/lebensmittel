@@ -26,13 +26,62 @@ func CreateGroup(c *gin.Context) {
 		return
 	}
 
-	// seed example data for that group
-	if err := GenerateExampleData(c, newGroup.ID); err != nil {
+	c.JSON(http.StatusCreated, newGroup)
+}
+
+func SeedGroup(c *gin.Context) {
+	gid := groupID(c)
+
+	group, err := database.GetGroupByID(c.Request.Context(), gid)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, newGroup)
+	var data struct {
+		Grocery []CreateGroceryItemRequest `json:"grocery"`
+		Meal    []CreateMealPlanRequest    `json:"meal"`
+		Receipt *CreateReceiptRequest      `json:"receipt"`
+	}
+	if err := c.ShouldBindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid seed payload"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	for _, item := range data.Grocery {
+		entity := item.toModel(gid)
+		if _, _, err := database.CreateGroceryItem(ctx, &entity); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	for _, plan := range data.Meal {
+		meal, err := plan.toModel(gid)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if _, _, err := database.CreateMealPlan(ctx, &meal); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	if data.Receipt != nil {
+		receipt, err := data.Receipt.toModel(gid)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if _, _, _, err := database.CreateReceipt(ctx, &receipt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"seeded": true})
 }
 
 func GetGroup(c *gin.Context) {

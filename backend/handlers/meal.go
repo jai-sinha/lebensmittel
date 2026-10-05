@@ -34,12 +34,7 @@ func GetMealPlans(c *gin.Context) {
 }
 
 func CreateMealPlan(c *gin.Context) {
-	var data struct {
-		ID              string `json:"id"`
-		Date            string `json:"date" binding:"required"`
-		MealDescription string `json:"mealDescription" binding:"required"`
-	}
-
+	var data CreateMealPlanRequest
 	if err := c.ShouldBindJSON(&data); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Date and mealDescription are required"})
 		return
@@ -51,21 +46,7 @@ func CreateMealPlan(c *gin.Context) {
 		return
 	}
 
-	// Parse date
-	date, err := time.Parse("2006-01-02", data.Date)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format. Use YYYY-MM-DD"})
-		return
-	}
-
-	newMeal := &models.MealPlan{
-		ID:              data.ID,
-		Date:            date,
-		MealDescription: data.MealDescription,
-		GroupID:         groupID,
-	}
-
-	created, isNew, err := database.CreateMealPlan(c.Request.Context(), newMeal)
+	created, isNew, err := database.CreateMealPlan(c.Request.Context(), &meal)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

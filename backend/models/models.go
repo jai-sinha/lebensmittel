@@ -17,18 +17,6 @@ type GroceryItem struct {
 	GroupID           string `json:"groupId" db:"group_id"`
 }
 
-// NewGroceryItem creates a new grocery item with a generated UUID
-func NewGroceryItem(name, category string, isNeeded, isShoppingChecked bool, groupID string) *GroceryItem {
-	return &GroceryItem{
-		ID:                uuid.New().String(),
-		Name:              name,
-		Category:          category,
-		IsNeeded:          isNeeded,
-		IsShoppingChecked: isShoppingChecked,
-		GroupID:           groupID,
-	}
-}
-
 // MealPlan represents a meal plan for a specific date
 type MealPlan struct {
 	ID              string    `json:"id" db:"id"`
@@ -47,16 +35,6 @@ func (m MealPlan) MarshalJSON() ([]byte, error) {
 		Date:  m.Date.Format("2006-01-02"),
 		Alias: (*Alias)(&m),
 	})
-}
-
-// NewMealPlan creates a new meal plan with a generated UUID
-func NewMealPlan(date time.Time, mealDescription, groupID string) *MealPlan {
-	return &MealPlan{
-		ID:              uuid.New().String(),
-		Date:            date,
-		MealDescription: mealDescription,
-		GroupID:         groupID,
-	}
 }
 
 // Receipt represents a receipt in the database
@@ -93,21 +71,6 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 		Items: items,
 		Alias: (*Alias)(&r),
 	})
-}
-
-// NewReceipt creates a new receipt with a generated UUID
-func NewReceipt(date time.Time, totalAmount float64, purchasedBy string, items []string, notes *string, groupID string) *Receipt {
-	itemsJSON, _ := json.Marshal(items)
-	return &Receipt{
-		ID:          uuid.New().String(),
-		Date:        date,
-		TotalAmount: totalAmount,
-		PurchasedBy: purchasedBy,
-		Items:       string(itemsJSON),
-		ItemsList:   items,
-		Notes:       notes,
-		GroupID:     groupID,
-	}
 }
 
 // SetItems sets the items for a receipt (converts slice to JSON string)
