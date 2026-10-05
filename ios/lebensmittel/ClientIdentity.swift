@@ -7,10 +7,7 @@
 
 import Foundation
 
-/// A stable per-install identifier sent on every request and echoed back by the
-/// server on websocket broadcasts, so the client can ignore echoes of its own
-/// mutations. Install-scoped (not account-scoped): it identifies the client
-/// device connection, independent of who is signed in.
+/// Per-install preferences
 enum ClientIdentity {
 	private static let userDefaultsKey = "installClientID"
 	static let preferredCurrencyDefaultsKey = "preferredCurrencyCode"

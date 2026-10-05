@@ -47,6 +47,7 @@ protocol ShoppingServicing: Sendable {
 protocol GroupServicing: Sendable {
 	func fetchGroup(id: String) async throws -> AuthGroup
 	func createGroup(name: String) async throws -> AuthGroup
+	func seedGroup(id: String) async throws
 	func renameGroup(id: String, name: String) async throws -> AuthGroup
 	func updateGroupCategories(id: String, categories: [String]) async throws -> AuthGroup
 	func updateGroupMembers(id: String, members: [String]) async throws -> AuthGroup

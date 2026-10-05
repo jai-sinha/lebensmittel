@@ -20,6 +20,12 @@ struct GroupService: GroupServicing {
 		let members: [String]?
 	}
 
+	private struct GroupSeedRequest: Encodable {
+		let grocery: [NewGroceryItem]
+		let meal: [NewMealPlan]
+		let receipt: NewReceipt?
+	}
+
 	private let client: APIClient
 
 	nonisolated init(client: APIClient) {
@@ -43,6 +49,45 @@ struct GroupService: GroupServicing {
 			includeGroupHeader: false
 		)
 	}
+
+	func seedGroup(id: String) async throws {
+		let today = Self.dayFormatter.string(from: Date())
+		try await client.sendWithoutResponse(
+			path: "/groups/seed",
+			method: .POST,
+			body: GroupSeedRequest(
+				grocery: GroupSeed.starterGroceries.map {
+					NewGroceryItem(
+						id: UUID().uuidString,
+						name: $0.name,
+						category: $0.category,
+						isNeeded: false
+					)
+				},
+				meal: [
+					NewMealPlan(
+						id: UUID().uuidString,
+						date: today,
+						mealDescription: "Example Meal"
+					)
+				],
+				receipt: NewReceipt(
+					id: UUID().uuidString,
+					date: today,
+					totalAmount: 42.67,
+					purchasedBy: "Default",
+					items: GroupSeed.exampleReceiptItems,
+					notes: "Example receipt, feel free to delete me!"
+				)
+			)
+		)
+	}
+
+	private static let dayFormatter: DateFormatter = {
+		let formatter = DateFormatter()
+		formatter.dateFormat = "yyyy-MM-dd"
+		return formatter
+	}()
 
 	func renameGroup(id: String, name: String) async throws -> AuthGroup {
 		let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)

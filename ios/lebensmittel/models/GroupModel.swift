@@ -132,6 +132,7 @@ final class GroupModel {
 			setActiveGroup(group.id)
 			upsertKnownGroup(group)
 			persistState()
+			try await service.seedGroup(id: group.id)
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
