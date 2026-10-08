@@ -7,19 +7,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// GroceryItem represents a grocery item in the database
 type GroceryItem struct {
-	ID                string `json:"id" db:"id"`
-	Name              string `json:"name" db:"name"`
-	Category          string `json:"category" db:"category"`
-	IsNeeded          bool   `json:"isNeeded" db:"is_needed"`
-	IsShoppingChecked bool   `json:"isShoppingChecked" db:"is_shopping_checked"`
-	GroupID           string `json:"groupId" db:"group_id"`
+	ID                uuid.UUID `json:"id" db:"id"`
+	Name              string    `json:"name" db:"name"`
+	Category          string    `json:"category" db:"category"`
+	IsNeeded          bool      `json:"isNeeded" db:"is_needed"`
+	IsShoppingChecked bool      `json:"isShoppingChecked" db:"is_shopping_checked"`
+	GroupID           string    `json:"groupId" db:"group_id"`
 }
 
-// MealPlan represents a meal plan for a specific date
 type MealPlan struct {
-	ID              string    `json:"id" db:"id"`
+	ID              uuid.UUID `json:"id" db:"id"`
 	Date            time.Time `json:"date" db:"date"`
 	MealDescription string    `json:"mealDescription" db:"meal_description"`
 	GroupID         string    `json:"groupId" db:"group_id"`
@@ -37,9 +35,8 @@ func (m MealPlan) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// Receipt represents a receipt in the database
 type Receipt struct {
-	ID          string    `json:"id" db:"id"`
+	ID          uuid.UUID `json:"id" db:"id"`
 	Date        time.Time `json:"date" db:"date"`
 	TotalAmount float64   `json:"totalAmount" db:"total_amount"`
 	PurchasedBy string    `json:"purchasedBy" db:"purchased_by"`

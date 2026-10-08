@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/lebensmittel/backend/database"
 	"github.com/lebensmittel/backend/models"
 	"github.com/lebensmittel/backend/websocket"
@@ -52,7 +53,7 @@ func CreateMealPlan(c *gin.Context) {
 }
 
 func UpdateMealPlan(c *gin.Context) {
-	mealID := c.Param("meal_id")
+	mealID, _ := uuid.Parse(c.Param("meal_id"))
 
 	var data map[string]any
 	if err := c.ShouldBindJSON(&data); err != nil || len(data) == 0 {
@@ -74,11 +75,11 @@ func UpdateMealPlan(c *gin.Context) {
 
 	meal, err := database.UpdateMealPlan(c.Request.Context(), mealID, gid, data)
 	if err != nil {
-		if meal == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Meal plan not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if meal == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Meal plan not found"})
 		return
 	}
 
@@ -89,7 +90,7 @@ func UpdateMealPlan(c *gin.Context) {
 }
 
 func DeleteMealPlan(c *gin.Context) {
-	mealID := c.Param("meal_id")
+	mealID, _ := uuid.Parse(c.Param("meal_id"))
 
 	gid := groupID(c)
 

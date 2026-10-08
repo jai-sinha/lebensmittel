@@ -13,7 +13,6 @@ type Config struct {
 	Debug       bool
 }
 
-// LoadConfig loads configuration from environment variables
 func LoadConfig() *Config {
 	config := &Config{
 		DatabaseURL: getEnv("DATABASE_URL", "postgres://jsinha:@localhost/lebensmittel"),
@@ -25,7 +24,6 @@ func LoadConfig() *Config {
 	return config
 }
 
-// getEnv gets an environment variable with a default fallback
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -33,7 +31,6 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// getEnvBool gets a boolean environment variable with a default fallback
 func getEnvBool(key string, defaultValue bool) bool {
 	if value := os.Getenv(key); value != "" {
 		if parsed, err := strconv.ParseBool(value); err == nil {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lebensmittel/backend/models"
@@ -61,11 +62,10 @@ func CloseDB() {
 
 // appendChangeRecord records a change in the group ledger inside the caller's
 // transaction, so a mutation and its ledger record commit atomically.
-func appendChangeRecord(ctx context.Context, tx pgx.Tx, groupID, entityType, entityID, changeType string) error {
+func appendChangeRecord(ctx context.Context, tx pgx.Tx, groupID, entityType string, entityID uuid.UUID, changeType string) error {
 	_, err := tx.Exec(ctx,
 		`INSERT INTO group_changelog (group_id, entity_type, entity_id, change_type) VALUES ($1, $2, $3, $4)`,
-		// very important toLower call here to normalize old rows
-		groupID, entityType, strings.ToLower(entityID), changeType)
+		groupID, entityType, entityID, changeType)
 	return err
 }
 
@@ -129,7 +129,7 @@ func CreateGroceryItem(ctx context.Context, item *models.GroceryItem) (*models.G
 	return item, true, nil
 }
 
-func UpdateGroceryItem(ctx context.Context, id, groupID string, updates map[string]any) (*models.GroceryItem, error) {
+func UpdateGroceryItem(ctx context.Context, id uuid.UUID, groupID string, updates map[string]any) (*models.GroceryItem, error) {
 	setParts := []string{}
 	args := []any{id, groupID}
 	argID := 3
@@ -176,7 +176,7 @@ func UpdateGroceryItem(ctx context.Context, id, groupID string, updates map[stri
 	return &item, nil
 }
 
-func GetGroceryItemByID(ctx context.Context, id, groupID string) (*models.GroceryItem, error) {
+func GetGroceryItemByID(ctx context.Context, id uuid.UUID, groupID string) (*models.GroceryItem, error) {
 	query := `SELECT id, name, category, is_needed, is_shopping_checked, group_id FROM grocery_items WHERE id = $1 AND group_id = $2`
 	var item models.GroceryItem
 	err := db.QueryRow(ctx, query, id, groupID).Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID)
@@ -189,7 +189,7 @@ func GetGroceryItemByID(ctx context.Context, id, groupID string) (*models.Grocer
 	return &item, nil
 }
 
-func DeleteGroceryItem(ctx context.Context, id, groupID string) error {
+func DeleteGroceryItem(ctx context.Context, id uuid.UUID, groupID string) error {
 	err := withTx(ctx, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, "DELETE FROM grocery_items WHERE id = $1 AND group_id = $2", id, groupID)
 		if err != nil {
@@ -251,7 +251,7 @@ func CreateMealPlan(ctx context.Context, meal *models.MealPlan) (*models.MealPla
 	return meal, true, nil
 }
 
-func UpdateMealPlan(ctx context.Context, id, groupID string, updates map[string]any) (*models.MealPlan, error) {
+func UpdateMealPlan(ctx context.Context, id uuid.UUID, groupID string, updates map[string]any) (*models.MealPlan, error) {
 	setParts := []string{}
 	args := []any{id, groupID}
 	argID := 3
@@ -295,7 +295,7 @@ func UpdateMealPlan(ctx context.Context, id, groupID string, updates map[string]
 	return &meal, nil
 }
 
-func GetMealPlanByID(ctx context.Context, id, groupID string) (*models.MealPlan, error) {
+func GetMealPlanByID(ctx context.Context, id uuid.UUID, groupID string) (*models.MealPlan, error) {
 	query := `SELECT id, date, meal_description, group_id FROM meal_plans WHERE id = $1 AND group_id = $2`
 	var meal models.MealPlan
 	err := db.QueryRow(ctx, query, id, groupID).Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID)
@@ -308,7 +308,7 @@ func GetMealPlanByID(ctx context.Context, id, groupID string) (*models.MealPlan,
 	return &meal, nil
 }
 
-func DeleteMealPlan(ctx context.Context, id, groupID string) error {
+func DeleteMealPlan(ctx context.Context, id uuid.UUID, groupID string) error {
 	err := withTx(ctx, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, "DELETE FROM meal_plans WHERE id = $1 AND group_id = $2", id, groupID)
 		if err != nil {
@@ -414,7 +414,7 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) (*models.Receip
 			return fmt.Errorf("failed to set explicit receipt items: %w", err)
 		}
 
-		itemIDs := make([]string, 0, len(updatedItems))
+		itemIDs := make([]uuid.UUID, 0, len(updatedItems))
 		for _, item := range updatedItems {
 			itemIDs = append(itemIDs, item.ID)
 		}
@@ -450,7 +450,7 @@ func CreateReceipt(ctx context.Context, receipt *models.Receipt) (*models.Receip
 	return receipt, updatedItems, true, nil
 }
 
-func UpdateReceipt(ctx context.Context, id, groupID string, updates map[string]any) (*models.Receipt, error) {
+func UpdateReceipt(ctx context.Context, id uuid.UUID, groupID string, updates map[string]any) (*models.Receipt, error) {
 	setParts := []string{}
 	args := []any{id, groupID}
 	argID := 3
@@ -505,7 +505,7 @@ func UpdateReceipt(ctx context.Context, id, groupID string, updates map[string]a
 	return &receipt, nil
 }
 
-func GetReceiptByID(ctx context.Context, id, groupID string) (*models.Receipt, error) {
+func GetReceiptByID(ctx context.Context, id uuid.UUID, groupID string) (*models.Receipt, error) {
 	query := `SELECT id, date, total_amount, purchased_by, items, notes, group_id FROM receipts WHERE id = $1 AND group_id = $2`
 	var receipt models.Receipt
 	var notes *string
@@ -520,7 +520,7 @@ func GetReceiptByID(ctx context.Context, id, groupID string) (*models.Receipt, e
 	return &receipt, nil
 }
 
-func DeleteReceipt(ctx context.Context, id, groupID string) error {
+func DeleteReceipt(ctx context.Context, id uuid.UUID, groupID string) error {
 	err := withTx(ctx, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, "DELETE FROM receipts WHERE id = $1 AND group_id = $2", id, groupID)
 		if err != nil {

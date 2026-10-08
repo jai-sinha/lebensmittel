@@ -4,15 +4,16 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/lebensmittel/backend/models"
 )
 
 type CreateGroceryItemRequest struct {
-	ID                string `json:"id"`
-	Name              string `json:"name" binding:"required"`
-	Category          string `json:"category" binding:"required"`
-	IsNeeded          *bool  `json:"isNeeded"`
-	IsShoppingChecked *bool  `json:"isShoppingChecked"`
+	ID                uuid.UUID `json:"id" binding:"required"`
+	Name              string    `json:"name" binding:"required"`
+	Category          string    `json:"category" binding:"required"`
+	IsNeeded          *bool     `json:"isNeeded"`
+	IsShoppingChecked *bool     `json:"isShoppingChecked"`
 }
 
 func (r CreateGroceryItemRequest) toModel(groupID string) models.GroceryItem {
@@ -36,9 +37,9 @@ func (r CreateGroceryItemRequest) toModel(groupID string) models.GroceryItem {
 }
 
 type CreateMealPlanRequest struct {
-	ID              string `json:"id"`
-	Date            string `json:"date" binding:"required"`
-	MealDescription string `json:"mealDescription" binding:"required"`
+	ID              uuid.UUID `json:"id" binding:"required"`
+	Date            string    `json:"date" binding:"required"`
+	MealDescription string    `json:"mealDescription" binding:"required"`
 }
 
 func (r CreateMealPlanRequest) toModel(groupID string) (models.MealPlan, error) {
@@ -55,12 +56,12 @@ func (r CreateMealPlanRequest) toModel(groupID string) (models.MealPlan, error) 
 }
 
 type CreateReceiptRequest struct {
-	ID          string   `json:"id"`
-	Date        string   `json:"date" binding:"required"`
-	TotalAmount *float64 `json:"totalAmount" binding:"required"`
-	PurchasedBy string   `json:"purchasedBy" binding:"required"`
-	Notes       *string  `json:"notes"`
-	Items       []string `json:"items"`
+	ID          uuid.UUID `json:"id" binding:"required"`
+	Date        string    `json:"date" binding:"required"`
+	TotalAmount *float64  `json:"totalAmount" binding:"required"`
+	PurchasedBy string    `json:"purchasedBy" binding:"required"`
+	Notes       *string   `json:"notes"`
+	Items       []string  `json:"items"`
 }
 
 func (r CreateReceiptRequest) toModel(groupID string) (models.Receipt, error) {

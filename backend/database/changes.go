@@ -3,7 +3,8 @@ package database
 import (
 	"context"
 	"fmt"
-	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/lebensmittel/backend/models"
 )
@@ -21,12 +22,12 @@ type Changes struct {
 
 // group entity ids by entity type
 type IDsByType struct {
-	Grocery []string `json:"grocery"`
-	Meal    []string `json:"meal"`
-	Receipt []string `json:"receipt"`
+	Grocery []uuid.UUID `json:"grocery"`
+	Meal    []uuid.UUID `json:"meal"`
+	Receipt []uuid.UUID `json:"receipt"`
 }
 
-func (ids *IDsByType) add(entityType, id string) error {
+func (ids *IDsByType) add(entityType string, id uuid.UUID) error {
 	switch entityType {
 	case entityGrocery:
 		ids.Grocery = append(ids.Grocery, id)
@@ -83,8 +84,7 @@ func deltaChanges(ctx context.Context, groupID string, afterSeq, nextSeq int64) 
 		if rec.changeType != changeDelete {
 			ids = &wanted
 		}
-		// very important toLower normalization here
-		if err := ids.add(rec.entityType, strings.ToLower(rec.entityID)); err != nil {
+		if err := ids.add(rec.entityType, rec.entityID); err != nil {
 			return Changes{}, err
 		}
 	}
@@ -110,7 +110,7 @@ func deltaChanges(ctx context.Context, groupID string, afterSeq, nextSeq int64) 
 	return out, nil
 }
 
-func resolve[T any](wanted []string, found map[string]T, deleted *[]string, upserts *[]T) {
+func resolve[T any](wanted []uuid.UUID, found map[uuid.UUID]T, deleted *[]uuid.UUID, upserts *[]T) {
 	for _, id := range wanted {
 		if row, ok := found[id]; ok {
 			*upserts = append(*upserts, row)
@@ -147,7 +147,7 @@ func ledgerRows(ctx context.Context, groupID string, afterSeq, nextSeq int64) ([
 
 // resolve every item in the changelog, per item type
 
-func fetchGroceryByIDs(ctx context.Context, groupID string, ids []string) (map[string]models.GroceryItem, error) {
+func fetchGroceryByIDs(ctx context.Context, groupID string, ids []uuid.UUID) (map[uuid.UUID]models.GroceryItem, error) {
 	rows, err := db.Query(ctx,
 		`SELECT id, name, category, is_needed, is_shopping_checked, group_id
 		 FROM grocery_items WHERE group_id = $1 AND id = ANY($2::uuid[])`,
@@ -157,7 +157,7 @@ func fetchGroceryByIDs(ctx context.Context, groupID string, ids []string) (map[s
 	}
 	defer rows.Close()
 
-	found := make(map[string]models.GroceryItem, len(ids))
+	found := make(map[uuid.UUID]models.GroceryItem, len(ids))
 	for rows.Next() {
 		var item models.GroceryItem
 		if err := rows.Scan(&item.ID, &item.Name, &item.Category, &item.IsNeeded, &item.IsShoppingChecked, &item.GroupID); err != nil {
@@ -168,7 +168,7 @@ func fetchGroceryByIDs(ctx context.Context, groupID string, ids []string) (map[s
 	return found, rows.Err()
 }
 
-func fetchMealPlansByIDs(ctx context.Context, groupID string, ids []string) (map[string]models.MealPlan, error) {
+func fetchMealPlansByIDs(ctx context.Context, groupID string, ids []uuid.UUID) (map[uuid.UUID]models.MealPlan, error) {
 	rows, err := db.Query(ctx,
 		`SELECT id, date, meal_description, group_id
 		 FROM meal_plans WHERE group_id = $1 AND id = ANY($2::uuid[])`,
@@ -178,7 +178,7 @@ func fetchMealPlansByIDs(ctx context.Context, groupID string, ids []string) (map
 	}
 	defer rows.Close()
 
-	found := make(map[string]models.MealPlan, len(ids))
+	found := make(map[uuid.UUID]models.MealPlan, len(ids))
 	for rows.Next() {
 		var meal models.MealPlan
 		if err := rows.Scan(&meal.ID, &meal.Date, &meal.MealDescription, &meal.GroupID); err != nil {
@@ -189,7 +189,7 @@ func fetchMealPlansByIDs(ctx context.Context, groupID string, ids []string) (map
 	return found, rows.Err()
 }
 
-func fetchReceiptsByIDs(ctx context.Context, groupID string, ids []string) (map[string]models.Receipt, error) {
+func fetchReceiptsByIDs(ctx context.Context, groupID string, ids []uuid.UUID) (map[uuid.UUID]models.Receipt, error) {
 	rows, err := db.Query(ctx,
 		`SELECT id, date, total_amount, purchased_by, items, notes, group_id
 		 FROM receipts WHERE group_id = $1 AND id = ANY($2::uuid[])`,
@@ -199,7 +199,7 @@ func fetchReceiptsByIDs(ctx context.Context, groupID string, ids []string) (map[
 	}
 	defer rows.Close()
 
-	found := make(map[string]models.Receipt, len(ids))
+	found := make(map[uuid.UUID]models.Receipt, len(ids))
 	for rows.Next() {
 		var receipt models.Receipt
 		if err := rows.Scan(&receipt.ID, &receipt.Date, &receipt.TotalAmount, &receipt.PurchasedBy, &receipt.Items, &receipt.Notes, &receipt.GroupID); err != nil {
@@ -219,9 +219,9 @@ func emptyChanges(isFull bool, nextSeq int64) Changes {
 		Meal:    []models.MealPlan{},
 		Receipt: []models.Receipt{},
 		DeletedIDs: IDsByType{
-			Grocery: []string{},
-			Meal:    []string{},
-			Receipt: []string{},
+			Grocery: []uuid.UUID{},
+			Meal:    []uuid.UUID{},
+			Receipt: []uuid.UUID{},
 		},
 	}
 }
@@ -244,23 +244,22 @@ func ledgerBounds(ctx context.Context, groupID string) (nextSeq int64, oldest *i
 type changeRecord struct {
 	seq        int64
 	entityType string
-	entityID   string
+	entityID   uuid.UUID
 	changeType string
 }
 
 // reduce ledger rows to the latest change per entity, so we only resolve each item once
 func collapseChanges(records []changeRecord) []changeRecord {
-	latest := map[[2]string]changeRecord{}
+	latest := map[uuid.UUID]changeRecord{}
 	for _, rec := range records {
-		latest[[2]string{rec.entityType, rec.entityID}] = rec
+		latest[rec.entityID] = rec
 	}
 
 	collapsed := make([]changeRecord, 0, len(latest))
 	for _, rec := range records {
-		key := [2]string{rec.entityType, rec.entityID}
-		if latest[key] == rec {
+		if latest[rec.entityID] == rec {
 			collapsed = append(collapsed, rec)
-			delete(latest, key)
+			delete(latest, rec.entityID)
 		}
 	}
 	return collapsed

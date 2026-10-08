@@ -15,7 +15,7 @@ func EnsureSchema() error {
 			seq BIGSERIAL PRIMARY KEY,
 			group_id TEXT NOT NULL,
 			entity_type TEXT NOT NULL,
-			entity_id  TEXT NOT NULL,   -- no FK: hard-deletes keep only the id
+			entity_id  UUID NOT NULL,   -- no FK: hard-deletes keep only the id
 			change_type TEXT NOT NULL,
 			changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)`,

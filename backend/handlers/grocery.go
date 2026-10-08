@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/lebensmittel/backend/database"
 	"github.com/lebensmittel/backend/models"
 	"github.com/lebensmittel/backend/websocket"
@@ -31,7 +32,7 @@ func GetGroceryItems(c *gin.Context) {
 func CreateGroceryItem(c *gin.Context) {
 	var data CreateGroceryItemRequest
 	if err := c.ShouldBindJSON(&data); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Name and category are required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id (uuid), name and category are required"})
 		return
 	}
 
@@ -47,7 +48,7 @@ func CreateGroceryItem(c *gin.Context) {
 }
 
 func UpdateGroceryItem(c *gin.Context) {
-	itemID := c.Param("item_id")
+	itemID, _ := uuid.Parse(c.Param("item_id"))
 
 	var data map[string]any
 	if err := c.ShouldBindJSON(&data); err != nil || len(data) == 0 {
@@ -59,11 +60,11 @@ func UpdateGroceryItem(c *gin.Context) {
 
 	item, err := database.UpdateGroceryItem(c.Request.Context(), itemID, gid, data)
 	if err != nil {
-		if item == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Grocery item not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if item == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Grocery item not found"})
 		return
 	}
 
@@ -74,7 +75,7 @@ func UpdateGroceryItem(c *gin.Context) {
 }
 
 func DeleteGroceryItem(c *gin.Context) {
-	itemID := c.Param("item_id")
+	itemID, _ := uuid.Parse(c.Param("item_id"))
 
 	gid := groupID(c)
 

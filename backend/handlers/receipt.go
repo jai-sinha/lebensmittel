@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/lebensmittel/backend/database"
 	"github.com/lebensmittel/backend/models"
 	"github.com/lebensmittel/backend/websocket"
@@ -58,7 +59,7 @@ func CreateReceipt(c *gin.Context) {
 }
 
 func UpdateReceipt(c *gin.Context) {
-	receiptID := c.Param("receipt_id")
+	receiptID, _ := uuid.Parse(c.Param("receipt_id"))
 
 	var data map[string]any
 	if err := c.ShouldBindJSON(&data); err != nil || len(data) == 0 {
@@ -89,11 +90,11 @@ func UpdateReceipt(c *gin.Context) {
 
 	receipt, err := database.UpdateReceipt(c.Request.Context(), receiptID, gid, data)
 	if err != nil {
-		if receipt == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if receipt == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Receipt not found"})
 		return
 	}
 
@@ -104,7 +105,7 @@ func UpdateReceipt(c *gin.Context) {
 }
 
 func DeleteReceipt(c *gin.Context) {
-	receiptID := c.Param("receipt_id")
+	receiptID, _ := uuid.Parse(c.Param("receipt_id"))
 
 	gid := groupID(c)
 
