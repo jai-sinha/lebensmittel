@@ -31,7 +31,6 @@ class GroceriesModel {
 	var isLoading = false
 	var errorMessage: String? = nil
 	var newItemName: String = ""
-	var renameItemName: String = ""
 
 	private var storedSelectedCategory: String = ""
 	var selectedCategory: String {

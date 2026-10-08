@@ -207,7 +207,9 @@ struct GroceryItemCard: View {
 
 	@State private var showItemSheet = false
 	@State private var isPressed = false
-	@FocusState private var isNameFieldFocused: Bool
+	@State private var itemName = ""
+	@State private var renameInput = ""
+	@State private var isRenameAlertPresented = false
 
 	var body: some View {
 		face
@@ -279,18 +281,17 @@ struct GroceryItemCard: View {
 		NavigationStack {
 			List {
 				Section("Name") {
-					TextField(
-						"Rename \(item.name)",
-						text: Binding(
-							get: { model.renameItemName },
-							set: { model.renameItemName = $0 }
-						)
-					)
-					.focused($isNameFieldFocused)
-					.textFieldStyle(RoundedBorderTextFieldStyle())
-					.onSubmit {
-						model.updateGroceryItem(item: item, field: .name(model.renameItemName))
-						model.renameItemName = ""
+					Button {
+						renameInput = itemName
+						isRenameAlertPresented = true
+					} label: {
+						HStack {
+							Text(itemName)
+								.foregroundStyle(.primary)
+							Spacer()
+							Image(systemName: "pencil")
+								.foregroundStyle(.secondary)
+						}
 					}
 				}
 				Section("Category") {
@@ -308,17 +309,44 @@ struct GroceryItemCard: View {
 					}
 				}
 			}
-			.navigationTitle(item.name)
+			.navigationTitle(itemName)
 			.navigationBarTitleDisplayMode(.inline)
 			.toolbar {
 				ToolbarItem(placement: .topBarTrailing) {
-					Button("Done") { showItemSheet = false }
+					Button("Done") {
+						saveName()
+						showItemSheet = false
+					}
 				}
 			}
 		}
+		.alert("Rename Item", isPresented: $isRenameAlertPresented) {
+			TextField("New name", text: $renameInput)
+				.autocorrectionDisabled()
+				.onSubmit {
+					saveName()
+					isRenameAlertPresented = false
+				}
+			Button("Rename", action: saveName)
+				.disabled(renameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+			Button("Cancel", role: .cancel) {
+				renameInput = itemName
+			}
+		} message: {
+			Text("Enter a new name for this item.")
+		}
 		.presentationDetents([.medium])
 		.presentationDragIndicator(.visible)
-		.onAppear { model.renameItemName = item.name }
+		.onAppear { itemName = item.name }
+	}
+
+	private func saveName() {
+		let trimmedName = renameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmedName.isEmpty, trimmedName != itemName else { return }
+
+		model.updateGroceryItem(item: item, field: .name(trimmedName))
+		itemName = trimmedName
+		renameInput = trimmedName
 	}
 }
 
