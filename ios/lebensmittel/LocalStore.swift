@@ -174,7 +174,7 @@ final class LocalGroceryItem {
 	/// Converts to the shared GroceryItem DTO used by views.
 	func toGroceryItem() -> GroceryItem {
 		GroceryItem(
-			id: localID.uuidString,
+			id: localID,
 			name: name,
 			category: category,
 			isNeeded: isNeeded,
@@ -223,7 +223,7 @@ final class LocalMealPlan {
 	/// Converts to the shared MealPlan DTO used by views.
 	func toMealPlan() -> MealPlan {
 		MealPlan(
-			id: localID.uuidString,
+			id: localID,
 			date: date,
 			mealDescription: mealDescription,
 			groupId: groupId
@@ -276,7 +276,7 @@ final class LocalReceipt {
 	/// Converts to the shared Receipt DTO used by views.
 	func toReceipt() -> Receipt {
 		Receipt(
-			id: localID.uuidString,
+			id: localID,
 			date: date,
 			totalAmount: totalAmount,
 			purchasedBy: purchasedBy,
@@ -339,7 +339,7 @@ final class SyncOperation {
 /// Common lifecycle contract for a local SwiftData entity and its wire DTO.
 /// Conformance lives in extensions below, so each model keeps its own fields.
 protocol LocalEntity: PersistentModel {
-	associatedtype DTO: Codable & Identifiable where DTO.ID == String
+	associatedtype DTO: Codable & Identifiable where DTO.ID == UUID
 	var localID: UUID { get set }
 	var syncStatus: SyncStatus { get set }
 	var groupId: String { get set }
@@ -352,7 +352,7 @@ extension LocalGroceryItem: LocalEntity {
 	func toDTO() -> GroceryItem { toGroceryItem() }
 
 	static func make(from dto: GroceryItem, syncStatus: SyncStatus) -> LocalGroceryItem? {
-		guard let localID = UUID(uuidString: dto.id) else { return nil }
+		let localID = dto.id
 		return LocalGroceryItem(
 			localID: localID,
 			syncStatus: syncStatus,
@@ -369,7 +369,7 @@ extension LocalMealPlan: LocalEntity {
 	func toDTO() -> MealPlan { toMealPlan() }
 
 	static func make(from dto: MealPlan, syncStatus: SyncStatus) -> LocalMealPlan? {
-		guard let localID = UUID(uuidString: dto.id) else { return nil }
+		let localID = dto.id
 		return LocalMealPlan(
 			localID: localID,
 			syncStatus: syncStatus,
@@ -384,7 +384,7 @@ extension LocalReceipt: LocalEntity {
 	func toDTO() -> Receipt { toReceipt() }
 
 	static func make(from dto: Receipt, syncStatus: SyncStatus) -> LocalReceipt? {
-		guard let localID = UUID(uuidString: dto.id) else { return nil }
+		let localID = dto.id
 		return LocalReceipt(
 			localID: localID,
 			syncStatus: syncStatus,
@@ -403,14 +403,14 @@ extension LocalReceipt: LocalEntity {
 /// instances (grocery / meal / receipt) differ only in configuration.
 @MainActor
 final class EntityStore<DTO, Local>
-where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.DTO == DTO {
+where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO == DTO {
 
 	private let entityType: SyncEntityType
 	private let modelContext: ModelContext
 	private let makeCreatePayload: (Local) -> Data
 	private let createRemote: (Data) async throws -> DTO
-	private let updateRemote: (String, Data) async throws -> Void
-	private let deleteRemote: (String) async throws -> Void
+	private let updateRemote: (UUID, Data) async throws -> Void
+	private let deleteRemote: (UUID) async throws -> Void
 	private let onMutate: () -> Void
 
 	init(
@@ -418,8 +418,8 @@ where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.D
 		modelContext: ModelContext,
 		makeCreatePayload: @escaping (Local) -> Data,
 		createRemote: @escaping (Data) async throws -> DTO,
-		updateRemote: @escaping (String, Data) async throws -> Void,
-		deleteRemote: @escaping (String) async throws -> Void,
+		updateRemote: @escaping (UUID, Data) async throws -> Void,
+		deleteRemote: @escaping (UUID) async throws -> Void,
 		onMutate: @escaping () -> Void
 	) {
 		self.entityType = entityType
@@ -448,8 +448,8 @@ where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.D
 	}
 
 	@discardableResult
-	func enqueueUpdate(id: String, mutate: (Local) -> Void, patch: Data) -> DTO? {
-		guard let uuid = UUID(uuidString: id), let local = find(localID: uuid) else { return nil }
+	func enqueueUpdate(id: UUID, mutate: (Local) -> Void, patch: Data) -> DTO? {
+		guard let local = find(localID: id) else { return nil }
 		mutate(local)
 		if local.syncStatus == .pendingCreate {
 			// Pending-create: just update local fields. processCreate regenerates
@@ -462,8 +462,8 @@ where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.D
 		return local.toDTO()
 	}
 
-	func enqueueDelete(id: String) {
-		guard let uuid = UUID(uuidString: id), let local = find(localID: uuid) else { return }
+	func enqueueDelete(id: UUID) {
+		guard let local = find(localID: id) else { return }
 		if local.syncStatus == .pendingCreate {
 			cancelOps(for: local.localID)
 			modelContext.delete(local)
@@ -504,13 +504,13 @@ where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.D
 	}
 
 	private func processUpdate(_ op: SyncOperation) async throws {
-		try await updateRemote(op.localID.uuidString, op.payload)
+		try await updateRemote(op.localID, op.payload)
 		find(localID: op.localID)?.syncStatus = .synced
 		try? modelContext.save()
 	}
 
 	private func processDelete(_ op: SyncOperation) async throws {
-		try await deleteRemote(op.localID.uuidString)
+		try await deleteRemote(op.localID)
 		find(localID: op.localID).map { modelContext.delete($0) }
 		try? modelContext.save()
 	}
@@ -529,8 +529,8 @@ where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.D
 
 	/// Applies a row the server no longer has, under the same echo rule.
 	@discardableResult
-	func applyServerDelete(id: String) -> Bool {
-		guard let uuid = UUID(uuidString: id), let local = find(localID: uuid),
+	func applyServerDelete(id: UUID) -> Bool {
+		guard let local = find(localID: id),
 			local.syncStatus == .synced
 		else { return false }
 		modelContext.delete(local)
@@ -541,7 +541,7 @@ where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.D
 	/// Writes the server's copy of one row: updates the local row, unless this
 	/// device has pending changes for it, otherwise inserts it.
 	private func storeServerCopy(of dto: DTO) -> Bool {
-		guard let localID = UUID(uuidString: dto.id) else { return false }
+		let localID = dto.id
 		if let local = find(localID: localID) {
 			guard local.syncStatus == .synced else { return false }
 			local.applyServerValues(dto)
@@ -562,7 +562,7 @@ where DTO: Codable & Identifiable, DTO.ID == String, Local: LocalEntity, Local.D
 		}
 
 		// delete rows the server no longer has
-		let serverUUIDs = Set(items.compactMap { UUID(uuidString: $0.id) })
+		let serverUUIDs = Set(items.map(\.id))
 		for local in loadAllLocal() where local.syncStatus == .synced {
 			if local.groupId == groupID || local.groupId.isEmpty,
 				!serverUUIDs.contains(local.localID)

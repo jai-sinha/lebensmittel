@@ -22,7 +22,7 @@ class MealsModel {
 		return mealPlans[dateString]?.mealDescription ?? ""
 	}
 
-	func mealPlanId(for dateString: String) -> String? {
+	func mealPlanId(for dateString: String) -> UUID? {
 		return mealPlans[dateString]?.id
 	}
 
@@ -37,7 +37,7 @@ class MealsModel {
 		mealPlans[plan.date] = plan
 	}
 
-	func removeMealPlan(withId id: String) {
+	func removeMealPlan(withId id: UUID) {
 		if let key = mealPlans.first(where: { $0.value.id == id })?.key {
 			mealPlans.removeValue(forKey: key)
 		}
@@ -80,7 +80,7 @@ class MealsModel {
 		}
 	}
 
-	func deleteMealPlan(mealId: String) {
+	func deleteMealPlan(mealId: UUID) {
 		errorMessage = nil
 		syncEngine.enqueueMealDelete(mealID: mealId)
 		removeMealPlan(withId: mealId)

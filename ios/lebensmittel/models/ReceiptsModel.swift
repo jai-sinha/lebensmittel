@@ -36,7 +36,7 @@ class ReceiptsModel {
 		}
 	}
 
-	func deleteReceipt(withId id: String) {
+	func deleteReceipt(withId id: UUID) {
 		receipts.removeAll { $0.id == id }
 	}
 
@@ -75,7 +75,7 @@ class ReceiptsModel {
 		}
 	}
 
-	func deleteReceipt(receiptId: String) {
+	func deleteReceipt(receiptId: UUID) {
 		errorMessage = nil
 		syncEngine.enqueueReceiptDelete(receiptID: receiptId)
 		deleteReceipt(withId: receiptId)

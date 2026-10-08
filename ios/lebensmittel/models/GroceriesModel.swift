@@ -108,7 +108,7 @@ class GroceriesModel {
 		}
 	}
 
-	func removeItem(withId id: String) {
+	func removeItem(withId id: UUID) {
 		groceryItems.removeAll { $0.id == id }
 	}
 

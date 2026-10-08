@@ -23,12 +23,12 @@ struct GroceriesService: GroceriesServicing {
 	}
 
 	func updateGroceryItem(
-		id: String,
+		id: UUID,
 		isNeeded: Bool,
 		isShoppingChecked: Bool
 	) async throws {
 		try await client.sendWithoutResponse(
-			path: "/grocery-items/\(id)",
+			path: "/grocery-items/\(id.uuidString.lowercased())",
 			method: .PATCH,
 			body: GroceryItemUpdatePayload(
 				isNeeded: isNeeded,
@@ -37,9 +37,9 @@ struct GroceriesService: GroceriesServicing {
 		)
 	}
 
-	func deleteGroceryItem(id: String) async throws {
+	func deleteGroceryItem(id: UUID) async throws {
 		try await client.sendWithoutResponse(
-			path: "/grocery-items/\(id)",
+			path: "/grocery-items/\(id.uuidString.lowercased())",
 			method: .DELETE
 		)
 	}

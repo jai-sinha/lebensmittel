@@ -25,7 +25,7 @@ struct ShoppingService: ShoppingServicing {
 			path: "/receipts",
 			method: .POST,
 			body: NewReceipt(
-				id: UUID().uuidString,
+				id: UUID(),
 				date: date,
 				totalAmount: price,
 				purchasedBy: purchasedBy,

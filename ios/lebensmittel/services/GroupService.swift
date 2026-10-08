@@ -58,7 +58,7 @@ struct GroupService: GroupServicing {
 			body: GroupSeedRequest(
 				grocery: GroupSeed.starterGroceries.map {
 					NewGroceryItem(
-						id: UUID().uuidString,
+						id: UUID(),
 						name: $0.name,
 						category: $0.category,
 						isNeeded: false
@@ -66,13 +66,13 @@ struct GroupService: GroupServicing {
 				},
 				meal: [
 					NewMealPlan(
-						id: UUID().uuidString,
+						id: UUID(),
 						date: today,
 						mealDescription: "Example Meal"
 					)
 				],
 				receipt: NewReceipt(
-					id: UUID().uuidString,
+					id: UUID(),
 					date: today,
 					totalAmount: 42.67,
 					purchasedBy: "Default",

@@ -23,13 +23,13 @@ struct ReceiptsService: ReceiptsServicing {
 	}
 
 	func updateReceipt(
-		id: String,
+		id: UUID,
 		price: Double,
 		purchasedBy: String,
 		notes: String
 	) async throws {
 		try await client.sendWithoutResponse(
-			path: "/receipts/\(id)",
+			path: "/receipts/\(id.uuidString.lowercased())",
 			method: .PATCH,
 			body: ReceiptUpdatePayload(
 				totalAmount: price,
@@ -39,9 +39,9 @@ struct ReceiptsService: ReceiptsServicing {
 		)
 	}
 
-	func deleteReceipt(id: String) async throws {
+	func deleteReceipt(id: UUID) async throws {
 		try await client.sendWithoutResponse(
-			path: "/receipts/\(id)",
+			path: "/receipts/\(id.uuidString.lowercased())",
 			method: .DELETE
 		)
 	}

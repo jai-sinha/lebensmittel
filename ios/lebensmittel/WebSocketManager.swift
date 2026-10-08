@@ -292,8 +292,8 @@ final class SocketService: WebSocketDelegate {
 			}
 
 		case "grocery_item_deleted":
-			if let id = (payload as? [String: Any])?["id"] as? String {
-				SyncEngine.shared.applyServerDelete(type: .grocery, id: id)
+			if let id = (payload as? [String: Any])?["id"] as? String, let uuid = UUID(uuidString: id) {
+				SyncEngine.shared.applyServerDelete(type: .grocery, id: uuid)
 			}
 
 		// MARK: Meal Plan Events
@@ -304,8 +304,8 @@ final class SocketService: WebSocketDelegate {
 			}
 
 		case "meal_plan_deleted":
-			if let id = (payload as? [String: Any])?["id"] as? String {
-				SyncEngine.shared.applyServerDelete(type: .meal, id: id)
+			if let id = (payload as? [String: Any])?["id"] as? String, let uuid = UUID(uuidString: id) {
+				SyncEngine.shared.applyServerDelete(type: .meal, id: uuid)
 			}
 
 		// MARK: Receipt Events
@@ -316,8 +316,8 @@ final class SocketService: WebSocketDelegate {
 			}
 
 		case "receipt_deleted":
-			if let id = (payload as? [String: Any])?["id"] as? String {
-				SyncEngine.shared.applyServerDelete(type: .receipt, id: id)
+			if let id = (payload as? [String: Any])?["id"] as? String, let uuid = UUID(uuidString: id) {
+				SyncEngine.shared.applyServerDelete(type: .receipt, id: uuid)
 			}
 
 		default:

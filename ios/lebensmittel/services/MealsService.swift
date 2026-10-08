@@ -22,17 +22,17 @@ struct MealsService: MealsServicing {
 		)
 	}
 
-	func updateMealPlan(id: String, mealDescription: String) async throws {
+	func updateMealPlan(id: UUID, mealDescription: String) async throws {
 		try await client.sendWithoutResponse(
-			path: "/meal-plans/\(id)",
+			path: "/meal-plans/\(id.uuidString.lowercased())",
 			method: .PATCH,
 			body: ["mealDescription": mealDescription]
 		)
 	}
 
-	func deleteMealPlan(id: String) async throws {
+	func deleteMealPlan(id: UUID) async throws {
 		try await client.sendWithoutResponse(
-			path: "/meal-plans/\(id)",
+			path: "/meal-plans/\(id.uuidString.lowercased())",
 			method: .DELETE
 		)
 	}

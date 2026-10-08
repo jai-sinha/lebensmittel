@@ -10,28 +10,28 @@ import Foundation
 protocol GroceriesServicing: Sendable {
 	func createGroceryItem(_ item: NewGroceryItem) async throws -> GroceryItem
 	func updateGroceryItem(
-		id: String,
+		id: UUID,
 		isNeeded: Bool,
 		isShoppingChecked: Bool
 	) async throws
-	func deleteGroceryItem(id: String) async throws
+	func deleteGroceryItem(id: UUID) async throws
 }
 
 protocol MealsServicing: Sendable {
 	func createMealPlan(_ plan: NewMealPlan) async throws -> MealPlan
-	func updateMealPlan(id: String, mealDescription: String) async throws
-	func deleteMealPlan(id: String) async throws
+	func updateMealPlan(id: UUID, mealDescription: String) async throws
+	func deleteMealPlan(id: UUID) async throws
 }
 
 protocol ReceiptsServicing: Sendable {
 	func createReceipt(_ receipt: NewReceipt) async throws -> Receipt
 	func updateReceipt(
-		id: String,
+		id: UUID,
 		price: Double,
 		purchasedBy: String,
 		notes: String
 	) async throws
-	func deleteReceipt(id: String) async throws
+	func deleteReceipt(id: UUID) async throws
 }
 
 protocol ShoppingServicing: Sendable {

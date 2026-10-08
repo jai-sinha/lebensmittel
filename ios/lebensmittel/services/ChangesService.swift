@@ -38,7 +38,7 @@ struct ChangesResponse: Codable {
 }
 
 struct DeletedIDs: Codable {
-	let grocery: [String]
-	let meal: [String]
-	let receipt: [String]
+	let grocery: [UUID]
+	let meal: [UUID]
+	let receipt: [UUID]
 }

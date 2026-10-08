@@ -76,7 +76,7 @@ final class SyncEngine {
 			makeCreatePayload: { local in
 				Self.encode(
 					NewGroceryItem(
-						id: local.localID.uuidString,
+						id: local.localID,
 						name: local.name,
 						category: local.category,
 						isNeeded: local.isNeeded,
@@ -107,7 +107,7 @@ final class SyncEngine {
 			makeCreatePayload: { local in
 				Self.encode(
 					NewMealPlan(
-						id: local.localID.uuidString,
+						id: local.localID,
 						date: local.date,
 						mealDescription: local.mealDescription
 					))
@@ -132,7 +132,7 @@ final class SyncEngine {
 			makeCreatePayload: { local in
 				Self.encode(
 					NewReceipt(
-						id: local.localID.uuidString,
+						id: local.localID,
 						date: local.date,
 						totalAmount: local.totalAmount,
 						purchasedBy: local.purchasedBy,
@@ -265,7 +265,7 @@ final class SyncEngine {
 	/// isNeeded is being toggled, matching the current backend behavior).
 	@discardableResult
 	func enqueueGroceryUpdate(
-		itemID: String,
+		itemID: UUID,
 		isNeeded: Bool,
 		isShoppingChecked: Bool
 	) -> GroceryItem? {
@@ -280,7 +280,7 @@ final class SyncEngine {
 			))
 	}
 
-	func enqueueGroceryDelete(itemID: String) {
+	func enqueueGroceryDelete(itemID: UUID) {
 		groceryStore?.enqueueDelete(id: itemID)
 	}
 
@@ -298,7 +298,7 @@ final class SyncEngine {
 
 	@discardableResult
 	func enqueueMealUpdate(
-		mealID: String,
+		mealID: UUID,
 		mealDescription: String
 	) -> MealPlan? {
 		mealStore?.enqueueUpdate(
@@ -309,7 +309,7 @@ final class SyncEngine {
 			patch: Self.encode(MealPatchPayload(mealDescription: mealDescription)))
 	}
 
-	func enqueueMealDelete(mealID: String) {
+	func enqueueMealDelete(mealID: UUID) {
 		mealStore?.enqueueDelete(id: mealID)
 	}
 
@@ -333,7 +333,7 @@ final class SyncEngine {
 
 		guard let groceryStore, let receiptStore else {
 			return Receipt(
-				id: UUID().uuidString, date: date,
+				id: UUID(), date: date,
 				totalAmount: totalAmount, purchasedBy: purchasedBy,
 				items: itemNames, notes: notes,
 				groupId: activeGroupID
@@ -360,7 +360,7 @@ final class SyncEngine {
 
 	@discardableResult
 	func enqueueReceiptUpdate(
-		receiptID: String,
+		receiptID: UUID,
 		totalAmount: Double,
 		purchasedBy: String,
 		notes: String
@@ -380,7 +380,7 @@ final class SyncEngine {
 				)))
 	}
 
-	func enqueueReceiptDelete(receiptID: String) {
+	func enqueueReceiptDelete(receiptID: UUID) {
 		receiptStore?.enqueueDelete(id: receiptID)
 	}
 
@@ -402,7 +402,7 @@ final class SyncEngine {
 		receiptsModel?.addReceipt(receipt)
 	}
 
-	func applyServerDelete(type: SyncEntityType, id: String) {
+	func applyServerDelete(type: SyncEntityType, id: UUID) {
 		switch type {
 		case .grocery:
 			guard groceryStore?.applyServerDelete(id: id) == true else { return }

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ReceiptsView: View {
 	@Environment(ReceiptsModel.self) var model
-	@State private var expandedReceiptIDs: Set<String> = []
+	@State private var expandedReceiptIDs: Set<UUID> = []
 	@State private var expandedMonths: Set<String> = []
 	// Edit sheet state
 	@State private var showEditSheet = false
@@ -117,7 +117,7 @@ struct ReceiptsView: View {
 struct MonthGroup: View {
 	let group: MonthlyReceiptsGroup
 	@Binding var expandedMonths: Set<String>
-	@Binding var expandedReceiptIDs: Set<String>
+	@Binding var expandedReceiptIDs: Set<UUID>
 	@Binding var showEditSheet: Bool
 	@Binding var selectedReceipt: Receipt?
 	@Binding var editCost: String
@@ -184,7 +184,7 @@ struct MonthGroup: View {
 
 struct ReceiptRow: View {
 	let receipt: Receipt
-	@Binding var expandedReceiptIDs: Set<String>
+	@Binding var expandedReceiptIDs: Set<UUID>
 	@Binding var showEditSheet: Bool
 	@Binding var selectedReceipt: Receipt?
 	@Binding var editCost: String

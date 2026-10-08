@@ -10,7 +10,7 @@ import Foundation
 // MARK: Receipts
 
 nonisolated struct Receipt: Identifiable, Codable, Sendable {
-	var id: String
+	var id: UUID
 	var date: String
 	var totalAmount: Double
 	var purchasedBy: String
@@ -20,7 +20,7 @@ nonisolated struct Receipt: Identifiable, Codable, Sendable {
 }
 
 struct NewReceipt: Codable {
-	var id: String
+	var id: UUID
 	var date: String
 	var totalAmount: Double
 	var purchasedBy: String
@@ -38,7 +38,7 @@ struct MonthlyReceiptsGroup: Identifiable {
 // MARK: Grocery Items
 
 nonisolated struct GroceryItem: Identifiable, Codable, Sendable {
-	var id: String
+	var id: UUID
 	var name: String
 	var category: String
 	var isNeeded: Bool = true  // true = need to buy, false = have it
@@ -47,7 +47,7 @@ nonisolated struct GroceryItem: Identifiable, Codable, Sendable {
 }
 
 struct NewGroceryItem: Codable {
-	var id: String
+	var id: UUID
 	var name: String
 	var category: String
 	var isNeeded: Bool = true
@@ -57,14 +57,14 @@ struct NewGroceryItem: Codable {
 // MARK: Meal Plans
 
 nonisolated struct MealPlan: Identifiable, Codable, Equatable, Sendable {
-	var id: String
+	var id: UUID
 	var date: String
 	var mealDescription: String
 	var groupId: String
 }
 
 struct NewMealPlan: Codable {
-	var id: String
+	var id: UUID
 	var date: String
 	var mealDescription: String
 }
