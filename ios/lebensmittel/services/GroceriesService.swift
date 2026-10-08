@@ -7,12 +7,10 @@
 
 import Foundation
 
-struct GroceriesService: GroceriesServicing {
-	private let client: APIClient
+struct GroceriesService {
+	static let shared = GroceriesService()
 
-	init(client: APIClient = .shared) {
-		self.client = client
-	}
+	private var client: APIClient { .shared }
 
 	func createGroceryItem(_ item: NewGroceryItem) async throws -> GroceryItem {
 		return try await client.send(

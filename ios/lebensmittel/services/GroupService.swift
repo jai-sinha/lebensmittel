@@ -7,8 +7,8 @@
 
 import Foundation
 
-struct GroupService: GroupServicing {
-	static let shared = GroupService(client: .shared)
+struct GroupService {
+	static let shared = GroupService()
 
 	private struct CreateGroupRequest: Encodable {
 		let name: String
@@ -26,11 +26,7 @@ struct GroupService: GroupServicing {
 		let receipt: NewReceipt?
 	}
 
-	private let client: APIClient
-
-	nonisolated init(client: APIClient) {
-		self.client = client
-	}
+	private var client: APIClient { .shared }
 
 	func fetchGroup(id: String) async throws -> AuthGroup {
 		let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)

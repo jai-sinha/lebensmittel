@@ -13,10 +13,7 @@ import SwiftData
 @MainActor
 @Observable
 final class GroupModel {
-	static let shared = GroupModel(
-		service: GroupService(client: .shared),
-		keychain: KeychainService()
-	)
+	static let shared = GroupModel()
 
 	private struct LegacyUser: Codable, Sendable {
 		let id: String
@@ -24,9 +21,7 @@ final class GroupModel {
 		let displayName: String
 	}
 
-	private let service: any GroupServicing
-	private let keychain: KeychainService
-	private let store: GroupStore
+	private let keychain = KeychainService()
 	private let userKey = "user"
 
 	var activeGroupId: String?
@@ -45,18 +40,8 @@ final class GroupModel {
 			?? AuthGroup(id: activeGroupId, name: activeGroupId)
 	}
 
-	init(
-		service: any GroupServicing,
-		keychain: KeychainService,
-		store: GroupStore = .shared
-	) {
-		self.service = service
-		self.keychain = keychain
-		self.store = store
-	}
-
 	func configure(modelContext: ModelContext) {
-		store.configure(modelContext: modelContext)
+		GroupStore.shared.configure(modelContext: modelContext)
 		loadPersistedStateIfNeeded()
 	}
 
@@ -103,7 +88,7 @@ final class GroupModel {
 	}
 
 	func fetchGroup(id: String) async throws {
-		let group = try await service.fetchGroup(id: id)
+		let group = try await GroupService.shared.fetchGroup(id: id)
 		setActiveGroup(group.id)
 		upsertKnownGroup(group)
 		persistState()
@@ -113,7 +98,7 @@ final class GroupModel {
 		loadPersistedStateIfNeeded()
 		guard let activeGroupId else { return nil }
 
-		let group = try await service.fetchGroup(id: activeGroupId)
+		let group = try await GroupService.shared.fetchGroup(id: activeGroupId)
 		upsertKnownGroup(group)
 		persistState()
 		return group
@@ -128,11 +113,11 @@ final class GroupModel {
 		guard !trimmed.isEmpty else { return }
 
 		do {
-			let group = try await service.createGroup(name: trimmed)
+			let group = try await GroupService.shared.createGroup(name: trimmed)
 			setActiveGroup(group.id)
 			upsertKnownGroup(group)
 			persistState()
-			try await service.seedGroup(id: group.id)
+			try await GroupService.shared.seedGroup(id: group.id)
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -148,7 +133,7 @@ final class GroupModel {
 
 		do {
 			try await applyGroupUpdate {
-				try await service.renameGroup(id: id, name: trimmed)
+				try await GroupService.shared.renameGroup(id: id, name: trimmed)
 			}
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
@@ -157,13 +142,13 @@ final class GroupModel {
 
 	func updateGroupCategories(id: String, categories: [String]) async throws -> AuthGroup {
 		try await applyGroupUpdate {
-			try await service.updateGroupCategories(id: id, categories: categories)
+			try await GroupService.shared.updateGroupCategories(id: id, categories: categories)
 		}
 	}
 
 	func updateGroupMembers(id: String, members: [String]) async throws -> AuthGroup {
 		try await applyGroupUpdate {
-			try await service.updateGroupMembers(id: id, members: members)
+			try await GroupService.shared.updateGroupMembers(id: id, members: members)
 		}
 	}
 
@@ -220,7 +205,7 @@ final class GroupModel {
 		}
 
 		do {
-			_ = try await kind.update(service: service, id: activeGroup.id, values: updatedValues)
+			_ = try await kind.update(id: activeGroup.id, values: updatedValues)
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -237,7 +222,7 @@ final class GroupModel {
 		updatedValues.remove(at: index)
 
 		do {
-			_ = try await kind.update(service: service, id: activeGroup.id, values: updatedValues)
+			_ = try await kind.update(id: activeGroup.id, values: updatedValues)
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -251,7 +236,7 @@ final class GroupModel {
 
 		do {
 			try await applyGroupUpdate {
-				try await service.updateGroupCategories(id: activeGroup.id, categories: categories)
+				try await GroupService.shared.updateGroupCategories(id: activeGroup.id, categories: categories)
 			}
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
@@ -270,7 +255,7 @@ final class GroupModel {
 		setActiveGroup(trimmed)
 
 		do {
-			let group = try await service.fetchGroup(id: trimmed)
+			let group = try await GroupService.shared.fetchGroup(id: trimmed)
 			upsertKnownGroup(group)
 			persistState()
 		} catch {
@@ -298,7 +283,7 @@ final class GroupModel {
 
 	func migrateLegacyGroupIfNeeded() async {
 		loadPersistedStateIfNeeded()
-		guard !store.legacyGroupMigrationCompleted else { return }
+		guard !GroupStore.shared.legacyGroupMigrationCompleted else { return }
 
 		guard let user = try? keychain.read(LegacyUser.self, forKey: userKey) else {
 			persistState(legacyGroupMigrationCompleted: true)
@@ -306,11 +291,11 @@ final class GroupModel {
 		}
 
 		do {
-			let groupIDs = try await service.fetchLegacyGroups(for: user.id)
+			let groupIDs = try await GroupService.shared.fetchLegacyGroups(for: user.id)
 			var recoveredGroups: [AuthGroup] = []
 
 			for groupID in groupIDs {
-				if let group = try? await service.fetchGroup(id: groupID) {
+				if let group = try? await GroupService.shared.fetchGroup(id: groupID) {
 					recoveredGroups.append(group)
 				} else {
 					recoveredGroups.append(AuthGroup(id: groupID, name: groupID))
@@ -336,15 +321,15 @@ final class GroupModel {
 
 	private func loadPersistedStateIfNeeded() {
 		guard !didLoadPersistedState else { return }
-		let snapshot = store.loadSnapshot()
+		let snapshot = GroupStore.shared.loadSnapshot()
 		activeGroupId = snapshot.activeGroupId
 		knownGroups = snapshot.knownGroups
 		didLoadPersistedState = true
 	}
 
 	private func persistState(legacyGroupMigrationCompleted: Bool? = nil) {
-		let completed = legacyGroupMigrationCompleted ?? store.legacyGroupMigrationCompleted
-		store.save(
+		let completed = legacyGroupMigrationCompleted ?? GroupStore.shared.legacyGroupMigrationCompleted
+		GroupStore.shared.save(
 			activeGroupId: activeGroupId,
 			knownGroups: knownGroups,
 			legacyGroupMigrationCompleted: completed
@@ -409,10 +394,10 @@ enum GroupItemKind: String, Sendable {
 		}
 	}
 
-	func update(service: any GroupServicing, id: String, values: [String]) async throws -> AuthGroup {
+	func update(id: String, values: [String]) async throws -> AuthGroup {
 		switch self {
-		case .category: try await service.updateGroupCategories(id: id, categories: values)
-		case .member: try await service.updateGroupMembers(id: id, members: values)
+		case .category: try await GroupService.shared.updateGroupCategories(id: id, categories: values)
+		case .member: try await GroupService.shared.updateGroupMembers(id: id, members: values)
 		}
 	}
 }

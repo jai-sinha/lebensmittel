@@ -8,16 +8,10 @@
 import Foundation
 
 /// Fetches the server-originated changes for the active group
-protocol ChangesServicing: Sendable {
-	func fetchChanges(afterSeq: Int64?) async throws -> ChangesResponse
-}
+struct ChangesService {
+	static let shared = ChangesService()
 
-struct ChangesService: ChangesServicing {
-	private let client: APIClient
-
-	init(client: APIClient = .shared) {
-		self.client = client
-	}
+	private var client: APIClient { .shared }
 
 	func fetchChanges(afterSeq: Int64?) async throws -> ChangesResponse {
 		return try await client.send(

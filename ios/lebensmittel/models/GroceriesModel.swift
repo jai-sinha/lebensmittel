@@ -12,10 +12,10 @@ import SwiftUI
 @MainActor
 @Observable
 class GroceriesModel {
-	private let groupModel: GroupModel
+	static let shared = GroceriesModel()
 
 	var categories: [String] {
-		groupModel.activeGroup?.categories ?? []
+		GroupModel.shared.activeGroup?.categories ?? []
 	}
 
 	enum GroceryItemField {
@@ -24,8 +24,6 @@ class GroceriesModel {
 		case category(String)
 		case name(String)
 	}
-
-	private let syncEngine: SyncEngine
 
 	var groceryItems: [GroceryItem] = []
 	var isLoading = false
@@ -45,14 +43,6 @@ class GroceriesModel {
 	var expandedCategories: Set<String> = []
 	var isSearching: Bool {
 		!newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-	}
-
-	init(
-		groupModel: GroupModel = .shared,
-		syncEngine: SyncEngine = .shared
-	) {
-		self.groupModel = groupModel
-		self.syncEngine = syncEngine
 	}
 
 	// MARK: Computed properties and helpers
@@ -138,7 +128,7 @@ class GroceriesModel {
 		defer { isLoading = false }
 
 		do {
-			try await syncEngine.reconcile(forceSnapshot: true)
+			try await SyncEngine.shared.reconcile(forceSnapshot: true)
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -146,7 +136,7 @@ class GroceriesModel {
 
 	func createGroceryItem(name: String, category: String) {
 		errorMessage = nil
-		let created = syncEngine.enqueueGroceryCreate(name: name, category: category)
+		let created = SyncEngine.shared.enqueueGroceryCreate(name: name, category: category)
 		groceryItems.append(created)
 		if created.name.caseInsensitiveCompare(
 			newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -176,7 +166,7 @@ class GroceriesModel {
 		}
 
 		guard
-			let updated = syncEngine.enqueueGroceryUpdate(
+			let updated = SyncEngine.shared.enqueueGroceryUpdate(
 				itemID: item.id,
 				isNeeded: isNeeded,
 				isShoppingChecked: isShoppingChecked,
@@ -195,7 +185,7 @@ class GroceriesModel {
 
 	func deleteGroceryItem(item: GroceryItem) {
 		errorMessage = nil
-		syncEngine.enqueueGroceryDelete(itemID: item.id)
+		SyncEngine.shared.enqueueGroceryDelete(itemID: item.id)
 		removeItem(withId: item.id)
 	}
 }

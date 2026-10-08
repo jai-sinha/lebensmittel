@@ -10,15 +10,11 @@ import Foundation
 @MainActor
 @Observable
 class ReceiptsModel {
-	private let syncEngine: SyncEngine
+	static let shared = ReceiptsModel()
 
 	var receipts: [Receipt] = []
 	var isLoading = false
 	var errorMessage: String? = nil
-
-	init(syncEngine: SyncEngine = .shared) {
-		self.syncEngine = syncEngine
-	}
 
 	var currentMonth: String {
 		let monthFormatter = DateFormatter()
@@ -55,7 +51,7 @@ class ReceiptsModel {
 		defer { isLoading = false }
 
 		do {
-			try await syncEngine.reconcile(forceSnapshot: true)
+			try await SyncEngine.shared.reconcile(forceSnapshot: true)
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -63,7 +59,7 @@ class ReceiptsModel {
 
 	func updateReceipt(receipt: Receipt, price: Double, purchasedBy: String, notes: String) {
 		errorMessage = nil
-		if let updatedReceipt = syncEngine.enqueueReceiptUpdate(
+		if let updatedReceipt = SyncEngine.shared.enqueueReceiptUpdate(
 			receiptID: receipt.id,
 			totalAmount: price,
 			purchasedBy: purchasedBy,
@@ -77,7 +73,7 @@ class ReceiptsModel {
 
 	func deleteReceipt(receiptId: UUID) {
 		errorMessage = nil
-		syncEngine.enqueueReceiptDelete(receiptID: receiptId)
+		SyncEngine.shared.enqueueReceiptDelete(receiptID: receiptId)
 		deleteReceipt(withId: receiptId)
 	}
 

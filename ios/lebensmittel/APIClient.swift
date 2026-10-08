@@ -43,13 +43,11 @@ enum HTTPMethod: String {
 struct APIClient {
 	static let shared = APIClient()
 
-	private let session: URLSession
+	private let session = URLSession.shared
 	private let encoder = JSONEncoder()
 	private let decoder = JSONDecoder()
 
-	nonisolated init(session: URLSession = .shared) {
-		self.session = session
-	}
+	private nonisolated init() {}
 
 	func send<Response: Decodable>(
 		path: String,

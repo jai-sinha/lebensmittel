@@ -10,13 +10,10 @@ import Foundation
 @MainActor
 @Observable
 class MealsModel {
-	private let syncEngine: SyncEngine
+	static let shared = MealsModel()
+
 	var mealPlans: [String: MealPlan] = [:]  // Keyed by date string
 	var errorMessage: String? = nil
-
-	init(syncEngine: SyncEngine = .shared) {
-		self.syncEngine = syncEngine
-	}
 
 	func getMealPlan(for dateString: String) -> String {
 		return mealPlans[dateString]?.mealDescription ?? ""
@@ -58,7 +55,7 @@ class MealsModel {
 		guard ConnectivityMonitor.shared.isOnline else { return }
 
 		do {
-			try await syncEngine.reconcile(forceSnapshot: true)
+			try await SyncEngine.shared.reconcile(forceSnapshot: true)
 		} catch {
 			errorMessage = UserFacingError.message(for: error)
 		}
@@ -66,7 +63,7 @@ class MealsModel {
 
 	func createMealPlan(for dateString: String, meal: String) {
 		errorMessage = nil
-		let createdPlan = syncEngine.enqueueMealCreate(date: dateString, mealDescription: meal)
+		let createdPlan = SyncEngine.shared.enqueueMealCreate(date: dateString, mealDescription: meal)
 		mealPlans[createdPlan.date] = createdPlan
 	}
 
@@ -75,14 +72,14 @@ class MealsModel {
 		if existingPlan.mealDescription == meal { return }
 
 		errorMessage = nil
-		if let updatedPlan = syncEngine.enqueueMealUpdate(mealID: existingPlan.id, mealDescription: meal) {
+		if let updatedPlan = SyncEngine.shared.enqueueMealUpdate(mealID: existingPlan.id, mealDescription: meal) {
 			mealPlans[updatedPlan.date] = updatedPlan
 		}
 	}
 
 	func deleteMealPlan(mealId: UUID) {
 		errorMessage = nil
-		syncEngine.enqueueMealDelete(mealID: mealId)
+		SyncEngine.shared.enqueueMealDelete(mealID: mealId)
 		removeMealPlan(withId: mealId)
 	}
 

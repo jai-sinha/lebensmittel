@@ -7,12 +7,10 @@
 
 import Foundation
 
-struct MealsService: MealsServicing {
-	private let client: APIClient
+struct MealsService {
+	static let shared = MealsService()
 
-	init(client: APIClient = .shared) {
-		self.client = client
-	}
+	private var client: APIClient { .shared }
 
 	func createMealPlan(_ plan: NewMealPlan) async throws -> MealPlan {
 		return try await client.send(

@@ -7,12 +7,10 @@
 
 import Foundation
 
-struct ReceiptsService: ReceiptsServicing {
-	private let client: APIClient
+struct ReceiptsService {
+	static let shared = ReceiptsService()
 
-	init(client: APIClient = .shared) {
-		self.client = client
-	}
+	private var client: APIClient { .shared }
 
 	func createReceipt(_ receipt: NewReceipt) async throws -> Receipt {
 		try await client.send(

@@ -10,21 +10,17 @@ import Foundation
 @MainActor
 @Observable
 class ShoppingModel {
+	static let shared = ShoppingModel(groceriesModel: .shared)
+
 	// Reference to shared GroceriesModel
-	private var groceriesModel: GroceriesModel
-	private let syncEngine: SyncEngine
+	private let groceriesModel: GroceriesModel
 
 	var errorMessage: String? = nil
 
-	init(
-		groceriesModel: GroceriesModel,
-		syncEngine: SyncEngine = .shared
-	) {
+	init(groceriesModel: GroceriesModel) {
 		self.groceriesModel = groceriesModel
-		self.syncEngine = syncEngine
 	}
 
-	// Delegate isLoading to groceriesModel
 	var isLoading: Bool {
 		groceriesModel.isLoading
 	}
@@ -65,7 +61,7 @@ class ShoppingModel {
 		formatter.dateFormat = "yyyy-MM-dd"
 		let dateString = formatter.string(from: Date())
 
-		syncEngine.enqueueReceiptCreate(
+		SyncEngine.shared.enqueueReceiptCreate(
 			date: dateString,
 			totalAmount: price,
 			purchasedBy: purchasedBy,
@@ -73,6 +69,6 @@ class ShoppingModel {
 			checkedItems: checkedItems
 		)
 
-		syncEngine.reloadModels()
+		SyncEngine.shared.reloadModels()
 	}
 }

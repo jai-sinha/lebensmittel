@@ -26,47 +26,25 @@ final class SyncEngine {
 	@MainActor static var verbose = false
 
 	private var modelContext: ModelContext?
-	private var groceriesService: (any GroceriesServicing)?
-	private var mealsService: (any MealsServicing)?
-	private var receiptsService: (any ReceiptsServicing)?
-	private var changesService: (any ChangesServicing)?
 
 	private var groceryStore: EntityStore<GroceryItem, LocalGroceryItem>?
 	private var mealStore: EntityStore<MealPlan, LocalMealPlan>?
 	private var receiptStore: EntityStore<Receipt, LocalReceipt>?
 
-	private var groceriesModel: GroceriesModel?
-	private var mealsModel: MealsModel?
-	private var receiptsModel: ReceiptsModel?
-	private let groupModel: GroupModel
+	private let groceriesModel = GroceriesModel.shared
+	private let mealsModel = MealsModel.shared
+	private let receiptsModel = ReceiptsModel.shared
+	private let groupModel = GroupModel.shared
 
 	private(set) var isSyncing = false
 	private var reconcileTask: Task<Void, Error>?
 
-	private init() {
-		groupModel = .shared
-	}
+	private init() {}
 
 	// MARK: - Configuration
 
-	func configure(
-		modelContext: ModelContext,
-		groceriesService: any GroceriesServicing,
-		mealsService: any MealsServicing,
-		receiptsService: any ReceiptsServicing,
-		groceriesModel: GroceriesModel,
-		mealsModel: MealsModel,
-		receiptsModel: ReceiptsModel,
-		changesService: any ChangesServicing
-	) {
+	func configure(modelContext: ModelContext) {
 		self.modelContext = modelContext
-		self.groceriesService = groceriesService
-		self.mealsService = mealsService
-		self.receiptsService = receiptsService
-		self.changesService = changesService
-		self.groceriesModel = groceriesModel
-		self.mealsModel = mealsModel
-		self.receiptsModel = receiptsModel
 
 		let onMutate: () -> Void = { [weak self] in self?.syncIfNeeded() }
 
@@ -85,11 +63,11 @@ final class SyncEngine {
 			},
 			createRemote: { data in
 				let payload = try JSONDecoder().decode(NewGroceryItem.self, from: data)
-				return try await groceriesService.createGroceryItem(payload)
+				return try await GroceriesService.shared.createGroceryItem(payload)
 			},
 			updateRemote: { id, data in
 				let payload = try JSONDecoder().decode(GroceryPatchPayload.self, from: data)
-				try await groceriesService.updateGroceryItem(
+				try await GroceriesService.shared.updateGroceryItem(
 					id: id,
 					isNeeded: payload.isNeeded,
 					isShoppingChecked: payload.isShoppingChecked,
@@ -98,7 +76,7 @@ final class SyncEngine {
 				)
 			},
 			deleteRemote: { id in
-				try await groceriesService.deleteGroceryItem(id: id)
+				try await GroceriesService.shared.deleteGroceryItem(id: id)
 			},
 			onMutate: onMutate
 		)
@@ -116,14 +94,14 @@ final class SyncEngine {
 			},
 			createRemote: { data in
 				let payload = try JSONDecoder().decode(NewMealPlan.self, from: data)
-				return try await mealsService.createMealPlan(payload)
+				return try await MealsService.shared.createMealPlan(payload)
 			},
 			updateRemote: { id, data in
 				let payload = try JSONDecoder().decode(MealPatchPayload.self, from: data)
-				try await mealsService.updateMealPlan(id: id, mealDescription: payload.mealDescription)
+				try await MealsService.shared.updateMealPlan(id: id, mealDescription: payload.mealDescription)
 			},
 			deleteRemote: { id in
-				try await mealsService.deleteMealPlan(id: id)
+				try await MealsService.shared.deleteMealPlan(id: id)
 			},
 			onMutate: onMutate
 		)
@@ -144,11 +122,11 @@ final class SyncEngine {
 			},
 			createRemote: { data in
 				let payload = try JSONDecoder().decode(NewReceipt.self, from: data)
-				return try await receiptsService.createReceipt(payload)
+				return try await ReceiptsService.shared.createReceipt(payload)
 			},
 			updateRemote: { id, data in
 				let payload = try JSONDecoder().decode(ReceiptPatchPayload.self, from: data)
-				try await receiptsService.updateReceipt(
+				try await ReceiptsService.shared.updateReceipt(
 					id: id,
 					price: payload.totalAmount,
 					purchasedBy: payload.purchasedBy,
@@ -156,7 +134,7 @@ final class SyncEngine {
 				)
 			},
 			deleteRemote: { id in
-				try await receiptsService.deleteReceipt(id: id)
+				try await ReceiptsService.shared.deleteReceipt(id: id)
 			},
 			onMutate: onMutate
 		)
@@ -397,30 +375,30 @@ final class SyncEngine {
 	/// Apply upserts, ignore echoes
 	func applyServerUpsert(_ item: GroceryItem) {
 		guard groceryStore?.applyServerChange(item) == true else { return }
-		groceriesModel?.addItem(item)
+		groceriesModel.addItem(item)
 	}
 
 	func applyServerUpsert(_ plan: MealPlan) {
 		guard mealStore?.applyServerChange(plan) == true else { return }
-		mealsModel?.addMealPlan(plan)
+		mealsModel.addMealPlan(plan)
 	}
 
 	func applyServerUpsert(_ receipt: Receipt) {
 		guard receiptStore?.applyServerChange(receipt) == true else { return }
-		receiptsModel?.addReceipt(receipt)
+		receiptsModel.addReceipt(receipt)
 	}
 
 	func applyServerDelete(type: SyncEntityType, id: UUID) {
 		switch type {
 		case .grocery:
 			guard groceryStore?.applyServerDelete(id: id) == true else { return }
-			groceriesModel?.removeItem(withId: id)
+			groceriesModel.removeItem(withId: id)
 		case .meal:
 			guard mealStore?.applyServerDelete(id: id) == true else { return }
-			mealsModel?.removeMealPlan(withId: id)
+			mealsModel.removeMealPlan(withId: id)
 		case .receipt:
 			guard receiptStore?.applyServerDelete(id: id) == true else { return }
-			receiptsModel?.deleteReceipt(withId: id)
+			receiptsModel.deleteReceipt(withId: id)
 		}
 	}
 
@@ -444,9 +422,7 @@ final class SyncEngine {
 
 	private func performReconcile(forceSnapshot: Bool) async throws {
 		guard let groupID = groupModel.getActiveGroupId() else { return }
-		guard let changesService else { throw SyncError.notConfigured }
-
-		let response = try await changesService.fetchChanges(
+		let response = try await ChangesService.shared.fetchChanges(
 			afterSeq: forceSnapshot ? nil : cursor(for: groupID)
 		)
 
@@ -457,10 +433,10 @@ final class SyncEngine {
 		if response.isFull {
 			// A full set is authoritative: the merge drops the rows it no longer
 			// lists, and the models are replaced with what survives.
-			groceriesModel?.replaceAll(
+			groceriesModel.replaceAll(
 				with: groceryStore?.merge(response.grocery, for: groupID) ?? [])
-			mealsModel?.replaceAll(with: mealStore?.merge(response.meal, for: groupID) ?? [])
-			receiptsModel?.replaceAll(
+			mealsModel.replaceAll(with: mealStore?.merge(response.meal, for: groupID) ?? [])
+			receiptsModel.replaceAll(
 				with: receiptStore?.merge(response.receipt, for: groupID) ?? [])
 		} else {
 			response.grocery.forEach { applyServerUpsert($0) }
@@ -512,9 +488,9 @@ final class SyncEngine {
 
 	/// Republish the local store into the feature models, for when it changed locally
 	func reloadModels() {
-		groceriesModel?.replaceAll(with: loadAllGroceryItems())
-		mealsModel?.replaceAll(with: loadAllMealPlans())
-		receiptsModel?.replaceAll(with: loadAllReceipts())
+		groceriesModel.replaceAll(with: loadAllGroceryItems())
+		mealsModel.replaceAll(with: loadAllMealPlans())
+		receiptsModel.replaceAll(with: loadAllReceipts())
 	}
 
 	// MARK: - Payloads

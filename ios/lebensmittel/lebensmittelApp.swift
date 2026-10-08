@@ -11,9 +11,6 @@ import SwiftUI
 @main
 struct lebensmittelApp: App {
 	private let modelContainer: ModelContainer
-	private let groceriesService: GroceriesService
-	private let mealsService: MealsService
-	private let receiptsService: ReceiptsService
 
 	@State private var groceriesModel: GroceriesModel
 	@State private var mealsModel: MealsModel
@@ -37,20 +34,12 @@ struct lebensmittelApp: App {
 			fatalError("Failed to create SwiftData ModelContainer: \(error)")
 		}
 
-		let apiClient = APIClient.shared
-		let groceriesService = GroceriesService(client: apiClient)
-		let mealsService = MealsService(client: apiClient)
-		let receiptsService = ReceiptsService(client: apiClient)
-		self.groceriesService = groceriesService
-		self.mealsService = mealsService
-		self.receiptsService = receiptsService
-
-		let groceries = GroceriesModel()
-		let meals = MealsModel()
-		let receipts = ReceiptsModel()
+		let groceries = GroceriesModel.shared
+		let meals = MealsModel.shared
+		let receipts = ReceiptsModel.shared
 		let group = GroupModel.shared
 		group.configure(modelContext: ModelContext(modelContainer))
-		let shopping = ShoppingModel(groceriesModel: groceries)
+		let shopping = ShoppingModel.shared
 
 		_groceriesModel = State(initialValue: groceries)
 		_mealsModel = State(initialValue: meals)
@@ -58,16 +47,7 @@ struct lebensmittelApp: App {
 		_shoppingModel = State(initialValue: shopping)
 		_groupModel = State(initialValue: group)
 
-		SyncEngine.shared.configure(
-			modelContext: ModelContext(modelContainer),
-			groceriesService: groceriesService,
-			mealsService: mealsService,
-			receiptsService: receiptsService,
-			groceriesModel: groceries,
-			mealsModel: meals,
-			receiptsModel: receipts,
-			changesService: ChangesService(client: apiClient)
-		)
+		SyncEngine.shared.configure(modelContext: ModelContext(modelContainer))
 	}
 
 	private func startSession() {
