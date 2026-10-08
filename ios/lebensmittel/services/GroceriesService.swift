@@ -25,14 +25,18 @@ struct GroceriesService: GroceriesServicing {
 	func updateGroceryItem(
 		id: UUID,
 		isNeeded: Bool,
-		isShoppingChecked: Bool
+		isShoppingChecked: Bool,
+		category: String?,
+		name: String?
 	) async throws {
 		try await client.sendWithoutResponse(
 			path: "/grocery-items/\(id.uuidString.lowercased())",
 			method: .PATCH,
 			body: GroceryItemUpdatePayload(
 				isNeeded: isNeeded,
-				isShoppingChecked: isShoppingChecked
+				isShoppingChecked: isShoppingChecked,
+				category: category,
+				name: name,
 			)
 		)
 	}
@@ -48,4 +52,6 @@ struct GroceriesService: GroceriesServicing {
 private struct GroceryItemUpdatePayload: Encodable {
 	let isNeeded: Bool
 	let isShoppingChecked: Bool
+	let category: String?
+	let name: String?
 }

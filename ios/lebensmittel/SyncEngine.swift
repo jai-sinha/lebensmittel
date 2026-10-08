@@ -92,7 +92,9 @@ final class SyncEngine {
 				try await groceriesService.updateGroceryItem(
 					id: id,
 					isNeeded: payload.isNeeded,
-					isShoppingChecked: payload.isShoppingChecked
+					isShoppingChecked: payload.isShoppingChecked,
+					category: payload.category,
+					name: payload.name
 				)
 			},
 			deleteRemote: { id in
@@ -259,24 +261,30 @@ final class SyncEngine {
 		return groceryStore?.enqueueCreate(local: local) ?? local.toGroceryItem()
 	}
 
-	/// `isNeeded` and `isShoppingChecked` are the desired final values.
-	/// The caller (GroceriesModel) is responsible for deriving them from its
-	/// GroceryItemField enum (e.g. setting isShoppingChecked = false when
-	/// isNeeded is being toggled, matching the current backend behavior).
 	@discardableResult
 	func enqueueGroceryUpdate(
 		itemID: UUID,
 		isNeeded: Bool,
-		isShoppingChecked: Bool
+		isShoppingChecked: Bool,
+		category: String? = nil,
+		name: String? = nil
+
 	) -> GroceryItem? {
 		groceryStore?.enqueueUpdate(
 			id: itemID,
 			mutate: { local in
 				local.isNeeded = isNeeded
 				local.isShoppingChecked = isShoppingChecked
+				if let category { local.category = category }
+				if let name { local.name = name }
 			},
 			patch: Self.encode(
-				GroceryPatchPayload(isNeeded: isNeeded, isShoppingChecked: isShoppingChecked)
+				GroceryPatchPayload(
+					isNeeded: isNeeded,
+					isShoppingChecked: isShoppingChecked,
+					category: category,
+					name: name
+				)
 			))
 	}
 
@@ -514,6 +522,8 @@ final class SyncEngine {
 	private struct GroceryPatchPayload: Codable {
 		let isNeeded: Bool
 		let isShoppingChecked: Bool
+		var category: String? = nil
+		var name: String? = nil
 	}
 
 	private struct MealPatchPayload: Codable {

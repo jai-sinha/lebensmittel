@@ -21,6 +21,8 @@ class GroceriesModel {
 	enum GroceryItemField {
 		case isNeeded(Bool)
 		case isShoppingChecked(Bool)
+		case category(String)
+		case name(String)
 	}
 
 	private let syncEngine: SyncEngine
@@ -29,8 +31,18 @@ class GroceriesModel {
 	var isLoading = false
 	var errorMessage: String? = nil
 	var newItemName: String = ""
-	var searchCategory: String = "Other"
-	var selectedCategory: String = "Essentials"
+	var renameItemName: String = ""
+
+	private var storedSelectedCategory: String = ""
+	var selectedCategory: String {
+		get {
+			categories.contains(storedSelectedCategory)
+				? storedSelectedCategory
+				: categories.first ?? ""
+		}
+		set { storedSelectedCategory = newValue }
+	}
+
 	var expandedCategories: Set<String> = []
 	var isSearching: Bool {
 		!newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -44,7 +56,7 @@ class GroceriesModel {
 		self.syncEngine = syncEngine
 	}
 
-	// MARK: Computed Properties and Helpers
+	// MARK: Computed properties and helpers
 
 	var searchResults: [GroceryItem] {
 		guard !newItemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -85,15 +97,15 @@ class GroceriesModel {
 			return
 		}
 
-		createGroceryItem(name: trimmedName, category: searchCategory)
-		expandedCategories.insert(searchCategory)
+		createGroceryItem(name: trimmedName, category: selectedCategory)
+		expandedCategories.insert(selectedCategory)
 	}
 
 	func selectExistingItem(_ item: GroceryItem) {
 		updateGroceryItem(item: item, field: GroceryItemField.isNeeded(!item.isNeeded))
 	}
 
-	// MARK: UI Update Methods, used for WebSocket updates
+	// MARK: UI update methods
 
 	func addItem(_ item: GroceryItem) {
 		if let index = groceryItems.firstIndex(where: { $0.id == item.id }) {
@@ -116,7 +128,7 @@ class GroceriesModel {
 		groceryItems = items
 	}
 
-	// MARK: CRUD Operations
+	// MARK: CRUD
 
 	func fetchGroceries() async {
 		errorMessage = nil
@@ -144,23 +156,33 @@ class GroceriesModel {
 		}
 	}
 
-	// PATCH method to update either isNeeded or isShoppingChecked
 	func updateGroceryItem(item: GroceryItem, field: GroceryItemField) {
 		errorMessage = nil
 
-		let updatedValues: (isNeeded: Bool, isShoppingChecked: Bool)
+		var isNeeded = item.isNeeded
+		var isShoppingChecked = item.isShoppingChecked
+		var category: String? = nil
+		var name: String? = nil
+
 		switch field {
-		case .isNeeded(let isNeeded):
-			updatedValues = (isNeeded, isNeeded ? false : item.isShoppingChecked)
-		case .isShoppingChecked(let isShoppingChecked):
-			updatedValues = (item.isNeeded, isShoppingChecked)
+		case .isNeeded(let value):
+			isNeeded = value
+			if value { isShoppingChecked = false }
+		case .isShoppingChecked(let value):
+			isShoppingChecked = value
+		case .category(let value):
+			category = value
+		case .name(let value):
+			name = value
 		}
 
 		guard
 			let updated = syncEngine.enqueueGroceryUpdate(
 				itemID: item.id,
-				isNeeded: updatedValues.isNeeded,
-				isShoppingChecked: updatedValues.isShoppingChecked
+				isNeeded: isNeeded,
+				isShoppingChecked: isShoppingChecked,
+				category: category,
+				name: name,
 			)
 		else {
 			errorMessage = "Unable to update grocery item."

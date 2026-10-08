@@ -57,7 +57,7 @@ class ShoppingModel {
 		groceriesModel.updateGroceryItem(item: item, field: field)
 	}
 
-	// MARK: CRUD Operation (just createReceipt)
+	// MARK: CRUD
 
 	func createReceipt(price: Double, purchasedBy: String, notes: String) {
 		errorMessage = nil

@@ -26,7 +26,7 @@ class MealsModel {
 		return mealPlans[dateString]?.id
 	}
 
-	// MARK: UI Update Methods, used for WebSocket updates
+	// MARK: UI update methods
 
 	func addMealPlan(_ plan: MealPlan) {
 		if let existingDate = mealPlans.first(where: { $0.value.id == plan.id })?.key,
@@ -50,7 +50,7 @@ class MealsModel {
 		}
 	}
 
-	// MARK: CRUD Operations
+	// MARK: CRUD
 
 	func fetchMealPlans() async {
 		errorMessage = nil

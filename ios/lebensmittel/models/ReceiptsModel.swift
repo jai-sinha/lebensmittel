@@ -26,7 +26,7 @@ class ReceiptsModel {
 		return monthFormatter.string(from: Date())
 	}
 
-	// MARK: UI Update Methods, used for WebSocket updates
+	// MARK: UI update methods
 
 	func addReceipt(_ receipt: Receipt) {
 		if let index = receipts.firstIndex(where: { $0.id == receipt.id }) {
@@ -44,7 +44,7 @@ class ReceiptsModel {
 		self.receipts = receipts
 	}
 
-	// MARK: CRUD Operations
+	// MARK: CRUD
 
 	func fetchReceipts() async {
 		errorMessage = nil

@@ -138,15 +138,26 @@ struct CategoryPill: View {
 	}
 }
 
+// MARK: - Category Picker
+
+struct CategoryPicker: View {
+	@Environment(GroceriesModel.self) var model
+	@Binding var selection: String
+
+	var body: some View {
+		Picker("Category", selection: $selection) {
+			ForEach(model.categories, id: \.self) { category in
+				Text(category).tag(category)
+			}
+		}
+		.pickerStyle(MenuPickerStyle())
+	}
+}
+
 // MARK: - Items Grid
 
 struct GroceriesGridView: View {
 	@Environment(GroceriesModel.self) var model
-
-	private let columns = [
-		GridItem(.flexible(), spacing: 12),
-		GridItem(.flexible(), spacing: 12),
-	]
 
 	private var items: [GroceryItem] {
 		(model.itemsByCategory[model.selectedCategory] ?? [])
@@ -165,18 +176,24 @@ struct GroceriesGridView: View {
 						.foregroundStyle(.secondary)
 				}
 				.frame(maxWidth: .infinity)
-				.padding(.top, 60)
 			} else {
-				LazyVGrid(columns: columns, spacing: 12) {
-					ForEach(items) { item in
-						GroceryItemCard(item: item)
+				Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+					ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+						if index.isMultiple(of: 2) {
+							GridRow {
+								GroceryItemCard(item: item)
+								if index + 1 < items.count {
+									GroceryItemCard(item: items[index + 1])
+								} else {
+									Color.clear
+								}
+							}
+						}
 					}
 				}
 				.padding(12)
 			}
 		}
-		.scrollDismissesKeyboard(.interactively)
-		// Reset scroll position when the category changes
 		.id(model.selectedCategory)
 	}
 }
@@ -188,10 +205,27 @@ struct GroceryItemCard: View {
 	@Environment(\.colorScheme) var colorScheme
 	let item: GroceryItem
 
-	@State private var showDeleteConfirmation = false
+	@State private var showItemSheet = false
 	@State private var isPressed = false
+	@FocusState private var isNameFieldFocused: Bool
 
 	var body: some View {
+		face
+			.scaleEffect(isPressed ? 0.96 : 1.0)
+			.animation(.easeInOut(duration: 0.15), value: isPressed)
+			.contentShape(Rectangle())
+			.onTapGesture {
+				model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
+			}
+			.onLongPressGesture(
+				minimumDuration: 0.25,
+				perform: handleLongPress,
+				onPressingChanged: handlePressing
+			)
+			.sheet(isPresented: $showItemSheet) { itemSheet }
+	}
+
+	private var face: some View {
 		HStack(spacing: 8) {
 			Text(item.name)
 				.font(.subheadline)
@@ -223,38 +257,68 @@ struct GroceryItemCard: View {
 					lineWidth: 1
 				)
 		)
-		.scaleEffect(isPressed ? 0.96 : 1.0)
-		.animation(.easeInOut(duration: 0.15), value: isPressed)
-		.contentShape(Rectangle())
-		.onTapGesture {
-			model.updateGroceryItem(item: item, field: .isNeeded(!item.isNeeded))
+	}
+
+	private func handleLongPress() {
+		let generator = UIImpactFeedbackGenerator(style: .heavy)
+		generator.impactOccurred()
+		isPressed = false
+		showItemSheet = true
+	}
+
+	private func handlePressing(_ pressing: Bool) {
+		isPressed = pressing
+		if pressing {
+			let generator = UIImpactFeedbackGenerator(style: .light)
+			generator.prepare()
+			generator.impactOccurred()
 		}
-		.onLongPressGesture(
-			minimumDuration: 0.25,
-			perform: {
-				let generator = UIImpactFeedbackGenerator(style: .heavy)
-				generator.impactOccurred()
-				isPressed = false
-				showDeleteConfirmation = true
-			},
-			onPressingChanged: { pressing in
-				isPressed = pressing
-				if pressing {
-					let generator = UIImpactFeedbackGenerator(style: .light)
-					generator.prepare()
-					generator.impactOccurred()
+	}
+
+	private var itemSheet: some View {
+		NavigationStack {
+			List {
+				Section("Name") {
+					TextField(
+						"Rename \(item.name)",
+						text: Binding(
+							get: { model.renameItemName },
+							set: { model.renameItemName = $0 }
+						)
+					)
+					.focused($isNameFieldFocused)
+					.textFieldStyle(RoundedBorderTextFieldStyle())
+					.onSubmit {
+						model.updateGroceryItem(item: item, field: .name(model.renameItemName))
+						model.renameItemName = ""
+					}
+				}
+				Section("Category") {
+					CategoryPicker(selection: Binding(
+						get: { item.category },
+						set: {
+							model.updateGroceryItem(item: item, field: .category($0))
+							model.selectedCategory = $0
+						}
+					))
+				}
+				Section {
+					Button("Delete", role: .destructive) {
+						model.deleteGroceryItem(item: item)
+					}
 				}
 			}
-		)
-		.confirmationDialog(
-			"Delete \"\(item.name)\"?", isPresented: $showDeleteConfirmation,
-			titleVisibility: .visible
-		) {
-			Button("Delete", role: .destructive) {
-				model.deleteGroceryItem(item: item)
+			.navigationTitle(item.name)
+			.navigationBarTitleDisplayMode(.inline)
+			.toolbar {
+				ToolbarItem(placement: .topBarTrailing) {
+					Button("Done") { showItemSheet = false }
+				}
 			}
-			Button("Cancel", role: .cancel) {}
 		}
+		.presentationDetents([.medium])
+		.presentationDragIndicator(.visible)
+		.onAppear { model.renameItemName = item.name }
 	}
 }
 
@@ -270,6 +334,53 @@ struct AddItemSheet: View {
 		model.searchResults.prefix(5)
 	}
 
+	@ViewBuilder
+	private var resultsList: some View {
+		VStack(alignment: .leading, spacing: 0) {
+			ForEach(Array(displayedResults.enumerated()), id: \.element.id) { index, item in
+				Button {
+					model.selectExistingItem(item)
+				} label: {
+					HStack {
+						Image(systemName: item.isNeeded ? "checkmark.square.fill" : "square")
+							.foregroundStyle(item.isNeeded ? .green : .gray)
+						VStack(alignment: .leading) {
+							Text(item.name)
+								.foregroundStyle(.primary)
+							Text(item.category)
+								.font(.caption)
+								.foregroundStyle(.secondary)
+						}
+						Spacer()
+						Text(item.isNeeded ? "Remove from list" : "Add to list")
+							.font(.caption)
+							.foregroundStyle(.blue)
+					}
+					.padding(.horizontal, 16)
+					.padding(.vertical, 10)
+				}
+				.buttonStyle(PlainButtonStyle())
+
+				if index < displayedResults.count - 1 {
+					Divider()
+						.padding(.leading, 16)
+				}
+			}
+		}
+		.background(
+			RoundedRectangle(cornerRadius: 16)
+				.fill(
+					colorScheme == .dark
+						? Color(.tertiarySystemBackground)
+						: Color(.secondarySystemBackground)
+				)
+		)
+		.overlay(
+			RoundedRectangle(cornerRadius: 16)
+				.stroke(Color(.separator).opacity(0.25), lineWidth: 1)
+		)
+	}
+
 	var body: some View {
 		NavigationStack {
 			VStack(alignment: .leading, spacing: 16) {
@@ -277,18 +388,10 @@ struct AddItemSheet: View {
 					Text("Category:")
 						.font(.caption)
 						.foregroundStyle(.secondary)
-					Picker(
-						"Category",
-						selection: Binding(
-							get: { model.searchCategory },
-							set: { model.searchCategory = $0 }
-						)
-					) {
-						ForEach(model.categories, id: \.self) { category in
-							Text(category).tag(category)
-						}
-					}
-					.pickerStyle(MenuPickerStyle())
+					CategoryPicker(selection: Binding(
+						get: { model.selectedCategory },
+						set: { model.selectedCategory = $0 }
+					))
 					.frame(maxWidth: .infinity, alignment: .leading)
 				}
 
@@ -316,49 +419,7 @@ struct AddItemSheet: View {
 					Color.clear.frame(height: 260)
 
 					if model.isSearching && !displayedResults.isEmpty {
-						VStack(alignment: .leading, spacing: 0) {
-							ForEach(Array(displayedResults.enumerated()), id: \.element.id) { index, item in
-								Button {
-									model.selectExistingItem(item)
-								} label: {
-									HStack {
-										Image(systemName: item.isNeeded ? "checkmark.square.fill" : "square")
-											.foregroundStyle(item.isNeeded ? .green : .gray)
-										VStack(alignment: .leading) {
-											Text(item.name)
-												.foregroundStyle(.primary)
-											Text(item.category)
-												.font(.caption)
-												.foregroundStyle(.secondary)
-										}
-										Spacer()
-										Text(item.isNeeded ? "Remove from list" : "Add to list")
-											.font(.caption)
-											.foregroundStyle(.blue)
-									}
-									.padding(.horizontal, 16)
-									.padding(.vertical, 10)
-								}
-								.buttonStyle(PlainButtonStyle())
-
-								if index < displayedResults.count - 1 {
-									Divider()
-										.padding(.leading, 16)
-								}
-							}
-						}
-						.background(
-							RoundedRectangle(cornerRadius: 16)
-								.fill(
-									colorScheme == .dark
-										? Color(.tertiarySystemBackground)
-										: Color(.secondarySystemBackground)
-								)
-						)
-						.overlay(
-							RoundedRectangle(cornerRadius: 16)
-								.stroke(Color(.separator).opacity(0.25), lineWidth: 1)
-						)
+						resultsList
 					}
 				}
 

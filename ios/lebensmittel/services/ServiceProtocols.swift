@@ -12,7 +12,9 @@ protocol GroceriesServicing: Sendable {
 	func updateGroceryItem(
 		id: UUID,
 		isNeeded: Bool,
-		isShoppingChecked: Bool
+		isShoppingChecked: Bool,
+		category: String?,
+		name: String?
 	) async throws
 	func deleteGroceryItem(id: UUID) async throws
 }
