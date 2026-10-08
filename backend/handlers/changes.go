@@ -27,8 +27,7 @@ func GetChanges(c *gin.Context) {
 	c.JSON(http.StatusOK, changes)
 }
 
-// parseAfterSeq reads the client's cursor, if no cursor then return nil, this will be treated as
-// a full fetch request
+// parseAfterSeq reads the client's cursor, if no cursor then return nil, trigger a full fetch
 func parseAfterSeq(c *gin.Context) (*int64, error) {
 	raw := c.Query("afterSeq")
 	if raw == "" {

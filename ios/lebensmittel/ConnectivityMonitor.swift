@@ -8,15 +8,13 @@
 import Foundation
 import Network
 
-/// Observable singleton wrapping NWPathMonitor.
-/// Publishes `isOnline` for use by SyncEngine, SocketService, feature models,
-/// and the app root view (offline banner).
+/// Observable singleton wrapping NWPathMonitor, and publishing isOnline
 @Observable
 @MainActor
 final class ConnectivityMonitor {
 	static let shared = ConnectivityMonitor()
 
-	/// True when the device has a usable network path.
+	/// true when the device has a usable network path.
 	private(set) var isOnline: Bool = true
 
 	private let monitor = NWPathMonitor()
@@ -30,7 +28,7 @@ final class ConnectivityMonitor {
 			}
 		}
 		monitor.start(queue: monitorQueue)
-		// Seed initial state from the current path (available after start).
+		// seed initial state from the current path (available after start)
 		isOnline = monitor.currentPath.status == .satisfied
 	}
 

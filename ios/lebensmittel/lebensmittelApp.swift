@@ -84,7 +84,7 @@ struct lebensmittelApp: App {
 			SyncEngine.shared.syncIfNeeded()
 		} catch {
 			print(error)
-			// Local state is already shown; no further action needed here.
+			// local state is already shown; no further action needed here.
 		}
 	}
 

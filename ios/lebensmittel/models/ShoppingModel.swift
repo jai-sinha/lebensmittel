@@ -12,7 +12,7 @@ import Foundation
 class ShoppingModel {
 	static let shared = ShoppingModel(groceriesModel: .shared)
 
-	// Reference to shared GroceriesModel
+	// reference to shared GroceriesModel
 	private let groceriesModel: GroceriesModel
 
 	var errorMessage: String? = nil
@@ -44,7 +44,7 @@ class ShoppingModel {
 			.sorted { $0.category < $1.category }
 	}
 
-	// Delegate methods to GroceriesModel
+	// delegate methods to GroceriesModel
 	func fetchGroceries() async {
 		await groceriesModel.fetchGroceries()
 	}

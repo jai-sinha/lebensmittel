@@ -10,19 +10,13 @@ import SwiftData
 
 // MARK: - SyncEngine
 
-/// Owns all writes to SwiftData and all outbound network sync.
 /// Feature models call the enqueueXxx methods; SyncEngine handles persistence,
 /// the durable operation queue, conflict resolution, ID remapping, and retries.
-///
-/// The per-entity lifecycle lives in three generic `EntityStore` instances
-/// (grocery / meal / receipt); this shell owns the operation queue drain and
-/// routes each operation to the store for its entity type.
 
 @MainActor
 final class SyncEngine {
 	static let shared = SyncEngine()
 
-	/// Set to true to enable verbose logging — mirrors SocketService.verbose.
 	@MainActor static var verbose = false
 
 	private var modelContext: ModelContext?
@@ -40,8 +34,6 @@ final class SyncEngine {
 	private var reconcileTask: Task<Void, Error>?
 
 	private init() {}
-
-	// MARK: - Configuration
 
 	func configure(modelContext: ModelContext) {
 		self.modelContext = modelContext
@@ -142,8 +134,6 @@ final class SyncEngine {
 		log("Configured")
 	}
 
-	// MARK: - Sync Trigger
-
 	func syncIfNeeded() {
 		guard ConnectivityMonitor.shared.isOnline else {
 			log("Offline, skipping")
@@ -153,8 +143,6 @@ final class SyncEngine {
 			await drainQueue()
 		}
 	}
-
-	// MARK: - Queue Drain
 
 	private func drainQueue() async {
 		guard !isSyncing else { return }
@@ -211,8 +199,6 @@ final class SyncEngine {
 		log("Queue drained")
 	}
 
-	// MARK: - Operation Processing
-
 	private func process(_ op: SyncOperation) async throws {
 		switch op.entityType {
 		case .grocery:
@@ -226,8 +212,6 @@ final class SyncEngine {
 			try await receiptStore.process(op)
 		}
 	}
-
-	// MARK: - Enqueue: Groceries
 
 	@discardableResult
 	func enqueueGroceryCreate(name: String, category: String) -> GroceryItem {
@@ -270,8 +254,6 @@ final class SyncEngine {
 		groceryStore?.enqueueDelete(id: itemID)
 	}
 
-	// MARK: - Enqueue: Meals
-
 	@discardableResult
 	func enqueueMealCreate(date: String, mealDescription: String) -> MealPlan {
 		let local = LocalMealPlan(
@@ -299,13 +281,7 @@ final class SyncEngine {
 		mealStore?.enqueueDelete(id: mealID)
 	}
 
-	// MARK: - Enqueue: Receipts
-
-	/// Replicates the server's receipt-creation transaction locally:
-	/// snapshots the checked items, creates the receipt, resets grocery flags.
-	/// A single SyncOperation with the explicit items list is enqueued;
-	/// no separate PATCH ops are created for the grocery flag resets — the
-	/// server performs those atomically as part of the receipt create transaction.
+	/// replicates the server's receipt-creation transaction locally
 	@discardableResult
 	func enqueueReceiptCreate(
 		date: String,
@@ -370,9 +346,7 @@ final class SyncEngine {
 		receiptStore?.enqueueDelete(id: receiptID)
 	}
 
-	// MARK: - Apply (server-originated changes)
-
-	/// Apply upserts, ignore echoes
+	/// apply upserts, ignore echoes
 	func applyServerUpsert(_ item: GroceryItem) {
 		guard groceryStore?.applyServerChange(item) == true else { return }
 		groceriesModel.addItem(item)
@@ -402,9 +376,7 @@ final class SyncEngine {
 		}
 	}
 
-	// MARK: - Reconcile (cursor-based catch-up)
-
-	/// Bring the local copy up to date with the server for the active group
+	/// bring the local copy up to date with the server for the active group
 	func reconcile(forceSnapshot: Bool = false) async throws {
 		// concurrent calls share a result
 		if let running = reconcileTask {
@@ -426,13 +398,10 @@ final class SyncEngine {
 			afterSeq: forceSnapshot ? nil : cursor(for: groupID)
 		)
 
-		// The group can change while the request is in flight; applying another
-		// group's entities now would show the wrong data on screen.
+		// make sure the groupid is stable
 		guard groupID == groupModel.getActiveGroupId() else { return }
 
 		if response.isFull {
-			// A full set is authoritative: the merge drops the rows it no longer
-			// lists, and the models are replaced with what survives.
 			groceriesModel.replaceAll(
 				with: groceryStore?.merge(response.grocery, for: groupID) ?? [])
 			mealsModel.replaceAll(with: mealStore?.merge(response.meal, for: groupID) ?? [])
@@ -452,8 +421,6 @@ final class SyncEngine {
 		log("Reconciled to seq \(response.nextSeq)")
 	}
 
-	// MARK: - Cursor (per-group sync position)
-
 	private static func cursorKey(for groupID: String) -> String {
 		"syncSeq.\(groupID)"
 	}
@@ -468,9 +435,7 @@ final class SyncEngine {
 		UserDefaults.standard.set(seq, forKey: Self.cursorKey(for: groupID))
 	}
 
-	// MARK: - Load All (offline read path)
-
-	/// Loads the active group's local entities from SwiftData.
+	/// loads the active group's local entities from SwiftData.
 	func loadAllGroceryItems() -> [GroceryItem] {
 		guard let groupID = groupModel.getActiveGroupId() else { return [] }
 		return groceryStore?.loadAll(for: groupID) ?? []
@@ -486,14 +451,12 @@ final class SyncEngine {
 		return receiptStore?.loadAll(for: groupID) ?? []
 	}
 
-	/// Republish the local store into the feature models, for when it changed locally
+	/// republish the local store into the feature models, for when it changed locally
 	func reloadModels() {
 		groceriesModel.replaceAll(with: loadAllGroceryItems())
 		mealsModel.replaceAll(with: loadAllMealPlans())
 		receiptsModel.replaceAll(with: loadAllReceipts())
 	}
-
-	// MARK: - Payloads
 
 	private struct GroceryPatchPayload: Codable {
 		let isNeeded: Bool
@@ -520,8 +483,6 @@ final class SyncEngine {
 		if Self.verbose { print("[SyncEngine] \(msg)") }
 	}
 }
-
-// MARK: - Errors
 
 enum SyncError: LocalizedError {
 	case missingServerID

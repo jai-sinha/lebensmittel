@@ -601,11 +601,7 @@ func UpdateGroup(ctx context.Context, id string, updates map[string]any) (*model
 
 func DeleteGroup(ctx context.Context, groupID string) error {
 	err := withTx(ctx, func(tx pgx.Tx) error {
-		// TODO: i think delete cascades automatically. can we remove this?
 		queries := []string{
-			`DELETE FROM grocery_items WHERE group_id = $1`,
-			`DELETE FROM meal_plans WHERE group_id = $1`,
-			`DELETE FROM receipts WHERE group_id = $1`,
 			`DELETE FROM group_changelog WHERE group_id = $1`,
 			`DELETE FROM groups WHERE id = $1`,
 		}
@@ -615,7 +611,7 @@ func DeleteGroup(ctx context.Context, groupID string) error {
 			if err != nil {
 				return fmt.Errorf("failed to execute query %d: %w", i, err)
 			}
-			// If the last query (deleting the group) affects no rows, return group not found
+			// if group delete affects no rows, return group not found
 			if i == len(queries)-1 && tag.RowsAffected() == 0 {
 				return fmt.Errorf("group not found")
 			}
@@ -629,8 +625,7 @@ func DeleteGroup(ctx context.Context, groupID string) error {
 	return nil
 }
 
-// GetGroupsFromID is a temporary migration helper that reads legacy user-group
-// memberships so old installs can recover their existing groups after auth removal.
+// temporary migration so old installs can recover their existing groups after auth removal
 func GetGroupsFromID(ctx context.Context, id string) ([]string, error) {
 	query := `SELECT group_id FROM user_groups WHERE user_id = $1 ORDER BY group_id`
 	rows, err := db.Query(ctx, query, id)

@@ -62,9 +62,9 @@ struct MealsView: View {
 						}
 					}
 					.onChange(of: model.mealPlans) {
-						// Remove keys from mealTexts that are no longer in mealPlans
+						// remove keys from mealTexts that are no longer in mealPlans
 						mealTexts = mealTexts.filter { model.mealPlans.keys.contains($0.key) }
-						// Update or add descriptions for existing keys
+						// update or add descriptions for existing keys
 						for (date, plan) in model.mealPlans {
 							mealTexts[date] = plan.mealDescription
 						}

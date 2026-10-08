@@ -41,8 +41,8 @@ nonisolated struct GroceryItem: Identifiable, Codable, Sendable {
 	var id: UUID
 	var name: String
 	var category: String
-	var isNeeded: Bool = true  // true = need to buy, false = have it
-	var isShoppingChecked: Bool = false  // checked off in shopping list
+	var isNeeded: Bool = true
+	var isShoppingChecked: Bool = false
 	var groupId: String
 }
 

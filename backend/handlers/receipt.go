@@ -67,7 +67,6 @@ func UpdateReceipt(c *gin.Context) {
 		return
 	}
 
-	// Handle date parsing if provided
 	if dateStr, ok := data["date"].(string); ok {
 		date, err := time.Parse("2006-01-02", dateStr)
 		if err != nil {
@@ -77,7 +76,6 @@ func UpdateReceipt(c *gin.Context) {
 		data["date"] = date
 	}
 
-	// Handle total amount conversion
 	if totalAmount, ok := data["totalAmount"].(float64); ok {
 		data["totalAmount"] = totalAmount
 	} else if totalAmountStr, ok := data["totalAmount"].(string); ok {
@@ -98,7 +96,6 @@ func UpdateReceipt(c *gin.Context) {
 		return
 	}
 
-	// Emit websocket event
 	websocket.EmitEvent("receipt_updated", receipt, receipt.GroupID)
 
 	c.JSON(http.StatusOK, receipt)
@@ -118,7 +115,6 @@ func DeleteReceipt(c *gin.Context) {
 		return
 	}
 
-	// Emit websocket event
 	websocket.EmitEvent("receipt_deleted", gin.H{"id": receiptID}, gid)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Receipt deleted successfully"})

@@ -61,7 +61,6 @@ func UpdateMealPlan(c *gin.Context) {
 		return
 	}
 
-	// Handle date parsing if provided
 	if dateStr, ok := data["date"].(string); ok {
 		date, err := time.Parse("2006-01-02", dateStr)
 		if err != nil {
@@ -83,7 +82,6 @@ func UpdateMealPlan(c *gin.Context) {
 		return
 	}
 
-	// Emit websocket event
 	websocket.EmitEvent("meal_plan_updated", meal, meal.GroupID)
 
 	c.JSON(http.StatusOK, meal)
@@ -103,7 +101,6 @@ func DeleteMealPlan(c *gin.Context) {
 		return
 	}
 
-	// Emit websocket event
 	websocket.EmitEvent("meal_plan_deleted", gin.H{"id": mealID}, gid)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Meal plan deleted successfully"})

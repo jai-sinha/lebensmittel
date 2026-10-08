@@ -24,7 +24,7 @@ func groupID(c *gin.Context) string {
 	return c.GetString(groupIDKey)
 }
 
-// createdOnce writes the retry-aware response for a Create* call
+// write the retry-aware response for a Create* call
 func createdOnce[T any](c *gin.Context, created T, isNew bool, groupID, event string) {
 	if !isNew {
 		// a previous attempt already stored this id, so return the row without re-emitting

@@ -7,11 +7,11 @@
 
 import SwiftUI
 
-/// Main shopping list view, including the checkout sheet.
+/// main shopping list view, including the checkout sheet.
 struct ShoppingView: View {
 	@Environment(ShoppingModel.self) var model
 	@Environment(GroupModel.self) var groupModel
-	// Checkout dialog state
+	// checkout dialog state
 	@State private var showCheckoutSheet = false
 
 	var body: some View {
@@ -42,7 +42,7 @@ List {
 						}
 					}
 					Spacer()
-					// Checkout button
+					// checkout button
 					Button {
 						showCheckoutSheet = true
 					} label: {
@@ -158,7 +158,6 @@ List {
 	}
 }
 
-/// A single row in the shopping list
 struct ShoppingRow: View {
 	let item: GroceryItem
 	let toggleChecked: () -> Void

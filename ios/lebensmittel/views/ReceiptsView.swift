@@ -11,7 +11,7 @@ struct ReceiptsView: View {
 	@Environment(ReceiptsModel.self) var model
 	@State private var expandedReceiptIDs: Set<UUID> = []
 	@State private var expandedMonths: Set<String> = []
-	// Edit sheet state
+	// edit sheet state
 	@State private var showEditSheet = false
 	@State private var selectedReceipt: Receipt? = nil
 	@State private var editCost: String = ""
@@ -97,7 +97,7 @@ struct ReceiptsView: View {
 				}
 			}
 			.onAppear {
-				// Expand only the current month by default
+				// expand only the current month by default
 				expandedMonths = [model.currentMonth]
 			}
 			.sheet(isPresented: $showEditSheet) {
@@ -153,7 +153,7 @@ struct MonthGroup: View {
 						editError: $editError
 					)
 				}
-				// Monthly person totals
+				// monthly person totals
 				VStack(alignment: .leading) {
 					ForEach(group.userTotals.keys.sorted(), id: \.self) { purchaser in
 						HStack {
@@ -250,10 +250,10 @@ struct ReceiptRow: View {
 				}
 			}
 		)
-		// Swipe actions for edit/delete
+		// swipe actions for edit/delete
 		.swipeActions(edge: .trailing) {
 			Button {
-				// Prefill fields and show sheet
+				// prefill fields and show sheet
 				selectedReceipt = receipt
 				editCost = String(format: "%.2f", receipt.totalAmount)
 				editPurchaser = receipt.purchasedBy

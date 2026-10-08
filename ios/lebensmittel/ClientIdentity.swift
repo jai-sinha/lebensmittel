@@ -24,7 +24,7 @@ enum ClientIdentity {
 	}
 }
 
-/// Currencies offered for receipt display, persisted per install.
+/// Currencies offered for receipt display, persisted per install
 enum Currency: String, CaseIterable {
 	case eur = "EUR"
 	case usd = "USD"

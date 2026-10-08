@@ -23,7 +23,7 @@ type MealPlan struct {
 	GroupID         string    `json:"groupId" db:"group_id"`
 }
 
-// MarshalJSON customizes JSON serialization to format date as YYYY-MM-DD
+// with custom JSON serialization to format date as YYYY-MM-DD
 func (m MealPlan) MarshalJSON() ([]byte, error) {
 	type Alias MealPlan
 	return json.Marshal(&struct {
@@ -46,11 +46,10 @@ type Receipt struct {
 	GroupID     string    `json:"groupId" db:"group_id"`
 }
 
-// MarshalJSON customizes JSON serialization for Receipt
 func (r Receipt) MarshalJSON() ([]byte, error) {
 	type Alias Receipt
 
-	// Parse items from JSON string
+	// parse items from JSON string
 	var items []string
 	if r.Items != "" {
 		json.Unmarshal([]byte(r.Items), &items)
@@ -70,7 +69,6 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// SetItems sets the items for a receipt (converts slice to JSON string)
 func (r *Receipt) SetItems(items []string) error {
 	itemsJSON, err := json.Marshal(items)
 	if err != nil {
@@ -81,7 +79,6 @@ func (r *Receipt) SetItems(items []string) error {
 	return nil
 }
 
-// GetItems returns the items as a slice (parses JSON string)
 func (r *Receipt) GetItems() ([]string, error) {
 	var items []string
 	if r.Items == "" {
@@ -91,7 +88,6 @@ func (r *Receipt) GetItems() ([]string, error) {
 	return items, err
 }
 
-// Group represents a shared household or planning group
 type Group struct {
 	ID         string   `json:"id" db:"id"`
 	Name       string   `json:"name" db:"name"`
@@ -99,7 +95,6 @@ type Group struct {
 	Members    []string `json:"members" db:"members"`
 }
 
-// NewGroup creates a new group with a generated UUID
 func NewGroup(name string) *Group {
 	return &Group{
 		ID:         uuid.New().String(),

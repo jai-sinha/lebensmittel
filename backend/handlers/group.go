@@ -180,8 +180,7 @@ func DeleteGroup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Group deleted successfully"})
 }
 
-// GetGroupsFromLegacyUserID is a temporary migration endpoint used to recover
-// group memberships from the legacy user_groups table based on a stored user ID.
+// temporary migration endpoint for group memberships from the legacy user_groups table
 func GetGroupsFromLegacyUserID(c *gin.Context) {
 	userID := strings.TrimSpace(c.Param("user_id"))
 	if userID == "" {

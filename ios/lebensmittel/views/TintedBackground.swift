@@ -7,7 +7,6 @@
 
 import SwiftUI
 
-/// A backdrop colored with a soft wash of a view's accent hue
 struct TintedBackgroundModifier: ViewModifier {
 	let color: Color
 	let darkColor: Color?
@@ -24,12 +23,6 @@ struct TintedBackgroundModifier: ViewModifier {
 }
 
 extension View {
-	/// A soft wash of `color` as the screen backdrop. White content surfaces
-	/// (lists, cards) remain system-colored on top.
-	///
-	/// - Parameter color: the hue to wash across the backdrop in light mode.
-	/// - Parameter extendsSafeArea: when true, the wash runs edge-to-edge
-	///   behind the navigation and tab bars.
 	func tintedBackground(
 		_ color: Color,
 		dark: Color? = nil,

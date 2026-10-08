@@ -14,7 +14,7 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		// Allow connections from any origin (adjust for production)
+		// Allow connections from any origin
 		return true
 	},
 	ReadBufferSize:  1024,
@@ -22,39 +22,35 @@ var upgrader = websocket.Upgrader{
 }
 
 const (
-	// Time allowed to write a message to the peer
+	// time allowed to write a message to the peer
 	writeWait = 10 * time.Second
 
-	// Time allowed to read the next pong message from the peer
+	// time allowed to read the next pong message from the peer
 	pongWait = 15 * time.Second
 
-	// Send pings to peer with this period (must be less than pongWait)
+	// send pings to peer with this period (must be less than pongWait)
 	pingPeriod = (pongWait * 9) / 10
 
-	// Maximum message size allowed from peer
+	// maximum message size allowed from peer
 	maxMessageSize = 512 * 1024
 )
 
-// Client represents a connected WebSocket client
 type Client struct {
 	Conn    *websocket.Conn
 	Groups  map[string]bool // Set of group IDs
 	writeMu sync.Mutex      // Serializes data-frame writes (broadcasts, welcome)
 }
 
-// BroadcastMessage represents a message to be sent to clients
 type BroadcastMessage struct {
 	Data    []byte
 	GroupID string
 }
 
-// Subscription represents a request to subscribe to groups
 type Subscription struct {
 	Client   *websocket.Conn
 	GroupIDs []string
 }
 
-// WebSocketManager manages WebSocket connections
 type WebSocketManager struct {
 	clients    map[*websocket.Conn]*Client
 	groups     map[string]map[*websocket.Conn]bool // groupID -> set of connections
@@ -65,7 +61,6 @@ type WebSocketManager struct {
 	mutex      sync.RWMutex
 }
 
-// NewWebSocketManager creates a new WebSocket manager
 func NewWebSocketManager() *WebSocketManager {
 	return &WebSocketManager{
 		clients:    make(map[*websocket.Conn]*Client),
@@ -77,14 +72,13 @@ func NewWebSocketManager() *WebSocketManager {
 	}
 }
 
-// Run starts the WebSocket manager
 func (manager *WebSocketManager) Run() {
 	for {
 		select {
 		case client := <-manager.register:
 			manager.mutex.Lock()
 			manager.clients[client.Conn] = client
-			// Register to groups
+			// register to groups
 			for groupID := range client.Groups {
 				if _, ok := manager.groups[groupID]; !ok {
 					manager.groups[groupID] = make(map[*websocket.Conn]bool)
@@ -94,7 +88,6 @@ func (manager *WebSocketManager) Run() {
 			manager.mutex.Unlock()
 			log.Printf("Client connected: Groups=%v", client.Groups)
 
-			// Send welcome message
 			welcomeMsg := map[string]any{
 				"event": "connected",
 				"data":  map[string]string{"message": "Connected to Lebensmittel backend"},
@@ -109,9 +102,8 @@ func (manager *WebSocketManager) Run() {
 			manager.mutex.Lock()
 			if client, ok := manager.clients[sub.Client]; ok {
 				for _, groupID := range sub.GroupIDs {
-					// Add to client's group list
+					// map the clients and groups
 					client.Groups[groupID] = true
-					// Add to manager's group map
 					if _, ok := manager.groups[groupID]; !ok {
 						manager.groups[groupID] = make(map[*websocket.Conn]bool)
 					}
@@ -124,7 +116,6 @@ func (manager *WebSocketManager) Run() {
 		case conn := <-manager.unregister:
 			manager.mutex.Lock()
 			if client, ok := manager.clients[conn]; ok {
-				// Remove from all groups
 				for groupID := range client.Groups {
 					if _, ok := manager.groups[groupID]; ok {
 						delete(manager.groups[groupID], conn)
@@ -142,7 +133,7 @@ func (manager *WebSocketManager) Run() {
 		case message := <-manager.broadcast:
 			manager.mutex.RLock()
 
-			// Use a set to avoid sending duplicate messages to the same connection
+			// use a set to avoid sending duplicate messages to the same connection
 			targetConns := make(map[*websocket.Conn]bool)
 
 			if conns, ok := manager.groups[message.GroupID]; ok {
@@ -168,7 +159,7 @@ func (manager *WebSocketManager) Run() {
 	}
 }
 
-// EmitEvent sends an event to connected WebSocket clients, scoped by groupID
+// sends an event to connected WebSocket clients, scoped by groupID
 func (manager *WebSocketManager) EmitEvent(event string, payload any, groupID string) {
 	message := map[string]any{
 		"event": event,
@@ -191,7 +182,6 @@ func (manager *WebSocketManager) EmitEvent(event string, payload any, groupID st
 	}
 }
 
-// HandleWebSocket handles WebSocket connections
 func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -216,7 +206,7 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 		Groups: initialGroups,
 	}
 
-	// Configure connection
+	// configure connection
 	conn.SetReadLimit(maxMessageSize)
 	conn.SetReadDeadline(time.Now().Add(pongWait))
 	conn.SetPongHandler(func(string) error {
@@ -226,12 +216,9 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 
 	manager.register <- client
 
-	// Start ping ticker for keep-alive
 	ticker := time.NewTicker(pingPeriod)
 
-	// Handle outgoing pings — WriteControl is safe for concurrent use
-	// with WriteMessage, unlike WriteMessage which would race with
-	// the broadcast writes in Run().
+	// handle outgoing pings — WriteControl is safe for concurrent use with WriteMessage
 	go func() {
 		defer ticker.Stop()
 		for range ticker.C {
@@ -241,7 +228,7 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 		}
 	}()
 
-	// Handle incoming messages
+	// incoming message handler
 	go func() {
 		defer func() {
 			ticker.Stop()
@@ -260,11 +247,11 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 			if messageType == websocket.TextMessage {
 				var msg map[string]any
 				if err := json.Unmarshal(message, &msg); err == nil {
-					// Handle specific message types
+					// handle specific message types
 					if event, ok := msg["event"].(string); ok {
 						switch event {
 						case "subscribe":
-							// Handle subscription to groups
+							// handle subscriptions
 							if data, ok := msg["data"].(map[string]any); ok {
 								if groupsInterface, ok := data["groups"].([]any); ok {
 									var groupIDs []string
@@ -299,23 +286,21 @@ func (manager *WebSocketManager) HandleWebSocket(c *gin.Context) {
 	}()
 }
 
-// Global WebSocket manager instance
+// global WebSocket manager instance
 var wsManager *WebSocketManager
 
-// InitWebSocketManager initializes the global WebSocket manager
 func InitWebSocketManager() {
 	wsManager = NewWebSocketManager()
 	go wsManager.Run()
 }
 
-// EmitEvent is a helper function to emit events using the global manager
+// helper function to emit events using the global manager
 func EmitEvent(event string, payload any, groupID string) {
 	if wsManager != nil {
 		wsManager.EmitEvent(event, payload, groupID)
 	}
 }
 
-// HandleWebSocket handles WebSocket requests using the global manager
 func HandleWebSocket(c *gin.Context) {
 	if wsManager != nil {
 		wsManager.HandleWebSocket(c)

@@ -14,7 +14,7 @@ struct WebSocketMessage: Codable {
 	let data: AnyCodable
 }
 
-// Helper to encode/decode Any types in JSON
+// helper to encode/decode Any types in JSON
 struct AnyCodable: Codable {
 	let value: Any
 
@@ -88,13 +88,13 @@ final class SocketService: WebSocketDelegate {
 	func start(with groupsModel: GroupModel) {
 		self.groupsModel = groupsModel
 
-		// Prevent double-starting
+		// prevent double-starting
 		if socket != nil { return }
 
 		connect()
 	}
 
-	/// Call from willEnterForeground to guarantee the socket is alive.
+	/// call from willEnterForeground to guarantee the socket is alive.
 	func ensureConnected() {
 		guard ConnectivityMonitor.shared.isOnline else { return }
 		guard groupsModel != nil, !isConnectedForSync else { return }
@@ -126,10 +126,7 @@ final class SocketService: WebSocketDelegate {
 			var request = URLRequest(url: wsURL)
 			request.timeoutInterval = 5
 
-			// Nil the old delegate before releasing the socket.
-			// Without this, its dealloc-triggered .cancelled fires back into
-			// didReceive, setting isConnectedForSync = false and kicking off another
-			// reconnect — creating a churn loop that compounds over time.
+			// nil the old delegate before releasing the socket
 			socket?.delegate = nil
 			socket?.disconnect()
 			socket = nil
@@ -157,8 +154,6 @@ final class SocketService: WebSocketDelegate {
 		connect()
 	}
 
-	// MARK: - WebSocketDelegate
-
 	nonisolated func didReceive(event: WebSocketEvent, client: WebSocketClient) {
 		switch event {
 		case .connected(let headers):
@@ -167,7 +162,7 @@ final class SocketService: WebSocketDelegate {
 				reconnectTask?.cancel()
 				reconnectTask = nil
 				SyncEngine.shared.syncIfNeeded()
-				// Anything missed while disconnected is recovered here.
+				// anything missed while disconnected is recovered here.
 				try? await SyncEngine.shared.reconcile()
 				if Self.verbose { print("WebSocket connected:", headers) }
 			}
@@ -224,8 +219,6 @@ final class SocketService: WebSocketDelegate {
 		isConnectedForSync = false
 	}
 
-	// MARK: - Reconnect
-
 	private func scheduleReconnect() {
 		guard ConnectivityMonitor.shared.isOnline else {
 			if Self.verbose { print("WebSocket: Offline, not scheduling reconnect") }
@@ -245,8 +238,6 @@ final class SocketService: WebSocketDelegate {
 		}
 	}
 
-	// MARK: - Message Handling
-
 	private func handleMessage(_ text: String) {
 		guard let data = text.data(using: .utf8) else { return }
 
@@ -265,7 +256,6 @@ final class SocketService: WebSocketDelegate {
 		case "connected":
 			if Self.verbose { print("Server connected message:", payload) }
 
-		// MARK: Group Events
 		case "group_updated":
 			decode(payload, as: AuthGroup.self) { group in
 				if Self.verbose { print("group updated:", group) }
@@ -278,7 +268,6 @@ final class SocketService: WebSocketDelegate {
 				self.groupsModel.leaveGroup(id: groupID)
 			}
 
-		// MARK: Grocery Item Events
 		case "grocery_item_created", "grocery_item_updated":
 			decode(payload, as: GroceryItem.self) { item in
 				if Self.verbose { print("grocery upsert:", item.id) }
@@ -296,7 +285,6 @@ final class SocketService: WebSocketDelegate {
 				SyncEngine.shared.applyServerDelete(type: .grocery, id: uuid)
 			}
 
-		// MARK: Meal Plan Events
 		case "meal_plan_created", "meal_plan_updated":
 			decode(payload, as: MealPlan.self) { meal in
 				if Self.verbose { print("meal upsert:", meal.id) }
@@ -308,7 +296,6 @@ final class SocketService: WebSocketDelegate {
 				SyncEngine.shared.applyServerDelete(type: .meal, id: uuid)
 			}
 
-		// MARK: Receipt Events
 		case "receipt_created", "receipt_updated":
 			decode(payload, as: Receipt.self) { receipt in
 				if Self.verbose { print("receipt upsert:", receipt.id) }
@@ -336,8 +323,6 @@ final class SocketService: WebSocketDelegate {
 			print("WebSocket decode error:", error, "payload:", payload)
 		}
 	}
-
-	// MARK: - Send
 
 	func send(event: String, data: [String: Any]) {
 		guard isConnectedForSync else {

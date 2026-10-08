@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// Fetches the server-originated changes for the active group
+/// fetches the server-originated changes for the active group
 struct ChangesService {
 	static let shared = ChangesService()
 
@@ -22,7 +22,7 @@ struct ChangesService {
 }
 
 struct ChangesResponse: Codable {
-	/// IsFull means this is a full fetch of everything, vs a delta
+	/// isFull means this is a full fetch of everything, vs a delta
 	let isFull: Bool
 	let nextSeq: Int64
 	let grocery: [GroceryItem]

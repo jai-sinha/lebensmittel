@@ -402,7 +402,7 @@ enum GroupItemKind: String, Sendable {
 	}
 }
 
-/// Temporary keychain service just for the legacy migration logic, will be dropped in a few cycles
+/// temporary keychain service just for the legacy migration logic, will be dropped in a few cycles
 struct KeychainService: Sendable {
 	enum KeychainError: Error {
 		case osStatus(OSStatus)

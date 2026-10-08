@@ -33,7 +33,7 @@ struct GroceriesView: View {
 							.tintedBackground(.yellow, dark: .purple)
 					} else {
 						VStack(spacing: 0) {
-							// Sticky category pills row
+							// sticky category pills row
 							ScrollView(.horizontal, showsIndicators: false) {
 								HStack(spacing: 8) {
 									ForEach(model.categories, id: \.self) { category in

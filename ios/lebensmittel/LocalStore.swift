@@ -171,7 +171,6 @@ final class LocalGroceryItem {
 		self.isShoppingChecked = isShoppingChecked
 	}
 
-	/// Converts to the shared GroceryItem DTO used by views.
 	func toGroceryItem() -> GroceryItem {
 		GroceryItem(
 			id: localID,
@@ -183,7 +182,6 @@ final class LocalGroceryItem {
 		)
 	}
 
-	/// Overwrites mutable fields from a server-fetched GroceryItem and marks as synced.
 	func applyServerValues(_ item: GroceryItem) {
 		name = item.name
 		category = item.category
@@ -202,7 +200,7 @@ final class LocalMealPlan {
 	var syncStatus: SyncStatus
 	var groupId: String = ""
 
-	/// Stored as "yyyy-MM-dd", matching the server wire format.
+	/// Stored as "yyyy-MM-dd", matching the server wire format
 	var date: String
 	var mealDescription: String
 
@@ -220,7 +218,6 @@ final class LocalMealPlan {
 		self.mealDescription = mealDescription
 	}
 
-	/// Converts to the shared MealPlan DTO used by views.
 	func toMealPlan() -> MealPlan {
 		MealPlan(
 			id: localID,
@@ -230,7 +227,6 @@ final class LocalMealPlan {
 		)
 	}
 
-	/// Overwrites mutable fields from a server-fetched MealPlan and marks as synced.
 	func applyServerValues(_ plan: MealPlan) {
 		date = plan.date
 		mealDescription = plan.mealDescription
@@ -273,7 +269,6 @@ final class LocalReceipt {
 		self.notes = notes
 	}
 
-	/// Converts to the shared Receipt DTO used by views.
 	func toReceipt() -> Receipt {
 		Receipt(
 			id: localID,
@@ -286,7 +281,6 @@ final class LocalReceipt {
 		)
 	}
 
-	/// Overwrites mutable fields from a server-fetched Receipt and marks as synced.
 	func applyServerValues(_ receipt: Receipt) {
 		date = receipt.date
 		totalAmount = receipt.totalAmount
@@ -336,8 +330,7 @@ final class SyncOperation {
 
 // MARK: - Generic Entity Store
 
-/// Common lifecycle contract for a local SwiftData entity and its wire DTO.
-/// Conformance lives in extensions below, so each model keeps its own fields.
+/// common lifecycle contract for a local SwiftData entity and its wire DTO
 protocol LocalEntity: PersistentModel {
 	associatedtype DTO: Codable & Identifiable where DTO.ID == UUID
 	var localID: UUID { get set }
@@ -398,9 +391,8 @@ extension LocalReceipt: LocalEntity {
 	}
 }
 
-/// One generic entity store: owns all SwiftData writes, the durable operation
-/// queue, and outbound sync for a single entity type. The three concrete
-/// instances (grocery / meal / receipt) differ only in configuration.
+/// one generic entity store: owns all SwiftData writes, the durable operation
+/// queue, and outbound sync for a single entity type
 @MainActor
 final class EntityStore<DTO, Local>
 where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO == DTO {
@@ -452,8 +444,8 @@ where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO
 		guard let local = find(localID: id) else { return nil }
 		mutate(local)
 		if local.syncStatus == .pendingCreate {
-			// Pending-create: just update local fields. processCreate regenerates
-			// the payload from the current entity state at sync time.
+			// pending-create: just update local fields. processCreate regenerates
+			// the payload from the current entity state at sync time
 			try? modelContext.save()
 		} else {
 			local.syncStatus = .pendingUpdate
@@ -493,8 +485,7 @@ where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO
 
 	private func processCreate(_ op: SyncOperation) async throws {
 		let local = find(localID: op.localID)
-		// Rebuild the payload from current local state so offline edits made
-		// while pending are reflected; fall back to the stored payload.
+		// rebuild the payload from current local state
 		let payload = local.map(makeCreatePayload) ?? op.payload
 		let created = try await createRemote(payload)
 		if let local {
@@ -517,9 +508,7 @@ where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO
 
 	// MARK: - Server-originated changes
 
-	/// Applies the server's copy of one row and reports whether the store took
-	/// it. False means this was an echo of one of this device's own pending
-	/// operations, so in-memory state must be left alone as well.
+	/// applies the server's copy of one row and reports whether the store took it
 	@discardableResult
 	func applyServerChange(_ dto: DTO) -> Bool {
 		let applied = storeServerCopy(of: dto)
@@ -527,7 +516,7 @@ where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO
 		return applied
 	}
 
-	/// Applies a row the server no longer has, under the same echo rule.
+	/// applies a row the server no longer has, under the same echo rule
 	@discardableResult
 	func applyServerDelete(id: UUID) -> Bool {
 		guard let local = find(localID: id),
@@ -538,8 +527,8 @@ where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO
 		return true
 	}
 
-	/// Writes the server's copy of one row: updates the local row, unless this
-	/// device has pending changes for it, otherwise inserts it.
+	/// writes the server's copy of one row: updates the local row, unless this
+	/// device has pending changes for it, otherwise inserts it
 	private func storeServerCopy(of dto: DTO) -> Bool {
 		let localID = dto.id
 		if let local = find(localID: localID) {
@@ -553,8 +542,8 @@ where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO
 
 	// MARK: - Merge (server's full set → reconcile the local store → refreshed array)
 
-	/// Reconciles the local store against the group's full set and returns the
-	/// group's local entities.
+	/// reconcile the local store against the group's full set and returns the
+	/// group's local entities
 	@discardableResult
 	func merge(_ items: [DTO], for groupID: String) -> [DTO] {
 		for item in items {
@@ -577,7 +566,7 @@ where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO
 
 	// MARK: - Load All (offline read path)
 
-	/// Load the active group's local entities
+	/// load the active group's local entities
 	func loadAll(for groupID: String) -> [DTO] {
 		loadAllLocal()
 			.filter { $0.syncStatus != .pendingDelete }
@@ -597,11 +586,10 @@ where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO
 
 	// MARK: - Private Helpers
 
-	/// Creates or replaces the pending update op for a given local entity.
-	/// Replacing prevents queue bloat when the user edits an entity multiple times offline.
+	/// creates or replaces the pending update op for a given local entity
 	private func upsertUpdateOp(for localID: UUID, patch: Data) {
-		// Fetch all ops and filter in memory to avoid predicating on the
-		// SyncOperationType enum property, which SwiftData stores as Codable.
+		// fetch all ops and filter in memory to avoid predicating on the
+		// SyncOperationType enum property, which SwiftData stores as Codable
 		let all = (try? modelContext.fetch(FetchDescriptor<SyncOperation>())) ?? []
 		let existing = all.first { $0.localID == localID && $0.operationType == .update }
 
@@ -621,13 +609,13 @@ where DTO: Codable & Identifiable, DTO.ID == UUID, Local: LocalEntity, Local.DTO
 		persist()
 	}
 
-	/// Deletes all SyncOperations for a given localID (used when purging a pending-create entity).
+	/// deletes all SyncOperations for a given localID (used when purging a pending-create entity)
 	private func cancelOps(for localID: UUID) {
 		let all = (try? modelContext.fetch(FetchDescriptor<SyncOperation>())) ?? []
 		all.filter { $0.localID == localID }.forEach { modelContext.delete($0) }
 	}
 
-	/// Saves to SwiftData and immediately attempts a sync if online.
+	/// save to SwiftData and immediately attempt a sync if online
 	private func persist() {
 		try? modelContext.save()
 		onMutate()

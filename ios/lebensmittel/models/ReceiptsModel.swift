@@ -91,7 +91,7 @@ class ReceiptsModel {
 				groups[month, default: []].append(receipt)
 			}
 		}
-		// Sort months chronologically
+		// sort months chronologically
 		let sortedMonths = groups.keys.sorted { lhs, rhs in
 			monthFormatter.date(from: lhs)! < monthFormatter.date(from: rhs)!
 		}

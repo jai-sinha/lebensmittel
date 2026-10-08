@@ -12,7 +12,7 @@ import Foundation
 class MealsModel {
 	static let shared = MealsModel()
 
-	var mealPlans: [String: MealPlan] = [:]  // Keyed by date string
+	var mealPlans: [String: MealPlan] = [:]  // keyed by date string
 	var errorMessage: String? = nil
 
 	func getMealPlan(for dateString: String) -> String {
@@ -83,9 +83,6 @@ class MealsModel {
 		removeMealPlan(withId: mealId)
 	}
 
-	/// Returns a "yyyy-MM-dd" string representing the user's local calendar date for the given Date.
-	/// Intentionally uses the device's current timezone — NOT UTC — so that "Oct 20" in the UI
-	/// always maps to the string "2025-10-20" regardless of what timezone the user is in.
 	static func calendarDateString(for date: Date) -> String {
 		let formatter = DateFormatter()
 		formatter.dateFormat = "yyyy-MM-dd"
