@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file, to the best
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-A/F/C/R
+___
+## [4.0.0] - wip
+Mega major huge mostly backend changes
+
+### Added
+- Database snapshots for quicker, less data-intensive reconciles across the board
+- Grocery item names and categories are now updatable, so no need to delete and recreate
+- New debug icon for better DX yay
+
+### Fixed
+- ReceiptsView list empty state
+
+### Changed
+- Grocery item create now uses the same category as the main UI
+- New entity ID creation now belongs to the client, instead of the server, same with new group seeding
+- LocalStore entity management is genericized
+- Swift stores entity IDs as UUID, no longer String
+
+### Removed
+- Client IDs introduced in 3.1 for entity creation bugs, now solved via client-created-IDs
 
 ---
 ## [3.2.0] - 2026-08-10

@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-	"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 	<key>API_BASE_URL</key>
@@ -17,16 +16,14 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>WEB_SOCKET_URL</key>
-	<string>$(WEB_SOCKET_SCHEME)://$(API_HOST)/ws</string>
 	<key>UIApplicationSceneManifest</key>
-	<dict />
+	<dict/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true />
+	<true/>
 	<key>UILaunchScreen</key>
-	<dict />
+	<dict/>
 	<key>UIStatusBarStyle</key>
-	<string />
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -38,5 +35,7 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
+	<key>WEB_SOCKET_URL</key>
+	<string>$(WEB_SOCKET_SCHEME)://$(API_HOST)/ws</string>
 </dict>
 </plist>
